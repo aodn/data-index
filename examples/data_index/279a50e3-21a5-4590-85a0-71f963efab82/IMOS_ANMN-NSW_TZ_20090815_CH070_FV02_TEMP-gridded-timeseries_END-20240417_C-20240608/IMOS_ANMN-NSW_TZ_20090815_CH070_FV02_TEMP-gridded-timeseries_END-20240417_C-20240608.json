@@ -4,7 +4,7 @@
   "stac_extensions": [
     "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
   ],
-  "id": "IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc",
+  "id": "IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608",
   "geometry": {
     "type": "Point",
     "coordinates": [
@@ -63,7 +63,6 @@
     "created": "2024-06-08T19:31:58Z",
     "start_datetime": "2009-08-15T00:00:00Z",
     "end_datetime": "2024-04-17T23:00:00Z",
-    "datetime": null,
     "cube:dimensions": {
       "TIME": {
         "type": "temporal",
@@ -157,12 +156,32 @@
         },
         "shape": []
       }
-    }
+    },
+    "datetime": null
   },
-  "links": [],
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.json",
+      "type": "application/json",
+      "title": "AODN Data Index"
+    },
+    {
+      "rel": "collection",
+      "href": "../collection.json",
+      "type": "application/json",
+      "title": "IMOS - Moorings - Gridded time-series product"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json",
+      "title": "IMOS - Moorings - Gridded time-series product"
+    }
+  ],
   "assets": {
     "data": {
-      "href": "./IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc",
+      "href": "s3://imos-data/IMOS/ANMN/NSW/CH070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc",
       "type": "application/netcdf",
       "title": "NetCDF data",
       "roles": [

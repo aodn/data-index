@@ -1,4 +1,5 @@
 numpy
 pandas
 pystac
+smart-open[s3]
 xarray[complete]

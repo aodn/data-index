@@ -1,0 +1,193 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "stac_extensions": [
+    "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
+  ],
+  "id": "IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810",
+  "geometry": {
+    "type": "Point",
+    "coordinates": [
+      150.18929595959239,
+      -36.19065183080416
+    ]
+  },
+  "bbox": [
+    150.18929595959239,
+    -36.19065183080416,
+    150.18929595959239,
+    -36.19065183080416
+  ],
+  "properties": {
+    "Conventions": "CF-1.6,IMOS-1.4",
+    "acknowledgement": "Any users of IMOS data are required to clearly acknowledge the source of the material derived from IMOS in the format: \"Data was sourced from the Integrated Marine Observing System (IMOS) - IMOS is a national collaborative research infrastructure, supported by the Australian Government.\" If relevant, also credit other organisations involved in collection of this particular datastream (as listed in 'credit' in the metadata record).",
+    "author": "Australian Ocean Data Network (AODN)",
+    "author_email": "info@aodn.org.au",
+    "citation": "The citation in a list of references is: \"IMOS [year-of-data-download], [Title], [data-access-URL], accessed [date-of-access].\".",
+    "contributor_email": "mroughan@unsw.edu.au; t.austin@unsw.edu.au; zac.anderson@unsw.edu.au",
+    "contributor_name": "Roughan, Moninya; Austin, Timothy; Anderson, Zachary",
+    "contributor_role": "principal_investigator; author; author",
+    "data_centre": "Australian Ocean Data Network (AODN)",
+    "data_centre_email": "info@aodn.org.au",
+    "disclaimer": "Data, products and services from IMOS are provided \"as is\" without any warranty as to fitness for a particular purpose.",
+    "featureType": "timeSeriesProfile",
+    "file_version": "Level 2 - Derived Products",
+    "file_version_quality_control": "Derived products require scientific and technical interpretation. Normally these will be defined by the community that collects or utilises the data.",
+    "generating_code_version": "1.6.5",
+    "geospatial_lat_max": -36.1892,
+    "geospatial_lat_min": -36.1930333333,
+    "geospatial_lon_max": 150.1916166667,
+    "geospatial_lon_min": 150.1877333333,
+    "geospatial_vertical_max": 70,
+    "geospatial_vertical_min": 10,
+    "history": "2024-08-10T18:44:36Z: Hourly aggregated file created. 2024-08-10T18:51:40Z: Gridded file created.",
+    "included_values_flagged_as": "Good_data, Probably_good_data",
+    "institution_references": "http://imos.org.au/facilities/aodn/",
+    "keywords": "TEMP, DEPTH, HOURLY, GRIDDED",
+    "keywords_vocabulary": "IMOS parameter names. See https://github.com/aodn/imos-toolbox/blob/master/IMOS/imosParameters.txt",
+    "license": "http://creativecommons.org/licenses/by/4.0/",
+    "lineage": "The Variable of Interest (VoI) is produced by sequentially interpolating linearly the individual values at pre-defined target depths using the 1-hour binned data from the Hourly Time Series Product. The number of instruments used for the interpolation at each timestamp is recorded in the VoI_count variable. If less that two instrument readings are present in the timestamp, fill values are stored in all depth bins. The resulting variable has dimensions TIME and DEPTH.  \nThis file was created using https://github.com/aodn/python-aodntools/blob/1.6.5/aodntools/timeseries_products/gridded_timeseries.py",
+    "naming_authority": "IMOS",
+    "project": "Integrated Marine Observing System (IMOS)",
+    "references": "http://www.imos.org.au",
+    "site_code": "BMP070",
+    "source": "Mooring",
+    "source_file": "IMOS/ANMN/NSW/BMP070/hourly_timeseries/IMOS_ANMN-NSW_STZ_20141118_BMP070_FV02_hourly-timeseries_END-20240725_C-20240810.nc",
+    "source_file_download": "https://s3-ap-southeast-2.amazonaws.com/imos-data/IMOS/ANMN/NSW/BMP070/hourly_timeseries/IMOS_ANMN-NSW_STZ_20141118_BMP070_FV02_hourly-timeseries_END-20240725_C-20240810.nc",
+    "source_file_opendap": "http://thredds.aodn.org.au/thredds/dodsC/IMOS/ANMN/NSW/BMP070/hourly_timeseries/IMOS_ANMN-NSW_STZ_20141118_BMP070_FV02_hourly-timeseries_END-20240725_C-20240810.nc",
+    "standard_name_vocabulary": "NetCDF Climate and Forecast (CF) Metadata Convention Standard Name Table 45",
+    "time_coverage_end": "2024-07-25T21:00:00Z",
+    "time_coverage_start": "2014-11-18T22:00:00Z",
+    "title": "Gridded Time Series Product: TEMP interpolated at BMP070 to fixed target depths at 1-hour time intervals, between 2014-11-18T22:00:00Z and 2024-07-25T21:00:00Z and 10 and 70 meters.",
+    "description": "Gridded Time Series Product: This file contains TEMP readings from all instruments deployed at the BMP070 mooring site. The source of the values is the Hourly Time Series Product where TIME is fixed to 1-hour interval. The variable values are interpolated to a fixed target depths using a linear interpolation between consecutive existing depths. Only values flagged as 1 or 2 are used in the interpolation.",
+    "created": "2024-08-10T18:51:40Z",
+    "start_datetime": "2014-11-18T22:00:00Z",
+    "end_datetime": "2024-07-25T21:00:00Z",
+    "cube:dimensions": {
+      "TIME": {
+        "type": "temporal",
+        "extent": [
+          "2014-11-18T22:00:00Z",
+          "2024-07-25T21:00:00Z"
+        ],
+        "description": "time"
+      },
+      "DEPTH": {
+        "type": "spatial",
+        "axis": "z",
+        "extent": [
+          10.0,
+          70.0
+        ],
+        "step": 10.0,
+        "description": "target depth",
+        "unit": "m"
+      }
+    },
+    "cube:variables": {
+      "TEMP": {
+        "dimensions": [
+          "TIME",
+          "DEPTH"
+        ],
+        "type": "data",
+        "description": "sea_water_temperature",
+        "unit": "degrees_Celsius",
+        "attrs": {
+          "long_name": "sea_water_temperature",
+          "standard_name": "sea_water_temperature",
+          "cell_methods": "TIME:median DEPTH: point",
+          "units": "degrees_Celsius",
+          "valid_max": 40.0,
+          "valid_min": -2.5
+        },
+        "shape": [
+          84877,
+          7
+        ]
+      },
+      "TEMP_count": {
+        "dimensions": [
+          "TIME"
+        ],
+        "type": "data",
+        "description": "number of observations in the water column",
+        "unit": "1",
+        "attrs": {
+          "long_name": "number of observations in the water column",
+          "units": "1",
+          "cell_methods": "DEPTH:count"
+        },
+        "shape": [
+          84877
+        ]
+      },
+      "LONGITUDE": {
+        "dimensions": [],
+        "type": "auxiliary",
+        "description": "longitude",
+        "unit": "degrees_east",
+        "attrs": {
+          "axis": "X",
+          "long_name": "longitude",
+          "reference_datum": "WGS84 geographic coordinate system",
+          "standard_name": "longitude",
+          "comment": "mean of all values over time interval",
+          "units": "degrees_east",
+          "valid_max": 180.0,
+          "valid_min": -180.0
+        },
+        "shape": []
+      },
+      "LATITUDE": {
+        "dimensions": [],
+        "type": "auxiliary",
+        "description": "latitude",
+        "unit": "degrees_north",
+        "attrs": {
+          "axis": "Y",
+          "long_name": "latitude",
+          "reference_datum": "WGS84 geographic coordinate system",
+          "standard_name": "latitude",
+          "comment": "mean of all values over time interval",
+          "units": "degrees_north",
+          "valid_max": 90.0,
+          "valid_min": -90.0
+        },
+        "shape": []
+      }
+    },
+    "datetime": null
+  },
+  "links": [
+    {
+      "rel": "root",
+      "href": "../../catalog.json",
+      "type": "application/json",
+      "title": "AODN Data Index"
+    },
+    {
+      "rel": "collection",
+      "href": "../collection.json",
+      "type": "application/json",
+      "title": "IMOS - Moorings - Gridded time-series product"
+    },
+    {
+      "rel": "parent",
+      "href": "../collection.json",
+      "type": "application/json",
+      "title": "IMOS - Moorings - Gridded time-series product"
+    }
+  ],
+  "assets": {
+    "data": {
+      "href": "s3://imos-data/IMOS/ANMN/NSW/BMP070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.nc",
+      "type": "application/netcdf",
+      "title": "NetCDF data",
+      "roles": [
+        "data"
+      ]
+    }
+  },
+  "collection": "279a50e3-21a5-4590-85a0-71f963efab82"
+}

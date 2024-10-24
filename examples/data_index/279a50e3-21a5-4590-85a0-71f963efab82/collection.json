@@ -1,0 +1,66 @@
+{
+  "type": "Collection",
+  "id": "279a50e3-21a5-4590-85a0-71f963efab82",
+  "stac_version": "1.0.0",
+  "description": "Integrated Marine Observing System (IMOS) have moorings across both it's National Mooring Network and Deep Water Moorings facilities. The National Mooring Network facility comprises a series of national reference stations and regional moorings designed to monitor particular oceanographic phenomena in Australian coastal ocean waters. The Deep Water Moorings facility (formerly known as the Australian Bluewater Observing System) provides the coordination of national efforts in the sustained observation of open ocean properties with particular emphasis on observations important to climate and carbon cycle studies, with selected moorings from its Deep Water Array sub-facility providing data to this collection.\n\nThis collection represents the gridded time-series product of temperature observations, binned to one-hour intervals and interpolated to a fixed set of target depths for each IMOS mooring site. Only good-quality measurements (according to the automated quality-control procedures applied by the National Mooring Network) are included.\n\nThe observations were made using a range of temperature loggers, conductivity-temperature-depth (CTD) instruments, water-quality monitors (WQM), and temperature sensors on acoustic Doppler current profilers (ADCPs).",
+  "links": [
+    {
+      "rel": "root",
+      "href": "../catalog.json",
+      "type": "application/json",
+      "title": "AODN Data Index"
+    },
+    {
+      "rel": "item",
+      "href": "./IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "./IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "../catalog.json",
+      "type": "application/json",
+      "title": "AODN Data Index"
+    }
+  ],
+  "title": "IMOS - Moorings - Gridded time-series product",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          150.18929595959239,
+          -36.19065183080416,
+          153.29894541070223,
+          -30.273894324327504
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2009-08-15T00:00:00Z",
+          "2024-07-25T21:00:00Z"
+        ]
+      ]
+    }
+  },
+  "license": "proprietary",
+  "keywords": [
+    "oceanography",
+    "IMOS"
+  ],
+  "providers": [
+    {
+      "name": "IMOS",
+      "roles": [
+        "producer",
+        "licensor"
+      ],
+      "url": "https://imos.org.au/"
+    }
+  ]
+}
