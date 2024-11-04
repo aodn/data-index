@@ -239,6 +239,12 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     # Add the dimensions and variables to the item using datacube extension
     item.ext.cube.apply(dimensions, variables)
 
+
+    # Version extension for tracking changes to the item
+    item.ext.add('version')
+
+    # item.ext.version.deprecated can be set to True if the item is no longer valid
+
     return item
 
 

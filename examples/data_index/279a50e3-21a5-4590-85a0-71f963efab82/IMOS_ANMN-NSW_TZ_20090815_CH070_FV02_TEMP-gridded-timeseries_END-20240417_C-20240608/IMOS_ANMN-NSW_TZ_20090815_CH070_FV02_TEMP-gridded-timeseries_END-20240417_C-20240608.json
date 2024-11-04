@@ -2,7 +2,8 @@
   "type": "Feature",
   "stac_version": "1.0.0",
   "stac_extensions": [
-    "https://stac-extensions.github.io/datacube/v2.2.0/schema.json"
+    "https://stac-extensions.github.io/datacube/v2.2.0/schema.json",
+    "https://stac-extensions.github.io/version/v1.2.0/schema.json"
   ],
   "id": "IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608",
   "geometry": {
