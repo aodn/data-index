@@ -2,7 +2,7 @@
   "type": "Collection",
   "id": "279a50e3-21a5-4590-85a0-71f963efab82",
   "stac_version": "1.0.0",
-  "description": "Integrated Marine Observing System (IMOS) have moorings across both it's National Mooring Network and Deep Water Moorings facilities. The National Mooring Network facility comprises a series of national reference stations and regional moorings designed to monitor particular oceanographic phenomena in Australian coastal ocean waters. The Deep Water Moorings facility (formerly known as the Australian Bluewater Observing System) provides the coordination of national efforts in the sustained observation of open ocean properties with particular emphasis on observations important to climate and carbon cycle studies, with selected moorings from its Deep Water Array sub-facility providing data to this collection.\n\nThis collection represents the gridded time-series product of temperature observations, binned to one-hour intervals and interpolated to a fixed set of target depths for each IMOS mooring site. Only good-quality measurements (according to the automated quality-control procedures applied by the National Mooring Network) are included.\n\nThe observations were made using a range of temperature loggers, conductivity-temperature-depth (CTD) instruments, water-quality monitors (WQM), and temperature sensors on acoustic Doppler current profilers (ADCPs).",
+  "description": null,
   "links": [
     {
       "rel": "root",
@@ -27,7 +27,6 @@
       "title": "AODN Data Index"
     }
   ],
-  "title": "IMOS - Moorings - Gridded time-series product",
   "extent": {
     "spatial": {
       "bbox": [

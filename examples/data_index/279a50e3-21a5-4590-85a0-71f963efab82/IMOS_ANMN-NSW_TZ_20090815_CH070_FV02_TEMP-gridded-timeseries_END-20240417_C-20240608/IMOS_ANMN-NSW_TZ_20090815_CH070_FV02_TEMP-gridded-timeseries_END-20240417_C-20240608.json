@@ -172,14 +172,12 @@
     {
       "rel": "collection",
       "href": "../collection.json",
-      "type": "application/json",
-      "title": "IMOS - Moorings - Gridded time-series product"
+      "type": "application/json"
     },
     {
       "rel": "parent",
       "href": "../collection.json",
-      "type": "application/json",
-      "title": "IMOS - Moorings - Gridded time-series product"
+      "type": "application/json"
     }
   ],
   "assets": {

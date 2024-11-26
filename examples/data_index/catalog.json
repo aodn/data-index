@@ -13,8 +13,7 @@
     {
       "rel": "child",
       "href": "./279a50e3-21a5-4590-85a0-71f963efab82/collection.json",
-      "type": "application/json",
-      "title": "IMOS - Moorings - Gridded time-series product"
+      "type": "application/json"
     }
   ],
   "title": "AODN Data Index"

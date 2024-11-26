@@ -239,12 +239,44 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     # Add the dimensions and variables to the item using datacube extension
     item.ext.cube.apply(dimensions, variables)
 
-
     # Version extension for tracking changes to the item
     item.ext.add('version')
     item.ext.version.apply(version='1', deprecated=False)
 
     return item
+
+
+def save_item(item: pystac.Item, catalog_href: str = 'data_index/catalog.json'):
+    """
+    Save a STAC item to a catalog, updating its collection.
+    Args:
+        item (pystac.Item): The STAC item to be saved.
+        catalog_href (str, optional): The file path to the catalog JSON file. Defaults to 'data_index/catalog.json'.
+    """
+
+    catalog = pystac.Catalog.from_file(catalog_href)
+    # This could be slow for hierarchical catalogs with nested collections
+    collection = catalog.get_child(item.collection_id, recursive=True)
+    if collection is None:
+        collection = collection_from_items([item])
+        catalog.add_child(collection)
+    else:
+        collection.add_item(item)
+        update_collection_extent(collection)
+    logger.info(f'Saving item {item.id} in collection {collection.id}')
+    # Save the updated catalog, skipping untouched files
+    catalog.normalize_and_save(catalog_href, skip_unresolved=True)
+
+
+def update_collection_extent(collection: pystac.Collection):
+    """
+    Update the extent of a collection based on its items.
+    Args:
+        collection (pystac.Collection): The STAC collection to be updated.
+    """
+    # We may need to update this function to handle nested collections
+    items = list(collection.get_all_items())
+    collection.extent = pystac.Extent.from_items(items)
 
 
 def collection_from_items(
@@ -322,7 +354,22 @@ def collection_from_nc_files(
     return collection_from_items(items, *args, **kwargs)
 
 
-def main():
+def get_collection_id(s3_uri: str) -> str:
+    """
+    Get the collection ID for an S3 object.
+    Args:
+        s3_uri (str): An S3 URI.
+    Returns:
+        str: The collection ID.
+    """
+    # TODO: this is just a placeholder, we need to work out how to get the collection ID
+    return '279a50e3-21a5-4590-85a0-71f963efab82'
+
+
+def test_creation_from_collection():
+    """
+    Test creating a catalog building a collection from a set of items.
+    """
     nc_files = [
         's3://imos-data/IMOS/ANMN/NSW/BMP070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.nc',
         's3://imos-data/IMOS/ANMN/NSW/CH070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc',
@@ -349,5 +396,30 @@ The observations were made using a range of temperature loggers, conductivity-te
     )
 
 
+def test_creation_from_items():
+    """
+    Test creating a catalog adding one item at a time.
+    """
+    catalog = pystac.Catalog(
+        id='data_index',
+        description='Index of all AODN data',
+        title='AODN Data Index',
+    )
+    catalog.normalize_and_save(
+        './data_index', catalog_type=pystac.CatalogType.SELF_CONTAINED
+    )
+
+    nc_files = [
+        's3://imos-data/IMOS/ANMN/NSW/BMP070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.nc',
+        's3://imos-data/IMOS/ANMN/NSW/CH070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc',
+    ]
+
+    for nc_file in nc_files:
+        collection_id = get_collection_id(nc_file)
+        item = nc_to_item(nc_file, collection_id)
+        save_item(item)
+
+
+
 if __name__ == '__main__':
-    main()
+    test_creation_from_items()
