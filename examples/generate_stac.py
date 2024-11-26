@@ -242,8 +242,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
 
     # Version extension for tracking changes to the item
     item.ext.add('version')
-
-    # item.ext.version.deprecated can be set to True if the item is no longer valid
+    item.ext.version.apply(version='1', deprecated=False)
 
     return item
 
@@ -293,6 +292,11 @@ def collection_from_items(
     # Add all items to the collection
     for item in items:
         collection.add_item(item)
+
+    # # Compute summary for the collection - we should decide what to summarize
+    # summary_fields = []  # List of fields to compute summaries for
+    # summarizer = pystac.Summarizer(summary_fields)
+    # collection.summaries.update(summarizer.summarize(items))
 
     return collection
 
