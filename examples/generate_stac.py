@@ -1,6 +1,7 @@
 import logging
 from typing import List
 
+import boto3
 import numpy as np
 import pandas as pd
 import pystac
@@ -48,7 +49,8 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     Raises:
     ValueError: If latitude, longitude, or time coordinates are not found in the dataset.
     Notes:
-    - The function extracts spatial (latitude, longitude) and temporal (time) coordinates from the NetCDF file.
+    - Accepts local file paths and S3 URIs.
+    - Extracts spatial (latitude, longitude) and temporal (time) coordinates from the NetCDF file.
     - It creates a GeoJSON geometry and bounding box for the item.
     - The function sets various properties and assets for the STAC item.
     - It uses the DataCube extension to add dimensions and variables to the item.
@@ -246,6 +248,38 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     return item
 
 
+def get_collection_id(s3_uri: str) -> str:
+    """
+    Get the collection ID for an S3 object.
+    Args:
+        s3_uri (str): An S3 URI.
+    Returns:
+        str: The collection ID.
+    """
+    # TODO: this is just a placeholder, we need to work out how to get the collection ID
+    return '279a50e3-21a5-4590-85a0-71f963efab82'
+
+
+def path_to_item(path: str) -> pystac.Item:
+    """
+    Create a STAC item from an S3 path.
+    Args:
+        path (str): The S3 path to the file.
+    Returns:
+        pystac.Item: The STAC item.
+    Raises:
+        ValueError: If the file type is not supported.
+    """
+    collection_id = get_collection_id(path)
+
+    file_type = path.split('.')[-1]
+    match file_type:
+        case 'nc':
+            return nc_to_item(path, collection_id)
+        case _:
+            raise ValueError(f'Unsupported file type: {file_type}')
+
+
 def save_item(item: pystac.Item, catalog_href: str = 'data_index/catalog.json'):
     """
     Save a STAC item to a catalog, updating its collection.
@@ -258,9 +292,15 @@ def save_item(item: pystac.Item, catalog_href: str = 'data_index/catalog.json'):
     # This could be slow for hierarchical catalogs with nested collections
     collection = catalog.get_child(item.collection_id, recursive=True)
     if collection is None:
+        # Collection does not exist, create it
         collection = collection_from_items([item])
         catalog.add_child(collection)
     else:
+        # Check if the item is already in the collection
+        if collection.get_item(item.id) is not None:
+            # Remove the old item before adding the new one
+            # TODO: use versioning extension to deprecate the old item
+            collection.remove_item(item.id)
         collection.add_item(item)
         update_collection_extent(collection)
     logger.info(f'Saving item {item.id} in collection {collection.id}')
@@ -275,6 +315,7 @@ def update_collection_extent(collection: pystac.Collection):
         collection (pystac.Collection): The STAC collection to be updated.
     """
     # We may need to update this function to handle nested collections
+    # Also, this could be slow for collections with many items
     items = list(collection.get_all_items())
     collection.extent = pystac.Extent.from_items(items)
 
@@ -354,16 +395,27 @@ def collection_from_nc_files(
     return collection_from_items(items, *args, **kwargs)
 
 
-def get_collection_id(s3_uri: str) -> str:
+def index_files_from_prefix(
+    prefix: str,
+    bucket: str = 'imos-data',
+    catalog_href: str = 'data_index/catalog.json',
+):
     """
-    Get the collection ID for an S3 object.
+    Index files from an S3 prefix.
     Args:
-        s3_uri (str): An S3 URI.
-    Returns:
-        str: The collection ID.
+        prefix (str): The S3 prefix to index. e.g. 'IMOS/ANMN/NSW'
+        bucket (str, optional): The S3 bucket name. Defaults to 'imos-data'.
+        catalog_href (str, optional): The file path to the catalog JSON file. Defaults to 'data_index/catalog.json'.
     """
-    # TODO: this is just a placeholder, we need to work out how to get the collection ID
-    return '279a50e3-21a5-4590-85a0-71f963efab82'
+
+    s3 = boto3.resource('s3')
+    s3_bucket = s3.Bucket(bucket)
+    for obj in s3_bucket.objects.filter(Prefix=prefix):
+        try:
+            item = path_to_item(f's3://{bucket}/{obj.key}')
+            save_item(item, catalog_href)
+        except ValueError as e:
+            logger.warning(f'Could not index {obj.key}: {e}')
 
 
 def test_creation_from_collection():
@@ -420,6 +472,5 @@ def test_creation_from_items():
         save_item(item)
 
 
-
 if __name__ == '__main__':
-    test_creation_from_items()
+    index_files_from_prefix('IMOS/ANMN/NSW/BMP070/gridded_timeseries/')
