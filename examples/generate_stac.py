@@ -1,11 +1,13 @@
 import logging
+import re
 from typing import List
 
 import boto3
 import numpy as np
 import pandas as pd
 import pystac
-import smart_open
+import requests
+import s3fs
 import xarray as xr
 from pystac.extensions.datacube import Dimension, Variable
 
@@ -41,7 +43,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     """
     Converts a NetCDF file to a STAC Item.
     Parameters:
-    nc_file_path (str): Path to the NetCDF file.
+    nc_file_path (str): Path to the NetCDF file on s3.
     collection (str): The collection ID to which the item belongs.
     item_id (str, optional): The ID of the item. If None, it will be derived from the file name.
     Returns:
@@ -60,190 +62,191 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     if item_id is None:
         item_id = nc_file_path.split('/')[-1].split('.')[0]
 
-    with smart_open.open(nc_file_path, 'rb') as f:
+    fs = s3fs.S3FileSystem(anon=True)
+    with fs.open(nc_file_path, 'rb') as f:
         ds = xr.open_dataset(f)
 
-    # find latitude, longitude and time coordinates
-    lat = None
-    lon = None
-    time = None
-    depth = None
-    for coord in ds.coords:
-        if ds[coord].attrs.get('standard_name') == 'latitude':
-            lat = coord
-        if ds[coord].attrs.get('standard_name') == 'longitude':
-            lon = coord
-        if ds[coord].attrs.get('standard_name') == 'time':
-            time = coord
-        if ds[coord].attrs.get('standard_name') == 'depth':
-            depth = coord
-    if lat is None or lon is None or time is None:
-        raise ValueError('Could not find spatiotemporal coordinates')
+        # find latitude, longitude and time coordinates
+        lat = None
+        lon = None
+        time = None
+        depth = None
+        for coord in ds.coords:
+            if ds[coord].attrs.get('standard_name') == 'latitude':
+                lat = coord
+            if ds[coord].attrs.get('standard_name') == 'longitude':
+                lon = coord
+            if ds[coord].attrs.get('standard_name') == 'time':
+                time = coord
+            if ds[coord].attrs.get('standard_name') == 'depth':
+                depth = coord
+        if lat is None or lon is None or time is None:
+            raise ValueError('Could not find spatiotemporal coordinates')
 
-    # Create geoJSON box geometry
-    bbox = [
-        float(ds[lon].min()),
-        float(ds[lat].min()),
-        float(ds[lon].max()),
-        float(ds[lat].max()),
-    ]
+        # Create geoJSON box geometry
+        bbox = [
+            float(ds[lon].min()),
+            float(ds[lat].min()),
+            float(ds[lon].max()),
+            float(ds[lat].max()),
+        ]
 
-    # TODO: work out 3D geometries
+        # TODO: work out 3D geometries
 
-    if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
-        geometry = dict(type='Point', coordinates=[bbox[0], bbox[1]])
-    else:
-        geometry = dict(
-            type='Polygon',
-            coordinates=[
-                [
-                    [bbox[0], bbox[1]],
-                    [bbox[2], bbox[1]],
-                    [bbox[2], bbox[3]],
-                    [bbox[0], bbox[3]],
-                    [bbox[0], bbox[1]],
-                ]
-            ],
+        if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
+            geometry = dict(type='Point', coordinates=[bbox[0], bbox[1]])
+        else:
+            geometry = dict(
+                type='Polygon',
+                coordinates=[
+                    [
+                        [bbox[0], bbox[1]],
+                        [bbox[2], bbox[1]],
+                        [bbox[2], bbox[3]],
+                        [bbox[0], bbox[3]],
+                        [bbox[0], bbox[1]],
+                    ]
+                ],
+            )
+
+        # We must provide either a single datetime or a start and end datetime
+        start_datetime = pd.to_datetime(ds[time].min().values, utc=True)
+        end_datetime = pd.to_datetime(ds[time].max().values, utc=True)
+        if start_datetime == end_datetime:
+            single_datetime = start_datetime
+            start_datetime = end_datetime = None
+        else:
+            single_datetime = None
+
+        properties = ds.attrs
+        if 'abstract' in properties:
+            # 'description' is the preferred name in STAC
+            # For this we could use 'comment' from CF conventions or 'abstract' (from IMOS conventions?)
+            properties['description'] = properties.pop(
+                'abstract'
+            )  # Should we duplicate it?
+        # 'title' has the same name in CF and STAC
+
+        properties['created'] = ds.attrs.pop('date_created')  # Same question here
+        # This should more properly be the creation date of this STAC item, while the
+        # creation date of the data file should be stored in the asset. If we plan to
+        # keep the items in sync with the data files, setting it here can make it easier
+        # for searching.
+
+        # Other properties we could set:
+        # - 'updated' (a datetime, do we need it?)
+        # - 'deprecated' and related values: may be addressed through the version extension
+        #   https://github.com/stac-extensions/version
+        #   https://github.com/radiantearth/stac-spec/blob/master/best-practices.md#versioning-for-catalogs
+        # - 'provider': should always be IMOS for now, could be useful later
+        #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#provider-object
+        # - 'instrument': designed for satellite data, but could be used for other sensors
+        #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#instrument
+        # - any other metadata that is not already covered by the STAC spec
+
+        assets = (
+            dict()
+        )  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
+        assets['data'] = pystac.Asset(
+            href=f's3://{nc_file_path}',  # We could use a different URI if we process the file locally
+            media_type='application/netcdf',
+            title='NetCDF data',
+            # other standard roles are "thumbnail", "overview", "metadata"
+            roles=['data'],
         )
 
-    # We must provide either a single datetime or a start and end datetime
-    start_datetime = pd.to_datetime(ds[time].min().values, utc=True)
-    end_datetime = pd.to_datetime(ds[time].max().values, utc=True)
-    if start_datetime == end_datetime:
-        single_datetime = start_datetime
-        start_datetime = end_datetime = None
-    else:
-        single_datetime = None
+        # Create base item without any extensions
+        item = pystac.Item(
+            id=item_id,
+            geometry=geometry,
+            bbox=bbox,
+            datetime=single_datetime,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            properties=json_type_conversion(properties),
+            assets=assets,
+            collection=collection,
+        )
 
-    properties = ds.attrs
-    if 'abstract' in properties:
-        # 'description' is the preferred name in STAC
-        # For this we could use 'comment' from CF conventions or 'abstract' (from IMOS conventions?)
-        properties['description'] = properties.pop(
-            'abstract'
-        )  # Should we duplicate it?
-    # 'title' has the same name in CF and STAC
+        # DataCube extension for netcdf/zarr attributes and variables
+        item.ext.add('cube')
 
-    properties['created'] = ds.attrs.pop('date_created')  # Same question here
-    # This should more properly be the creation date of this STAC item, while the
-    # creation date of the data file should be stored in the asset. If we plan to
-    # keep the items in sync with the data files, setting it here can make it easier
-    # for searching.
+        dimensions = dict()
 
-    # Other properties we could set:
-    # - 'updated' (a datetime, do we need it?)
-    # - 'deprecated' and related values: may be addressed through the version extension
-    #   https://github.com/stac-extensions/version
-    #   https://github.com/radiantearth/stac-spec/blob/master/best-practices.md#versioning-for-catalogs
-    # - 'provider': should always be IMOS for now, could be useful later
-    #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#provider-object
-    # - 'instrument': designed for satellite data, but could be used for other sensors
-    #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#instrument
-    # - any other metadata that is not already covered by the STAC spec
-
-    assets = (
-        dict()
-    )  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
-    assets['data'] = pystac.Asset(
-        href=nc_file_path,  # We could use a different URI if we process the file locally
-        media_type='application/netcdf',
-        title='NetCDF data',
-        # other standard roles are "thumbnail", "overview", "metadata"
-        roles=['data'],
-    )
-
-    # Create base item without any extensions
-    item = pystac.Item(
-        id=item_id,
-        geometry=geometry,
-        bbox=bbox,
-        datetime=single_datetime,
-        start_datetime=start_datetime,
-        end_datetime=end_datetime,
-        properties=json_type_conversion(properties),
-        assets=assets,
-        collection=collection,
-    )
-
-    # DataCube extension for netcdf/zarr attributes and variables
-    item.ext.add('cube')
-
-    dimensions = dict()
-
-    for dim in ds.dims:
-        dim_info = dict()
-        if dim == time:
-            dim_info['type'] = 'temporal'
-        elif dim == lon:
-            dim_info['type'] = 'spatial'
-            dim_info['axis'] = 'x'
-        elif dim == lat:
-            dim_info['type'] = 'spatial'
-            dim_info['axis'] = 'y'
-        elif dim == depth:
-            dim_info['type'] = 'spatial'
-            dim_info['axis'] = 'z'
-        else:
-            dim_info['type'] = 'other'
-
-        # TODO: work out CRS information. Could use projection extension.
-        # if dim_info['type'] == 'spatial':
-        #     dim_info['reference_system'] = epsg
-
-        dim_info['extent'] = [ds[dim].min().values, ds[dim].max().values]
-
-        delta = ds[dim].diff(dim)
-        if len(delta) > 1 and (delta[0] == delta[1:]).all():
-            if dim_info['type'] == 'temporal':
-                dim_info['step'] = pd.to_timedelta(delta[0].values).isoformat()
+        for dim in ds.dims:
+            dim_info = dict()
+            if dim == time:
+                dim_info['type'] = 'temporal'
+            elif dim == lon:
+                dim_info['type'] = 'spatial'
+                dim_info['axis'] = 'x'
+            elif dim == lat:
+                dim_info['type'] = 'spatial'
+                dim_info['axis'] = 'y'
+            elif dim == depth:
+                dim_info['type'] = 'spatial'
+                dim_info['axis'] = 'z'
             else:
-                dim_info['step'] = delta[0].values
+                dim_info['type'] = 'other'
 
-        # Check for monotonic dimensions, not part of the indexing but could be easy to do here
-        # increasing = (ds[dim][1:] >= ds[dim][:-1]).all()
-        # decreasing = (ds[dim][1:] <= ds[dim][:-1]).all()
-        # assert increasing or decreasing, f"Dimension '{dim}' is not monotonic"
+            # TODO: work out CRS information. Could use projection extension.
+            # if dim_info['type'] == 'spatial':
+            #     dim_info['reference_system'] = epsg
 
-        description = ds[dim].attrs.get('long_name') or ds[dim].attrs.get('description')
-        if description:
-            dim_info['description'] = description
+            dim_info['extent'] = [ds[dim].min().values, ds[dim].max().values]
 
-        unit = ds[dim].attrs.get('units') or ds[dim].attrs.get('unit')
-        if unit:
-            dim_info['unit'] = unit
+            delta = ds[dim].diff(dim)
+            if len(delta) > 1 and (delta[0] == delta[1:]).all():
+                if dim_info['type'] == 'temporal':
+                    dim_info['step'] = pd.to_timedelta(delta[0].values).isoformat()
+                else:
+                    dim_info['step'] = delta[0].values
 
-        dimensions[dim] = Dimension(json_type_conversion(dim_info))
+            # Check for monotonic dimensions, not part of the indexing but could be easy to do here
+            # increasing = (ds[dim][1:] >= ds[dim][:-1]).all()
+            # decreasing = (ds[dim][1:] <= ds[dim][:-1]).all()
+            # assert increasing or decreasing, f"Dimension '{dim}' is not monotonic"
 
-    variables = dict()
+            description = ds[dim].attrs.get('long_name') or ds[dim].attrs.get('description')
+            if description:
+                dim_info['description'] = description
 
-    all_vars = list(ds.data_vars) + [c for c in ds.coords if c not in ds.dims]
-    for var in all_vars:
-        var_info = dict()
-        var_info['dimensions'] = list(ds[var].dims)
-        if var in ds.coords:
-            var_info['type'] = 'auxiliary'
-        else:
-            var_info['type'] = 'data'
+            unit = ds[dim].attrs.get('units') or ds[dim].attrs.get('unit')
+            if unit:
+                dim_info['unit'] = unit
 
-        description = ds[var].attrs.get('description') or ds[var].attrs.get('long_name')
-        if description:
-            var_info['description'] = description
+            dimensions[dim] = Dimension(json_type_conversion(dim_info))
 
-        unit = ds[var].attrs.get('units') or ds[var].attrs.get('unit')
-        if unit:
-            var_info['unit'] = unit
+        variables = dict()
 
-        var_info['attrs'] = ds[var].attrs
-        var_info['shape'] = list(ds[var].shape)
+        all_vars = list(ds.data_vars) + [c for c in ds.coords if c not in ds.dims]
+        for var in all_vars:
+            var_info = dict()
+            var_info['dimensions'] = list(ds[var].dims)
+            if var in ds.coords:
+                var_info['type'] = 'auxiliary'
+            else:
+                var_info['type'] = 'data'
 
-        variables[var] = Variable(json_type_conversion(var_info))
+            description = ds[var].attrs.get('description') or ds[var].attrs.get('long_name')
+            if description:
+                var_info['description'] = description
 
-    # Add the dimensions and variables to the item using datacube extension
-    item.ext.cube.apply(dimensions, variables)
+            unit = ds[var].attrs.get('units') or ds[var].attrs.get('unit')
+            if unit:
+                var_info['unit'] = unit
 
-    # Version extension for tracking changes to the item
-    item.ext.add('version')
-    item.ext.version.apply(version='1', deprecated=False)
+            var_info['attrs'] = ds[var].attrs
+            var_info['shape'] = list(ds[var].shape)
+
+            variables[var] = Variable(json_type_conversion(var_info))
+
+        # Add the dimensions and variables to the item using datacube extension
+        item.ext.cube.apply(dimensions, variables)
+
+        # Version extension for tracking changes to the item
+        item.ext.add('version')
+        item.ext.version.apply(version='1', deprecated=False)
 
     return item
 
@@ -256,68 +259,173 @@ def get_collection_id(s3_uri: str) -> str:
     Returns:
         str: The collection ID.
     """
-    # TODO: this is just a placeholder, we need to work out how to get the collection ID
-    return '279a50e3-21a5-4590-85a0-71f963efab82'
+    regex_to_collection_id = {
+        "^IMOS/ANMN/.*/Wave/.*_FV01_.*(ADCP|AWAC).*\\.nc": "aaebf991-b79d-4670-a1c5-a0de9bf649ce",
+        "^IMOS/ANMN/.*/Temperature/.*_FV01_.*\\.nc$": "7e13b5f3-4a70-4e31-9e95-335efa491c5c",
+        "^IMOS/ANMN/.*/CTD_timeseries/.*_FV01_.*(SBE|XR-420).*_END-.*\\.nc$": "7e13b5f3-4a70-4e31-9e95-335efa491c5c",
+        "^IMOS/ANMN/.*/Wave/.*_FV00_.*realtime.*\\.nc": "72dbe843-2fb1-4b2e-8b7e-4661d857affb",
+        "^IMOS/ANMN/.*/Meteorology/.*_FV00_.*realtime.*\\.nc": "f3910f5c-c568-4af0-b773-13c0e57ada6b",
+        "^IMOS/ANMN/.*/Biogeochem_timeseries/.*_FV00_.*realtime.*\\.nc": "13b3900f-2623-463c-98a7-ea60ac8e61ae",
+        "^IMOS/ANMN/NRS/.*/aggregated_products/IMOS_ANMN-NRS_.*_FV02_.*\\.nc": "d3feff71-ebe1-4b66-91c6-149beceef205",
+        "^IMOS/ANMN/NRS/REAL_TIME/.*_channel_.*/IMOS_ANMN_.*_FV0.*": "006bb7dc-860b-4b89-bf4c-6bd930bd35b7",
+        "^AIMS/Marine_Monitoring_Program/CTD_profiles/.*/.*_FV01_.*\\.nc": "acad78d1-e235-45e6-8f27-0a00184e2ca9",
+        "^IMOS/ANMN/.*/Biogeochem_profiles/.*_FV01_.*\\.nc": "7b901002-b1dc-46c3-89f2-b4951cedca48",
+        "^NSW-OEH/Manly_Hydraulics_Laboratory/Wave/.*": "bb7e9d82-3b9c-44c6-8e93-1ee9fd30bf21",
+        "^IMOS/ANMN/.*_FV02_.*-burst-averaged.*\\.nc$": "8964658c-6ee1-4015-9bae-2937dfcc6ab9",
+        "^IMOS/ANMN/AM/.*-delayed_.*\\.nc$": "89b495cc-7382-43c0-abef-d1e66738a924",
+        "^IMOS/ANMN/AM/.*-realtime\\.nc$": "4d3d4aca-472e-4616-88a5-df0f5ab401ba",
+        "^IMOS/ANMN/.*/Velocity/.*FV01.*\\.nc$": "ae86e2f5-eaaf-459e-a405-e654d85adb9c",
+        "^IMOS/ANMN/Acoustic/metadata/update.*\\.csv$": "e850651b-d65d-495b-8182-5dde35919616",
+    }
+    for regex, collection_id in regex_to_collection_id.items():
+        if re.match(regex, s3_uri):
+            return collection_id
+    return None
 
 
-def path_to_item(path: str) -> pystac.Item:
+def path_to_item(path: str, bucket='imos-data') -> pystac.Item:
     """
     Create a STAC item from an S3 path.
     Args:
         path (str): The S3 path to the file.
+        bucket (str, optional): The S3 bucket name. Defaults to 'imos-data'.
     Returns:
         pystac.Item: The STAC item.
     Raises:
         ValueError: If the file type is not supported.
     """
     collection_id = get_collection_id(path)
+    if collection_id is None:
+        raise ValueError('Could not determine collection ID from path ' + path)
 
     file_type = path.split('.')[-1]
     match file_type:
         case 'nc':
-            return nc_to_item(path, collection_id)
+            result = nc_to_item(f'{bucket}/{path}', collection_id)
         case _:
             raise ValueError(f'Unsupported file type: {file_type}')
 
+    return result
 
-def save_item(item: pystac.Item, catalog_href: str = 'data_index/catalog.json'):
+
+def get_collection_info(collection_id: str) -> dict:
+    """
+    Query the AODN geonetwork for collection metadata.
+    Args:
+        collection_id (str): The collection ID.
+    Returns:
+        dict: A dictionary with title, description, and parent. Each of these
+        fields may be None if the metadata is not found.
+    """
+
+    endpoint = (
+        f"https://catalogue.aodn.org.au/geonetwork/srv/api/0.1/records/{collection_id}"
+    )
+    headers = {'accept': 'application/json'}
+    metadata = requests.get(endpoint, headers=headers).json()
+
+    result = dict()
+
+    result['title'] = (
+        metadata.get("mdb:identificationInfo", {})
+        .get("mri:MD_DataIdentification", {})
+        .get("mri:citation", {})
+        .get("cit:CI_Citation", {})
+        .get("cit:title", {})
+        .get("gco:CharacterString", {})
+        .get("#text", None)
+    )
+    result['description'] = (
+        metadata.get("mdb:identificationInfo", {})
+        .get("mri:MD_DataIdentification", {})
+        .get("mri:abstract", {})
+        .get("gco:CharacterString", {})
+        .get("#text", None)
+    )
+    result['parent'] = metadata.get("mdb:parentMetadata", {}).get("@uuidref", None)
+
+    return result
+
+def get_parent(catalog: pystac.Catalog, pystac_object: pystac.STACObject) -> pystac.Catalog:
+    """
+    Get the parent catalog of a STAC object.
+    Args:
+        catalog (pystac.Catalog): The STAC catalog.
+        pystac_object (pystac.STACObject): The STAC object.
+    Returns:
+        pystac.Catalog: The parent catalog.
+    """
+    for link in pystac_object.links:
+        if link.rel == 'parent':
+            link.resolve_stac_object(catalog)
+            return link.target
+    return None
+
+def save_item(item: pystac.Item, catalog: pystac.Catalog):
     """
     Save a STAC item to a catalog, updating its collection.
     Args:
         item (pystac.Item): The STAC item to be saved.
-        catalog_href (str, optional): The file path to the catalog JSON file. Defaults to 'data_index/catalog.json'.
+        catalog (pystac.Catalog): The root STAC catalog.
     """
 
-    catalog = pystac.Catalog.from_file(catalog_href)
-    # This could be slow for hierarchical catalogs with nested collections
-    collection = catalog.get_child(item.collection_id, recursive=True)
-    if collection is None:
-        # Collection does not exist, create it
-        collection = collection_from_items([item])
-        catalog.add_child(collection)
-    else:
-        # Check if the item is already in the collection
-        if collection.get_item(item.id) is not None:
-            # Remove the old item before adding the new one
-            # TODO: use versioning extension to deprecate the old item
-            collection.remove_item(item.id)
-        collection.add_item(item)
-        update_collection_extent(collection)
+    collection = get_collection_or_create(catalog, item.collection_id)
+
+    # Check if the item is already in the collection
+    if collection.get_item(item.id) is not None:
+        # Remove the old item before adding the new one
+        # TODO: use versioning extension to deprecate the old item
+        collection.remove_item(item.id)
+    collection.add_item(item)
+    # Update extents of this collection and parent collections
+    updating = collection
+    while isinstance(updating, pystac.Collection):
+        # will stop at the root catalog
+        old_extent = updating.extent
+        logger.debug(f'Updating extent of {updating.id}')
+        updating.update_extent_from_items()
+        if updating.extent == old_extent:
+            # No need to update parents if the extent hasn't changed
+            logger.debug(f'Extent of {updating.id} has not changed')
+            break
+        updating = get_parent(catalog, updating)
+        
     logger.info(f'Saving item {item.id} in collection {collection.id}')
     # Save the updated catalog, skipping untouched files
-    catalog.normalize_and_save(catalog_href, skip_unresolved=True)
+    #TODO: we should save the catalog only once at the end
+    catalog.normalize_and_save('data_index/catalog.json', skip_unresolved=True)
 
 
-def update_collection_extent(collection: pystac.Collection):
+def get_collection_or_create(
+    catalog: pystac.Catalog, collection_id: str
+) -> pystac.Collection:
     """
-    Update the extent of a collection based on its items.
+    Get a collection from a catalog, creating it if it does not exist.
+    Uses get_collection_info to get information from the AODN geonetwork
+    if the collection does not exist.
     Args:
-        collection (pystac.Collection): The STAC collection to be updated.
+        catalog (pystac.Catalog): The STAC catalog.
+        collection_id (str): The collection ID.
+    Returns:
+        pystac.Collection: The collection.
     """
-    # We may need to update this function to handle nested collections
-    # Also, this could be slow for collections with many items
-    items = list(collection.get_all_items())
-    collection.extent = pystac.Extent.from_items(items)
+    # This could be slow for a large catalog with nested collections
+    collection = catalog.get_child(collection_id, recursive=True)
+    if collection is None:
+        logger.info(f'Creating collection {collection_id}')
+        metadata = get_collection_info(collection_id)
+        collection = pystac.Collection(
+            id=collection_id,
+            title=metadata['title'],
+            description=metadata['description'],
+            extent=None, # Will be updated when items are added
+        )
+        if metadata['parent'] is not None:
+            parent_collection = get_collection_or_create(catalog, metadata['parent'])
+            parent_collection.add_child(collection)
+        else:
+            catalog.add_child(collection)
+    return collection
 
 
 def collection_from_items(
@@ -408,12 +516,33 @@ def index_files_from_prefix(
         catalog_href (str, optional): The file path to the catalog JSON file. Defaults to 'data_index/catalog.json'.
     """
 
+    catalog = pystac.Catalog.from_file(catalog_href)
     s3 = boto3.resource('s3')
     s3_bucket = s3.Bucket(bucket)
     for obj in s3_bucket.objects.filter(Prefix=prefix):
+        checksum = obj.e_tag.strip('"')
+
+        item_id = obj.key.split('/')[-1].split('.')[0]
         try:
-            item = path_to_item(f's3://{bucket}/{obj.key}')
-            save_item(item, catalog_href)
+            collection_id = get_collection_id(obj.key)
+            if collection_id is None:
+                logger.warning(f'Could not determine collection ID for {obj.key}')
+                continue
+            collection = get_collection_or_create(catalog, collection_id)
+            # check if the item is already in the collection
+            old_item = collection.get_item(item_id)
+            if old_item is not None:
+                # check if the checksum matches
+                old_checksum = old_item.assets['data'].ext.file.checksum
+                if old_checksum == checksum:
+                    logger.info(f'Item {item_id} is already indexed')
+                    continue
+            item = path_to_item(obj.key, bucket=bucket)
+            # Add object info to the data asset
+            item.ext.add('file')
+            file_stac_extension = pystac.extensions.file.FileExtension.ext(item.assets['data'])
+            file_stac_extension.apply(checksum=checksum, size=obj.size)
+            save_item(item, catalog)
         except ValueError as e:
             logger.warning(f'Could not index {obj.key}: {e}')
 
@@ -462,8 +591,8 @@ def test_creation_from_items():
     )
 
     nc_files = [
-        's3://imos-data/IMOS/ANMN/NSW/BMP070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.nc',
-        's3://imos-data/IMOS/ANMN/NSW/CH070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc',
+        'imos-data/IMOS/ANMN/NSW/BMP070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20141118_BMP070_FV02_TEMP-gridded-timeseries_END-20240725_C-20240810.nc',
+        'imos-data/IMOS/ANMN/NSW/CH070/gridded_timeseries/IMOS_ANMN-NSW_TZ_20090815_CH070_FV02_TEMP-gridded-timeseries_END-20240417_C-20240608.nc',
     ]
 
     for nc_file in nc_files:
@@ -473,4 +602,12 @@ def test_creation_from_items():
 
 
 if __name__ == '__main__':
-    index_files_from_prefix('IMOS/ANMN/NSW/BMP070/gridded_timeseries/')
+    # catalog = pystac.Catalog(
+    #     id='data_index',
+    #     description='Index of all AODN data',
+    #     title='AODN Data Index',
+    # )
+    # catalog.normalize_and_save(
+    #     './data_index', catalog_type=pystac.CatalogType.SELF_CONTAINED
+    # )
+    index_files_from_prefix('IMOS/ANMN/NRS/')
