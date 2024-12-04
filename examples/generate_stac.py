@@ -361,11 +361,11 @@ def get_parent(catalog: pystac.Catalog, pystac_object: pystac.STACObject) -> pys
             return link.target
     return None
 
-def save_item(item: pystac.Item, catalog: pystac.Catalog):
+def add_to_catalog(item: pystac.Item, catalog: pystac.Catalog):
     """
-    Save a STAC item to a catalog, updating its collection.
+    Add an item to a STAC catalog, updating its parent collections.
     Args:
-        item (pystac.Item): The STAC item to be saved.
+        item (pystac.Item): The STAC item to be added.
         catalog (pystac.Catalog): The root STAC catalog.
     """
 
@@ -376,6 +376,7 @@ def save_item(item: pystac.Item, catalog: pystac.Catalog):
         # Remove the old item before adding the new one
         # TODO: use versioning extension to deprecate the old item
         collection.remove_item(item.id)
+    logger.info(f'Adding item {item.id} to collection {collection.id}')
     collection.add_item(item)
     # Update extents of this collection and parent collections
     updating = collection
@@ -389,11 +390,6 @@ def save_item(item: pystac.Item, catalog: pystac.Catalog):
             logger.debug(f'Extent of {updating.id} has not changed')
             break
         updating = get_parent(catalog, updating)
-        
-    logger.info(f'Saving item {item.id} in collection {collection.id}')
-    # Save the updated catalog, skipping untouched files
-    #TODO: we should save the catalog only once at the end
-    catalog.normalize_and_save('data_index/catalog.json', skip_unresolved=True)
 
 
 def get_collection_or_create(
@@ -519,6 +515,7 @@ def index_files_from_prefix(
     catalog = pystac.Catalog.from_file(catalog_href)
     s3 = boto3.resource('s3')
     s3_bucket = s3.Bucket(bucket)
+    processed = 0
     for obj in s3_bucket.objects.filter(Prefix=prefix):
         checksum = obj.e_tag.strip('"')
 
@@ -542,9 +539,16 @@ def index_files_from_prefix(
             item.ext.add('file')
             file_stac_extension = pystac.extensions.file.FileExtension.ext(item.assets['data'])
             file_stac_extension.apply(checksum=checksum, size=obj.size)
-            save_item(item, catalog)
+            processed += 1
+            add_to_catalog(item, catalog)
+            if processed % 100 == 0:
+                logger.info(f'Processed {processed} items, saving catalog')
+                catalog.normalize_and_save(catalog_href, skip_unresolved=True)
+                catalog = pystac.Catalog.from_file(catalog_href)
         except ValueError as e:
             logger.warning(f'Could not index {obj.key}: {e}')
+    logger.info(f'Processed {processed} items, saving catalog')
+    catalog.normalize_and_save(catalog_href, skip_unresolved=True)
 
 
 def test_creation_from_collection():
@@ -598,7 +602,8 @@ def test_creation_from_items():
     for nc_file in nc_files:
         collection_id = get_collection_id(nc_file)
         item = nc_to_item(nc_file, collection_id)
-        save_item(item)
+        add_to_catalog(item, catalog)
+    catalog.normalize_and_save('./data_index', catalog_type=pystac.CatalogType.SELF_CONTAINED)
 
 
 if __name__ == '__main__':
