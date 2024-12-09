@@ -52,7 +52,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
 
     logger.info(f'Processing {nc_file_path}')
     if item_id is None:
-        item_id = nc_file_path.split('/')[-1].split('.')[0]
+        item_id = nc_file_path.replace('/', '_').replace('.', '_')
 
     fs = s3fs.S3FileSystem(anon=True)
     with fs.open(nc_file_path, 'rb') as f:

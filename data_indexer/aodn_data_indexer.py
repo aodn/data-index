@@ -12,6 +12,44 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def join_extents(extent1: pystac.Extent, extent2: pystac.Extent) -> pystac.Extent:
+    """
+    Join two extents, taking the union of their bounding boxes and temporal intervals.
+    Args:
+        extent1 (pystac.Extent): The first extent.
+        extent2 (pystac.Extent): The second extent.
+    Returns:
+        pystac.Extent: The joined extent.
+    """
+    if extent1 is None:
+        return extent2
+
+    bboxes = extent1.spatial.bboxes + extent2.spatial.bboxes
+    merged_bboxes = [
+        [
+            min([bbox[0] for bbox in bboxes]),
+            min([bbox[1] for bbox in bboxes]),
+            max([bbox[2] for bbox in bboxes]),
+            max([bbox[3] for bbox in bboxes]),
+        ]
+    ]
+    merged_extra = extent1.spatial.extra_fields
+    merged_extra.update(extent2.spatial.extra_fields)
+    spatial = pystac.SpatialExtent(merged_bboxes, merged_extra)
+    intervals = extent1.temporal.intervals + extent2.temporal.intervals
+    merged_intervals = [
+        [
+            min([interval[0] for interval in intervals]),
+            max([interval[1] for interval in intervals]),
+        ]
+    ]
+    merged_extra = extent1.temporal.extra_fields
+    merged_extra.update(extent2.temporal.extra_fields)
+    temporal = pystac.TemporalExtent(merged_intervals, merged_extra)
+
+    return pystac.Extent(spatial, temporal)
+
+
 class AODNDataIndexer:
     """
     A class to index AODN data into a STAC catalog.
@@ -29,7 +67,9 @@ class AODNDataIndexer:
         self.catalog_href = catalog_href
         if create:
             self.catalog = pystac.Catalog(
-                id='data_index', description='Index of all AODN data'
+                id='data_index',
+                description='Index of all AODN data',
+                title='AODN Data Index',
             )
             self.save_catalog()
         else:
@@ -54,7 +94,7 @@ class AODNDataIndexer:
         self.catalog = pystac.Catalog.from_file(self.catalog_href)
 
     @staticmethod
-    def path_to_item(path: str, bucket='imos-data') -> pystac.Item:
+    def path_to_item(path: str, bucket='imos-data', item_id=None) -> pystac.Item:
         """
         Create a STAC item from an S3 path.
         Args:
@@ -72,7 +112,7 @@ class AODNDataIndexer:
         file_type = path.split('.')[-1]
         match file_type:
             case 'nc':
-                result = nc_to_item(f'{bucket}/{path}', collection_id)
+                result = nc_to_item(f'{bucket}/{path}', collection_id, item_id)
             case _:
                 raise ValueError(f'Unsupported file type: {file_type}')
 
@@ -87,12 +127,16 @@ class AODNDataIndexer:
 
         collection = self.get_collection_or_create(item.collection_id)
 
+        removed = False
         # Check if the item is already in the collection
         if collection.get_item(item.id) is not None:
             # Remove the old item before adding the new one
             # TODO: use versioning extension to deprecate the old item
+            import pdb; pdb.set_trace()
+            logger.error(f'Removing item {item.id} from collection {collection.id}')
             collection.remove_item(item.id)
-        logger.info(f'Adding item {item.id} to collection {collection.id}')
+            removed = True
+        logger.debug(f'Adding item {item.id} to collection {collection.id}')
         collection.add_item(item)
         # Update extents of this collection and parent collections
         updating = collection
@@ -100,11 +144,11 @@ class AODNDataIndexer:
             # will stop at the root catalog
             old_extent = updating.extent
             logger.debug(f'Updating extent of {updating.id}')
-            # Potential efficiency improvement: if nothing was removed we should be
-            # able to combine the item extent with the collection extent instead of
-            # recomputing it from scratch. This would prevent the need of loading
-            # all items in the collection.
-            updating.update_extent_from_items()
+            if removed:
+                updating.update_extent_from_items()
+            else:
+                item_extent = pystac.Extent.from_items([item])
+                updating.extent = join_extents(updating.extent, item_extent)
             if updating.extent == old_extent:
                 # No need to update parents if the extent hasn't changed
                 logger.debug(f'Extent of {updating.id} has not changed')
@@ -129,7 +173,7 @@ class AODNDataIndexer:
             metadata = self.get_collection_info(collection_id)
             collection = pystac.Collection(
                 id=collection_id,
-                title=metadata['title'],
+                title=metadata['title'] or collection_id,
                 description=metadata['description'],
                 extent=None,  # Will be updated when items are added
                 # We could add license, providers, keywords, etc. here
@@ -155,7 +199,7 @@ class AODNDataIndexer:
         for obj in s3_bucket.objects.filter(Prefix=prefix):
             checksum = obj.e_tag.strip('"')
 
-            item_id = obj.key.split('/')[-1].split('.')[0]
+            item_id = obj.key.replace('/', '_').replace('.', '_')
             try:
                 collection_id = AODNDataIndexer.get_collection_id(obj.key)
                 if collection_id is None:
@@ -170,7 +214,7 @@ class AODNDataIndexer:
                     if old_checksum == checksum:
                         logger.info(f'Item {item_id} is already indexed')
                         continue
-                item = AODNDataIndexer.path_to_item(obj.key, bucket=bucket)
+                item = AODNDataIndexer.path_to_item(obj.key, bucket=bucket, item_id=item_id)
                 # Add object info to the data asset
                 item.ext.add('file')
                 file_stac_extension = pystac.extensions.file.FileExtension.ext(
@@ -214,6 +258,9 @@ class AODNDataIndexer:
             "^IMOS/ANMN/AM/.*-realtime\\.nc$": "4d3d4aca-472e-4616-88a5-df0f5ab401ba",
             "^IMOS/ANMN/.*/Velocity/.*FV01.*\\.nc$": "ae86e2f5-eaaf-459e-a405-e654d85adb9c",
             "^IMOS/ANMN/Acoustic/metadata/update.*\\.csv$": "e850651b-d65d-495b-8182-5dde35919616",
+            "^IMOS/ANMN/.*/hourly_timeseries/.*": "efd8201c-1eca-412e-9ad2-0534e96cea14",
+            "^IMOS/ANMN/.*/gridded_timeseries/.*": "279a50e3-21a5-4590-85a0-71f963efab82",
+            "^IMOS/ANMN/.*/aggregated_timeseries/.*": "moorings-aggregated-timeseries-product",
         }
         for regex, collection_id in regex_to_collection_id.items():
             if re.match(regex, s3_uri):
@@ -260,5 +307,8 @@ class AODNDataIndexer:
 
 if __name__ == '__main__':
     # indexer = AODNDataIndexer(catalog_href='examples/data_index2/catalog.json', create=True)
-    indexer = AODNDataIndexer(catalog_href='examples/data_index/catalog.json')
+    indexer = AODNDataIndexer(
+        catalog_href='examples/data_index/catalog.json', 
+        # create=True
+    )
     indexer.index_files_from_prefix('IMOS/ANMN/NRS/')
