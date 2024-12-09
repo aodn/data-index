@@ -261,6 +261,8 @@ class AODNDataIndexer:
             "^IMOS/ANMN/.*/hourly_timeseries/.*": "efd8201c-1eca-412e-9ad2-0534e96cea14",
             "^IMOS/ANMN/.*/gridded_timeseries/.*": "279a50e3-21a5-4590-85a0-71f963efab82",
             "^IMOS/ANMN/.*/aggregated_timeseries/.*": "moorings-aggregated-timeseries-product",
+            "^IMOS/SOOP/SOOP-ASF/.*/IMOS_SOOP-ASF_FMT_.*\\.nc$": "07818819-2e5c-4a12-9395-0082b57b2fe8",
+            "^IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/.*\\.nc$": "95d6314c-cfc7-40ae-b439-85f14541db71",
         }
         for regex, collection_id in regex_to_collection_id.items():
             if re.match(regex, s3_uri):
