@@ -1,5 +1,6 @@
 import logging
 import re
+from pathlib import Path
 
 import boto3
 import pystac
@@ -56,15 +57,20 @@ class AODNDataIndexer:
     """
 
     def __init__(
-        self, catalog_href: str = 'examples/data_index/catalog.json', create=False
+        self,
+        catalog_href: str = 'examples/data_index/catalog.json',
+        temp_dir: str = 'examples/tmp',
+        create=False,
     ):
         """
         Initialize the indexer.
         Args:
             catalog_href (str, optional): The path to the catalog file. Defaults to 'data_index/catalog.json'.
+            temp_dir (str, optional): The path to the temporary directory. Defaults to 'temp'.
             create (bool, optional): Whether to create a new catalog. Defaults to False.
         """
         self.catalog_href = catalog_href
+        self.temp_dir = Path(temp_dir)
         if create:
             self.catalog = pystac.Catalog(
                 id='data_index',
@@ -94,12 +100,25 @@ class AODNDataIndexer:
         self.catalog = pystac.Catalog.from_file(self.catalog_href)
 
     @staticmethod
-    def path_to_item(path: str, bucket='imos-data', item_id=None) -> pystac.Item:
+    def path_to_item(
+        path: str,
+        bucket: str = 'imos-data',
+        item_id: str = None,
+        checksum: str = None,
+        size: int = None,
+        date = None,
+        save_path: Path = None,
+    ) -> pystac.Item:
         """
         Create a STAC item from an S3 path.
         Args:
             path (str): The S3 path to the file.
             bucket (str, optional): The S3 bucket name. Defaults to 'imos-data'.
+            item_id (str, optional): The item ID. Defaults to None.
+            checksum (str, optional): The file checksum. Defaults to None.
+            size (int, optional): The file size. Defaults to None.
+            date (datetime, optional): The creation date of this file. Defaults to None.
+            save_path (str, optional): The path to the temporary folder where to save the item. Defaults to None.
         Returns:
             pystac.Item: The STAC item.
         Raises:
@@ -116,29 +135,59 @@ class AODNDataIndexer:
             case _:
                 raise ValueError(f'Unsupported file type: {file_type}')
 
+        # Add object info to the data asset
+        if checksum is not None or size is not None:
+            result.ext.add('file')
+            file_stac_extension = pystac.extensions.file.FileExtension.ext(
+                result.assets['data']
+            )
+            if size is not None:
+                file_stac_extension.apply(size=size)
+            if checksum is not None:
+                file_stac_extension.apply(checksum=checksum)
+        if date is not None:
+            result.properties['created'] = date.isoformat()
+            # This should more properly be the creation date of this STAC item, while the
+            # creation date of the data file should be stored in the asset. If we plan to
+            # keep the items in sync with the data files, setting it here can make it easier
+            # for searching.
+
+        if save_path is not None:
+            result.save_object(dest_href=save_path / collection_id / f'{item_id}.json')
         return result
 
-    def add_to_catalog(self, item: pystac.Item):
+    def add_to_catalog(self, *items: pystac.Item):
         """
-        Add an item to a STAC catalog, updating its parent collections.
+        Adds a group of items sharing the same parent collection to a STAC catalog,
+        updating all their ancestors.
         Args:
-            item (pystac.Item): The STAC item to be added.
+            items (pystac.Item): The items to add.
         """
 
-        collection = self.get_collection_or_create(item.collection_id)
+        collection = self.get_collection_or_create(items[0].collection_id)
+        logger.info(f'Adding {len(items)} items to collection {collection.id}')
 
         removed = False
-        # Check if the item is already in the collection
-        if collection.get_item(item.id) is not None:
-            # Remove the old item before adding the new one
-            # TODO: use versioning extension to deprecate the old item
-            import pdb; pdb.set_trace()
-            logger.error(f'Removing item {item.id} from collection {collection.id}')
-            collection.remove_item(item.id)
-            removed = True
-        logger.debug(f'Adding item {item.id} to collection {collection.id}')
-        collection.add_item(item)
+        added_items = []
+        for item in items:
+            # Check if the item is already in the collection
+            old_item = collection.get_item(item.id)
+            if old_item is not None:
+                if old_item.assets['data'].ext.file.checksum == item.assets['data'].ext.file.checksum:
+                    logger.warning(f'Item {item.id} is already in collection {collection.id}')
+                    continue
+                # Remove the old item before adding the new one
+                # TODO: use versioning extension to deprecate the old item
+                logger.error(f'Removing old item {item.id} from collection {collection.id}')
+                collection.remove_item(item.id)
+                removed = True
+            logger.debug(f'Adding item {item.id} to collection {collection.id}')
+            collection.add_item(item)
+            added_items.append(item)
         # Update extents of this collection and parent collections
+        if not removed:
+            # We can avoid checking old items if we are not removing any
+            items_extent = pystac.Extent.from_items(added_items)
         updating = collection
         while isinstance(updating, pystac.Collection):
             # will stop at the root catalog
@@ -147,8 +196,7 @@ class AODNDataIndexer:
             if removed:
                 updating.update_extent_from_items()
             else:
-                item_extent = pystac.Extent.from_items([item])
-                updating.extent = join_extents(updating.extent, item_extent)
+                updating.extent = join_extents(updating.extent, items_extent)
             if updating.extent == old_extent:
                 # No need to update parents if the extent hasn't changed
                 logger.debug(f'Extent of {updating.id} has not changed')
@@ -195,7 +243,6 @@ class AODNDataIndexer:
 
         s3 = boto3.resource('s3')
         s3_bucket = s3.Bucket(bucket)
-        processed = 0
         for obj in s3_bucket.objects.filter(Prefix=prefix):
             checksum = obj.e_tag.strip('"')
 
@@ -205,32 +252,54 @@ class AODNDataIndexer:
                 if collection_id is None:
                     logger.warning(f'Could not determine collection ID for {obj.key}')
                     continue
-                collection = self.get_collection_or_create(collection_id)
                 # check if the item is already in the collection
-                old_item = collection.get_item(item_id)
-                if old_item is not None:
-                    # check if the checksum matches
-                    old_checksum = old_item.assets['data'].ext.file.checksum
-                    if old_checksum == checksum:
-                        logger.info(f'Item {item_id} is already indexed')
-                        continue
-                item = AODNDataIndexer.path_to_item(obj.key, bucket=bucket, item_id=item_id)
-                # Add object info to the data asset
-                item.ext.add('file')
-                file_stac_extension = pystac.extensions.file.FileExtension.ext(
-                    item.assets['data']
+                collection = self.catalog.get_child(collection_id, recursive=True)
+                if collection is not None:
+                    old_item = collection.get_item(item_id)
+                    if old_item is not None:
+                        # check if the checksum matches
+                        old_checksum = old_item.assets['data'].ext.file.checksum
+                        if old_checksum == checksum:
+                            logger.info(f'Item {item_id} is already indexed')
+                            continue
+                AODNDataIndexer.path_to_item(
+                    obj.key,
+                    bucket=bucket,
+                    item_id=item_id,
+                    checksum=checksum,
+                    size=obj.size,
+                    date=obj.last_modified,
+                    save_path=self.temp_dir,
                 )
-                file_stac_extension.apply(checksum=checksum, size=obj.size)
-                processed += 1
-                self.add_to_catalog(item)
-                if processed % 100 == 0:
-                    logger.info(f'Processed {processed} items, saving catalog')
-                    self.save_catalog()
-                    self.reload_catalog()
             except ValueError as e:
                 logger.warning(f'Could not index {obj.key}: {e}')
-        logger.info(f'Processed {processed} items, saving catalog')
-        self.save_catalog()
+        self.add_temp_items_to_catalog()
+
+    def add_temp_items_to_catalog(self):
+        """
+        Add all items from the temporary directory to the catalog.
+        """
+        for collection_dir in self.temp_dir.iterdir():
+            if not collection_dir.is_dir():
+                continue
+            # Reload the catalog to avoid saving previous changes
+            self.reload_catalog()
+            items = []
+            files = []
+            for item_file in collection_dir.iterdir():
+                item = pystac.Item.from_file(item_file)
+                items.append(item)
+                files.append(item_file)
+            self.add_to_catalog(*items)
+            self.save_catalog()
+            # Remove the temporary files after adding them to the catalog
+            for file in files:
+                file.unlink()
+            # Remove the collection directory if it is empty
+            try:
+                collection_dir.rmdir()
+            except OSError:
+                pass
 
     @staticmethod
     def get_collection_id(s3_uri: str) -> str:
@@ -263,6 +332,8 @@ class AODNDataIndexer:
             "^IMOS/ANMN/.*/aggregated_timeseries/.*": "moorings-aggregated-timeseries-product",
             "^IMOS/SOOP/SOOP-ASF/.*/IMOS_SOOP-ASF_FMT_.*\\.nc$": "07818819-2e5c-4a12-9395-0082b57b2fe8",
             "^IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/.*\\.nc$": "95d6314c-cfc7-40ae-b439-85f14541db71",
+            "^IMOS/SRS/SST/ghrsst/L4/GAMSSA/.*": "2d496463-600c-465a-84a1-8a4ab76bd505",
+            "^IMOS/SRS/SST/ghrsst/L4/RAMSSA/.*": "a4170ca8-0942-4d13-bdb8-ad4718ce14bb",
         }
         for regex, collection_id in regex_to_collection_id.items():
             if re.match(regex, s3_uri):
@@ -310,7 +381,12 @@ class AODNDataIndexer:
 if __name__ == '__main__':
     # indexer = AODNDataIndexer(catalog_href='examples/data_index2/catalog.json', create=True)
     indexer = AODNDataIndexer(
-        catalog_href='examples/data_index/catalog.json', 
-        # create=True
+        catalog_href='examples/data_index/catalog.json',
     )
-    indexer.index_files_from_prefix('IMOS/ANMN/NRS/')
+    # AODNDataIndexer.path_to_item(
+    #     "IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/awru1/awru1-A-06_prof.nc",
+    #     item_id="test"
+    # )
+    indexer.index_files_from_prefix('IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/')
+
+    # indexer.add_temp_items_to_catalog()
