@@ -1,5 +1,6 @@
 import logging
 
+import cf_units
 import numpy as np
 import pandas as pd
 import pystac
@@ -8,6 +9,7 @@ import xarray as xr
 from pystac.extensions.datacube import Dimension, Variable
 
 logger = logging.getLogger(__name__)
+
 
 def json_type_conversion(obj):
     # Json can have trouble with numpy types, so we need to convert them
@@ -29,6 +31,65 @@ def json_type_conversion(obj):
         return [json_type_conversion(v) for v in obj]
     else:
         return obj
+
+
+def classify_coord(coord: xr.DataArray) -> str:
+    """
+    Classify a coordinate as latitude, longitude, time, depth, or other.
+    Parameters:
+    coord (xarray.DataArray): The coordinate to classify.
+    Returns:
+    str: The classification of the coordinate.
+    """
+    attrs = coord.attrs
+    standard_name = attrs.get('standard_name', '').lower()
+    if standard_name in ['latitude', 'longitude', 'depth', 'time']:
+        return standard_name
+
+    unit = attrs.get('units')
+    positive = attrs.get('positive', '').lower()
+    if unit in [
+        'degrees_north',
+        'degree_north',
+        'degree_N',
+        'degrees_N',
+        'degreeN',
+        'degreesN',
+    ]:
+        return 'latitude'
+    elif unit in [
+        'degrees_east',
+        'degree_east',
+        'degree_E',
+        'degrees_E',
+        'degreeE',
+        'degreesE',
+    ]:
+        return 'longitude'
+    elif hasattr(coord, 'dt'):
+        return 'time'
+    else:
+        try:
+            unit = cf_units.Unit(unit)
+        except ValueError:
+            return 'other'
+        if unit.is_time_reference():
+            return 'time'
+        elif (
+            (
+                unit.is_convertible('bar')
+                or positive
+                in [
+                    'up',
+                    'down',
+                ]
+            )
+            and "air" not in standard_name
+            and "stress" not in standard_name
+        ):
+            return 'depth'
+        else:
+            return 'other'
 
 
 def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pystac.Item:
@@ -59,21 +120,59 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         ds = xr.open_dataset(f)
 
         # find latitude, longitude and time coordinates
-        lat = None
-        lon = None
-        time = None
-        depth = None
+        lat = []
+        lon = []
+        time = []
+        depth = []
         for coord in ds.coords:
-            if ds[coord].attrs.get('standard_name') == 'latitude':
-                lat = coord
-            if ds[coord].attrs.get('standard_name') == 'longitude':
-                lon = coord
-            if ds[coord].attrs.get('standard_name') == 'time':
-                time = coord
-            if ds[coord].attrs.get('standard_name') == 'depth':
-                depth = coord
-        if lat is None or lon is None or time is None:
-            raise ValueError('Could not find spatiotemporal coordinates')
+            coord_type = classify_coord(ds[coord])
+            if coord_type == 'latitude':
+                lat.append(coord)
+            elif coord_type == 'longitude':
+                lon.append(coord)
+            elif coord_type == 'time':
+                time.append(coord)
+            elif coord_type == 'depth':
+                depth.append(coord)
+        if not lat or not lon or not time:
+            # try looking at variables
+            lat_vars = []
+            lon_vars = []
+            time_vars = []
+            for var in ds.variables:
+                coord_type = classify_coord(ds[var])
+                if not lat and coord_type == 'latitude':
+                    lat_vars.append(var)
+                elif not lon and coord_type == 'longitude':
+                    lon_vars.append(var)
+                elif not time and coord_type == 'time':
+                    time_vars.append(var)
+            lat = lat or lat_vars
+            lon = lon or lon_vars
+            time = time or time_vars
+
+        if not lat:
+            raise ValueError('Latitude coordinate not found')
+        if len(lat) > 1:
+            logger.warning(f'Multiple latitude coordinates found: {lat}')
+        lat = lat[0]
+
+        if not lon:
+            raise ValueError('Longitude coordinate not found')
+        if len(lon) > 1:
+            logger.warning(f'Multiple longitude coordinates found: {lon}')
+        lon = lon[0]
+
+        if not time:
+            raise ValueError('Time coordinate not found')
+        if len(time) > 1:
+            logger.warning(f'Multiple time coordinates found: {time}')
+        time = time[0]
+
+        # Depth is optional
+        if len(depth) > 1:
+            logger.warning(f'Multiple depth coordinates found: {depth}')
+        depth = depth[0] if depth else None
 
         # Create geoJSON box geometry
         bbox = [
@@ -101,9 +200,21 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
                 ],
             )
 
+        start_datetime = ds[time].min(skipna=True)
+        if hasattr(start_datetime, 'dt'):
+            start_datetime = pd.to_datetime(str(start_datetime.values), utc=True)
+        else:
+            start_datetime = pd.to_datetime(start_datetime, utc=True)
+        end_datetime = ds[time].max(skipna=True)
+        if hasattr(end_datetime, 'dt'):
+            end_datetime = pd.to_datetime(str(end_datetime.values), utc=True)
+        else:
+            end_datetime = pd.to_datetime(end_datetime, utc=True)
+
+        if start_datetime is None or end_datetime is None:
+            raise ValueError('Invalid time coordinate')
+
         # We must provide either a single datetime or a start and end datetime
-        start_datetime = pd.to_datetime(ds[time].min().values, utc=True)
-        end_datetime = pd.to_datetime(ds[time].max().values, utc=True)
         if start_datetime == end_datetime:
             single_datetime = start_datetime
             start_datetime = end_datetime = None
@@ -118,12 +229,6 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
                 'abstract'
             )  # Should we duplicate it?
         # 'title' has the same name in CF and STAC
-
-        properties['created'] = ds.attrs.pop('date_created')  # Same question here
-        # This should more properly be the creation date of this STAC item, while the
-        # creation date of the data file should be stored in the asset. If we plan to
-        # keep the items in sync with the data files, setting it here can make it easier
-        # for searching.
 
         # Other properties we could set:
         # - 'updated' (a datetime, do we need it?)
