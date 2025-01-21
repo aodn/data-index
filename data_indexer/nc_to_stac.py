@@ -111,7 +111,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     - It uses the DataCube extension to add dimensions and variables to the item.
     """
 
-    logger.info(f'Processing {nc_file_path}')
+    logger.info(f'Processing NetCDF file {nc_file_path}')
     if item_id is None:
         item_id = nc_file_path.replace('/', '_').replace('.', '_')
 

@@ -6,6 +6,7 @@ import boto3
 import pystac
 import requests
 from nc_to_stac import nc_to_item
+from csv_to_stac import csv_to_item
 
 logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
@@ -108,6 +109,7 @@ class AODNDataIndexer:
         size: int = None,
         date = None,
         save_path: Path = None,
+        collection_id: str = None,
     ) -> pystac.Item:
         """
         Create a STAC item from an S3 path.
@@ -119,19 +121,24 @@ class AODNDataIndexer:
             size (int, optional): The file size. Defaults to None.
             date (datetime, optional): The creation date of this file. Defaults to None.
             save_path (str, optional): The path to the temporary folder where to save the item. Defaults to None.
+            collection_id (str, optional): The collection ID. If None, it will be derived from the path. Defaults to None.
         Returns:
             pystac.Item: The STAC item.
         Raises:
             ValueError: If the file type is not supported.
         """
-        collection_id = AODNDataIndexer.get_collection_id(path)
         if collection_id is None:
-            raise ValueError('Could not determine collection ID from path ' + path)
+            collection_id = AODNDataIndexer.get_collection_id(path)
+            if collection_id is None:
+                logger.warning(f'Could not determine collection ID for {path}')
+                collection_id = 'unknown_collection'
 
         file_type = path.split('.')[-1]
         match file_type:
             case 'nc':
                 result = nc_to_item(f'{bucket}/{path}', collection_id, item_id)
+            case 'csv':
+                result = csv_to_item(f's3://{bucket}/{path}', collection_id, item_id)
             case _:
                 raise ValueError(f'Unsupported file type: {file_type}')
 
@@ -251,7 +258,7 @@ class AODNDataIndexer:
                 collection_id = AODNDataIndexer.get_collection_id(obj.key)
                 if collection_id is None:
                     logger.warning(f'Could not determine collection ID for {obj.key}')
-                    continue
+                    collection_id = 'unknown_collection'
                 # check if the item is already in the collection
                 collection = self.catalog.get_child(collection_id, recursive=True)
                 if collection is not None:
@@ -270,6 +277,7 @@ class AODNDataIndexer:
                     size=obj.size,
                     date=obj.last_modified,
                     save_path=self.temp_dir,
+                    collection_id=collection_id,
                 )
             except ValueError as e:
                 logger.warning(f'Could not index {obj.key}: {e}')
