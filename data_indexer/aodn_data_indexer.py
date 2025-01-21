@@ -379,14 +379,7 @@ class AODNDataIndexer:
 
 
 if __name__ == '__main__':
-    # indexer = AODNDataIndexer(catalog_href='examples/data_index2/catalog.json', create=True)
     indexer = AODNDataIndexer(
-        catalog_href='examples/data_index/catalog.json',
+        catalog_href='examples/data_index_test/catalog.json', create=True
     )
-    # AODNDataIndexer.path_to_item(
-    #     "IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/awru1/awru1-A-06_prof.nc",
-    #     item_id="test"
-    # )
-    indexer.index_files_from_prefix('IMOS/AATAMS/satellite_tagging/MEOP_QC_CTD/')
-
-    # indexer.add_temp_items_to_catalog()
+    indexer.index_files_from_prefix('IMOS/ANMN/SA/')
