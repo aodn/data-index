@@ -4,4 +4,6 @@ pandas
 pystac
 smart-open[s3]
 s3fs
-xarray[complete]
+xarray
+netcdf4
+requests

@@ -1,0 +1,17 @@
+[project]
+name = "data-index"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "cf-units>=3.2.0",
+    "netcdf4>=1.7.2",
+    "numpy>=1.24.4",
+    "pandas>=2.0.3",
+    "pystac>=1.8.4",
+    "requests>=2.32.3",
+    "s3fs>=2024.10.0",
+    "smart-open[s3]>=7.3.1",
+    "xarray>=2023.1.0",
+]
