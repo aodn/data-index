@@ -1,0 +1,31 @@
+[project]
+name = "data-index"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Tom Galindo", email = "98626996+thommodin@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.43.6",
+    "cloudpathlib[s3]>=0.24.0",
+    "diskcache>=5.6.3",
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
+    "polars>=1.40.1",
+    "prefect>=3.7.0",
+    "scipy>=1.17.1",
+    "sh>=2.2.2",
+    "xarray>=2026.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+data-index = "data_index.main:pipeline"
+
+[tool.prefect]
+home = ".prefect"

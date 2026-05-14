@@ -1,3 +1,11 @@
+# ETL Temporary Directories
+.extract
+.transform
+.load
+
+# Prefect
+.prefect/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

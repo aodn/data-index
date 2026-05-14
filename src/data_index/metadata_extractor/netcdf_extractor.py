@@ -1,0 +1,81 @@
+import xarray
+
+from data_index.protocols import ExtractionResult, StructuredMetadata
+from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
+
+
+class NetCDFExtractor:
+    """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
+
+    def extract(self, ds: xarray.Dataset, s3_uri: str) -> ExtractionResult:
+        try:
+            structured = self._extract_structured(ds, s3_uri)
+            unstructured = self._extract_unstructured(ds)
+            return ExtractionResult(
+                s3_uri=s3_uri,
+                structured_metadata=structured,
+                unstructured_metadata=InMemoryUnstructuredMetadata(s3_uri, unstructured),
+                status="succeeded",
+            )
+        except Exception as exc:
+            return ExtractionResult(
+                s3_uri=s3_uri,
+                structured_metadata=None,
+                unstructured_metadata=None,
+                status="failed",
+                error=str(exc),
+            )
+
+    def _extract_structured(self, ds: xarray.Dataset, s3_uri: str) -> StructuredMetadata:
+        lat_coord = next((c for c in ds.coords if c in ("latitude", "lat")), None)
+        lon_coord = next((c for c in ds.coords if c in ("longitude", "lon")), None)
+        time_coord = next((c for c in ds.coords if c == "time"), None)
+
+        lat_min = lat_max = lon_min = lon_max = None
+        time_min = time_max = None
+
+        if lat_coord:
+            vals = ds.coords[lat_coord].values
+            lat_min, lat_max = float(vals.min()), float(vals.max())
+
+        if lon_coord:
+            vals = ds.coords[lon_coord].values
+            lon_min, lon_max = float(vals.min()), float(vals.max())
+
+        if time_coord:
+            vals = ds.coords[time_coord].values
+            time_min, time_max = str(vals.min()), str(vals.max())
+
+        crs = None
+        for var in ds.data_vars.values():
+            gm_name = var.attrs.get("grid_mapping")
+            if gm_name and gm_name in ds:
+                gm_var = ds[gm_name]
+                crs = gm_var.attrs.get("crs_wkt") or gm_var.attrs.get("grid_mapping_name")
+                break
+        if crs is None:
+            crs = ds.attrs.get("crs")
+
+        return StructuredMetadata(
+            s3_uri=s3_uri,
+            lat_min=lat_min,
+            lat_max=lat_max,
+            lon_min=lon_min,
+            lon_max=lon_max,
+            time_min=time_min,
+            time_max=time_max,
+            crs=crs,
+        )
+
+    def _extract_unstructured(self, ds: xarray.Dataset) -> dict:
+        return {
+            "global_attrs": dict(ds.attrs),
+            "variables": {
+                name: {"attrs": dict(var.attrs), "dims": list(var.dims)}
+                for name, var in ds.data_vars.items()
+            },
+            "coordinates": {
+                name: {"attrs": dict(coord.attrs), "dims": list(coord.dims)}
+                for name, coord in ds.coords.items()
+            },
+        }

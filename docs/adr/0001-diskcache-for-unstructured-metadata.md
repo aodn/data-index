@@ -1,0 +1,3 @@
+# diskcache for unstructured metadata local storage
+
+Unstructured metadata (NetCDF global attributes, variable metadata, coordinate metadata) varies significantly in schema across datasets and cannot be stored in a fixed relational structure. We use `diskcache` as the local intermediate store, keyed by `s3_uri`, because it supports concurrent writes from Prefect's parallel tasks, handles arbitrary Python dicts natively, and imposes no schema constraints. The eventual target is DynamoDB; diskcache serves as the local staging layer until that sink is built. Alternatives considered: SQLite (schema too rigid without JSON columns), flat JSON files (no concurrent write safety), Parquet (requires schema materialisation upfront).
