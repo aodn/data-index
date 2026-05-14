@@ -27,9 +27,9 @@ class NetCDFExtractor:
             )
 
     def _extract_structured(self, ds: xarray.Dataset, s3_uri: str) -> StructuredMetadata:
-        lat_coord = next((c for c in ds.coords if c in ("latitude", "lat")), None)
-        lon_coord = next((c for c in ds.coords if c in ("longitude", "lon")), None)
-        time_coord = next((c for c in ds.coords if c == "time"), None)
+        lat_coord = next((c for c in ds.coords if c in ("LATITUDE", "latitude", "lat")), None)
+        lon_coord = next((c for c in ds.coords if c in ("LONGITUDE", "longitude", "lon")), None)
+        time_coord = next((c for c in ds.coords if c in ("TIME", "time")), None)
 
         lat_min = lat_max = lon_min = lon_max = None
         time_min = time_max = None
