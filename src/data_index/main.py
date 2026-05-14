@@ -9,7 +9,8 @@ from data_index.transform import transform
 from data_index.load import load
 from data_index.file_fetcher import S5CMDFetcher
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
-from data_index.structured_sink.parquet_sink import ParquetSink
+from data_index.structured_sink import StructuredParquetSink
+from data_index.unstructured_sink import UnstructuredParquetSink
 
 @prefect.flow(
     task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=32),
@@ -57,5 +58,6 @@ def pipeline() -> None:
         )
         load(
             extraction_results=extraction_results,
-            structured_sink=ParquetSink(),
+            structured_sink=StructuredParquetSink(),
+            unstructured_sink=UnstructuredParquetSink(),
         )

@@ -1,5 +1,5 @@
 import xarray
-
+import numpy
 from data_index.protocols import ExtractionResult, StructuredMetadata
 from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
 
@@ -67,8 +67,12 @@ class NetCDFExtractor:
             crs=crs,
         )
 
+
+
+# ... inside your NetCDFExtractor class ...
+
     def _extract_unstructured(self, ds: xarray.Dataset) -> dict:
-        return {
+        unstructured = {
             "global_attrs": dict(ds.attrs),
             "variables": {
                 name: {"attrs": dict(var.attrs), "dims": list(var.dims)}
@@ -79,3 +83,21 @@ class NetCDFExtractor:
                 for name, coord in ds.coords.items()
             },
         }
+        return self._sanitize_for_json(unstructured)
+
+    def _sanitize_for_json(self, data):
+        """Recursively convert numpy/xarray types to native Python primitives."""
+        if isinstance(data, dict):
+            return {k: self._sanitize_for_json(v) for k, v in data.items()}
+        elif isinstance(data, (list, tuple)):
+            return [self._sanitize_for_json(v) for v in data]
+        elif isinstance(data, (numpy.integer, numpy.int64, numpy.int32)):
+            return int(data)
+        elif isinstance(data, (numpy.floating, numpy.float64, numpy.float32)):
+            return float(data)
+        elif isinstance(data, numpy.ndarray):
+            return data.tolist()
+        # Handle cases where attributes might be byte-strings
+        elif isinstance(data, bytes):
+            return data.decode("utf-8", errors="ignore")
+        return data

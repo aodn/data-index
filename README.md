@@ -18,7 +18,7 @@ ExtractionResult (structured row + unstructured ref + status)  [x N files]
   v
 load()
   ├─ StructuredSink    -->  Parquet / S3 Table (not implemented)
-  └─ UnstructuredSink  -->  DynamoDB / S3 Table (not implemented)
+  └─ UnstructuredSink  -->  Parquet / DynamoDB (Not Implemented) / S3 Table (not implemented)
 ```
 
 # Running
