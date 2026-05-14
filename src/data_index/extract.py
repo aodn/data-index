@@ -29,6 +29,8 @@ def extract(
     Returns a list of ManifestEntry with s3_uri and absolute_path per file.
     """
 
+    logger = prefect.get_run_logger()
+
     if batch_df.schema != batch_schema:
         raise ValueError(f"Batch schema mismatch: expected {batch_schema}, got {batch_df.schema}")
 
@@ -41,7 +43,8 @@ def extract(
     total_size = batch_df["size"].sum()
     if total_size > batch_size_limit:
         raise ValueError(f"Batch size {total_size} bytes exceeds limit {batch_size_limit}")
-
+    else:
+        logger.info(f"Processing batch of `{len(batch_df)}` files => `{round(batch_df["size"].sum() / 2 ** 30, 2)}`GB")
     # Fetch
     manifest = fetcher.fetch(batch_df["s3_uri"].to_list(), extract_path)
 

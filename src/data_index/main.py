@@ -1,5 +1,8 @@
+import pathlib
 import polars
 import prefect
+import prefect.task_runners
+import tempfile
 
 from data_index.extract import extract
 from data_index.transform import transform
@@ -8,28 +11,51 @@ from data_index.file_fetcher import S5CMDFetcher
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
 from data_index.structured_sink.parquet_sink import ParquetSink
 
-@prefect.flow
+@prefect.flow(
+    task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=32),
+)
 def pipeline() -> None:
-    batch_df = polars.DataFrame(data=[
-        {
-            "s3_uri": "s3://imos-data/IMOS/SRS/SST/ghrsst/L3S-1d/day/2025/20250101032000-ABOM-L3S_GHRSST-SSTskin-AVHRR_D-1d_day.nc",
-            "size": 19456,
-        },
-        {
-            "s3_uri": "s3://imos-data/IMOS/Argo/dac/nmdis/2901615/2901615_prof.nc",
-            "size": 472064,
-        },
-    ])
 
-    manifest = extract(
-        batch_df=batch_df,
-        fetcher=S5CMDFetcher(),
+    batch_df = (
+        polars.scan_parquet(source=pathlib.Path("/Users/thommodin/dev/python-spike-testing/s3-metadata/live-imos-data.inventory.parquet"))
+        .select(
+            polars.col("bucket"),
+            polars.col("key"),
+            polars.col("version_id"),
+            polars.col("size"),
+        )
+        .filter(
+            polars.col("key").str.starts_with("IMOS"),
+            polars.col("key").str.ends_with(".nc"),
+        )
+        .collect()
+        .sample(1_000)
+        .select(
+            polars.concat_str(
+                polars.lit("s3:/"),
+                polars.col("bucket"),
+                polars.col("key"),
+                separator="/"
+            ).alias("s3_uri"),
+            polars.col("size"),
+        )
+        .sort(
+            polars.col("s3_uri"),
+        )
     )
-    extraction_results = transform(
-        manifest=manifest,
-        extractor=NetCDFExtractor(),
-    )
-    load(
-        extraction_results=extraction_results,
-        structured_sink=ParquetSink(),
-    )
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+
+        manifest = extract(
+            batch_df=batch_df,
+            fetcher=S5CMDFetcher(),
+            extract_path=pathlib.Path(temporary_directory),
+        )
+        extraction_results = transform(
+            manifest=manifest,
+            extractor=NetCDFExtractor(),
+        )
+        load(
+            extraction_results=extraction_results,
+            structured_sink=ParquetSink(),
+        )

@@ -3,6 +3,9 @@
 .transform
 .load
 
+# Artifacts
+*.parquet
+
 # Prefect
 .prefect/
 

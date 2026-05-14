@@ -1,25 +1,31 @@
 import pathlib
 import typing
+import tempfile
 import diskcache
+import atexit
 
 class DiskCachedUnstructuredMetadata:
-    """UnstructuredMetadata written immediately to diskcache on construction.
-
-    The raw dict is not retained in memory. Call load() to read it back from disk.
-    Configure the cache location and size by setting CACHE_PATH / CACHE_SIZE_LIMIT
-    on the class before use.
+    """UnstructuredMetadata written to a strictly temporary diskcache.
+    
+    The cache directory is automatically deleted when the python process exits.
     """
 
-    CACHE_PATH: typing.ClassVar[pathlib.Path] = pathlib.Path(".transform")
-    CACHE_SIZE_LIMIT: typing.ClassVar[int] = int(10e9)  # 10 GB
+    CACHE_SIZE_LIMIT: typing.ClassVar[int] = int(10e9)
+    _temp_dir_manager = tempfile.TemporaryDirectory(prefix="metadata_cache_")
+    CACHE_PATH: pathlib.Path = pathlib.Path(_temp_dir_manager.name)
 
-    def __init__(self, s3_uri: str, data: dict, cache_path: pathlib.Path | None = None) -> None:
-        resolved_path = cache_path if cache_path is not None else self.CACHE_PATH
-        with diskcache.Cache(str(resolved_path), size_limit=self.CACHE_SIZE_LIMIT) as cache:
-            cache[s3_uri] = data
+    def __init__(self, s3_uri: str, data: dict) -> None:
         self._s3_uri = s3_uri
-        self._cache_path = resolved_path
+        with diskcache.Cache(str(self.CACHE_PATH), size_limit=self.CACHE_SIZE_LIMIT) as cache:
+            cache[s3_uri] = data
 
     def load(self) -> dict:
-        with diskcache.Cache(str(self._cache_path), size_limit=self.CACHE_SIZE_LIMIT) as cache:
+        with diskcache.Cache(str(self.CACHE_PATH), size_limit=self.CACHE_SIZE_LIMIT) as cache:
             return cache[self._s3_uri]
+
+    @classmethod
+    def cleanup(cls):
+        """Explicitly trigger cleanup if needed before process end."""
+        cls._temp_dir_manager.cleanup()
+
+atexit.register(DiskCachedUnstructuredMetadata.cleanup)
