@@ -30,9 +30,9 @@ def get_batch(
         live_inventory_parquet_path=live_inventory_parquet_path,
     )
 
-    # Collection Pattern
-    # Second component of the key
-    collection_pattern = r"^[^/]+/(?P<collection>[^/]+)"
+    # # Collection Pattern
+    # # Second component of the key
+    # collection_pattern = r"^[^/]+/(?P<collection>[^/]+)"
 
     return (
         polars.scan_parquet(live_inventory_parquet_path)
@@ -40,7 +40,6 @@ def get_batch(
             polars.col("key").str.ends_with(".nc"),
         )
         .select(
-            polars.col("key").str.extract_groups(collection_pattern).alias("collection"),
             polars.concat_str(
                 polars.lit("s3:/"),
                 polars.col("bucket"),
@@ -49,7 +48,6 @@ def get_batch(
             ).alias("s3_uri"),
             polars.col("size"),
         )
-        .unnest(polars.col("collection"))
         .sort(
             polars.col("s3_uri"),
         )

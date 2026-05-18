@@ -1,8 +1,12 @@
 import pathlib
+import logging
 import sh
 import cloudpathlib
 import re
 from data_index.protocols import ManifestEntry
+
+
+logger = logging.getLogger(__name__)
 
 class S5CMDFetcher:
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
@@ -46,6 +50,18 @@ class S5CMDFetcher:
         
         return entries
 
+    @staticmethod
+    def _decode_stream(stream: object) -> str:
+        if stream is None:
+            return ""
+        if isinstance(stream, bytes):
+            return stream.decode(errors="replace")
+        return str(stream)
+
+    @staticmethod
+    def _is_missing_key_error(line: str) -> bool:
+        return "NoSuchKey" in line or "The specified key does not exist" in line
+
     def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[ManifestEntry]:
         if not uris:
             return []
@@ -56,9 +72,24 @@ class S5CMDFetcher:
         try:
             # Capture stdout to see what s5cmd actually did
             output = sh.s5cmd("run", _in=input_stream)
-            return self._parse_s5cmd_output(stdout_str=output)
+            return self._parse_s5cmd_output(stdout_str=self._decode_stream(output))
         except sh.ErrorReturnCode as e:
-            # Even on partial failure, s5cmd might have downloaded some files
-            # You could choose to parse e.stdout here if needed
-            error_msg = e.stderr.decode() if e.stderr else e.stdout.decode()
-            raise RuntimeError(f"s5cmd execution failed:\n{error_msg}") from e
+            stdout_str = self._decode_stream(e.stdout)
+            stderr_str = self._decode_stream(e.stderr)
+
+            manifest = self._parse_s5cmd_output(stdout_str=stdout_str)
+            error_lines = [line.strip() for line in stderr_str.splitlines() if line.strip()]
+            missing_key_lines = [line for line in error_lines if self._is_missing_key_error(line)]
+            other_error_lines = [line for line in error_lines if not self._is_missing_key_error(line)]
+
+            if missing_key_lines:
+                logger.warning(
+                    "s5cmd skipped missing S3 objects (%d):\n%s",
+                    len(missing_key_lines),
+                    "\n".join(missing_key_lines),
+                )
+
+            if other_error_lines:
+                raise RuntimeError(f"s5cmd execution failed:\n{'\n'.join(other_error_lines)}") from e
+
+            return manifest
