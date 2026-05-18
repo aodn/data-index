@@ -18,8 +18,9 @@ from data_index.testing import get_batch
 )
 def pipeline() -> None:
 
+    prefix = "IMOS/AATAMS"
     batch_df = get_batch(
-        prefix="IMOS/AATAMS/",
+        prefix=prefix,
         limit=1_000,
     )
 
@@ -36,6 +37,10 @@ def pipeline() -> None:
         )
         load(
             extraction_results=extraction_results,
-            structured_sink=StructuredParquetSink(),
-            unstructured_sink=UnstructuredParquetSink(),
+            structured_sink=StructuredParquetSink(
+                path=pathlib.Path(".load") / pathlib.path(f"prefix={prefix}") / "structured.parquet"
+            ),
+            unstructured_sink=UnstructuredParquetSink(
+                path=pathlib.Path(".load") / pathlib.path(f"prefix={prefix}") / "unstructured.parquet"
+            ),
         )
