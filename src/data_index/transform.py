@@ -80,7 +80,7 @@ def transform(
     ]
     results: list[ExtractionResult] = [f.result() for f in futures]
 
-    for result, entry in zip(results, manifest):
+    for _, entry in zip(results, manifest):
         if entry.absolute_path.exists():
             entry.absolute_path.unlink()
 
