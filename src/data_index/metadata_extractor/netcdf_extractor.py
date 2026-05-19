@@ -67,10 +67,6 @@ class NetCDFExtractor:
             crs=crs,
         )
 
-
-
-# ... inside your NetCDFExtractor class ...
-
     def _extract_unstructured(self, ds: xarray.Dataset) -> dict:
         unstructured = {
             "global_attrs": dict(ds.attrs),

@@ -1,5 +1,6 @@
 import pathlib
 
+import polars
 import prefect
 import pyarrow.parquet
 import pyiceberg.catalog
@@ -184,8 +185,6 @@ class TableScanConfig(pydantic.BaseModel):
 def load_table(
     s3_table_config: S3TablesConfig,
 ) -> pyiceberg.table.Table:
-    
-    logger = prefect.get_run_logger()
 
     # Load the catalog
     catalog = pyiceberg.catalog.load_catalog(
@@ -202,7 +201,6 @@ def load_table(
     )
 
     table = catalog.load_table(("b_imos-data", s3_table_config.table_name))
-    logger.info(str(table))
 
     # Load the table
     return table
@@ -218,6 +216,7 @@ def sink_table(
     # Pre-construct the parent directory to save batches in
     inventory_parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
+    logger.info(f"Table scan config:\n{table_scan_config.model_dump_json(indent=4)}")
 
     # Set up the batch reader
     with table.scan(
@@ -250,7 +249,7 @@ def extract(
     ),
     table_scan_config: TableScanConfig = TableScanConfig(),
     inventory_parquet_path: pathlib.Path = pathlib.Path("imos-data.inventory.parquet"),
-):
+) -> polars.LazyFrame:
 
     table = load_table(s3_table_config)
     sink_table(
@@ -258,6 +257,8 @@ def extract(
         table_scan_config=table_scan_config,
         inventory_parquet_path=inventory_parquet_path,
     )
+
+    return polars.scan_parquet(inventory_parquet_path)
 
 if __name__ == "__main__":
     extract()

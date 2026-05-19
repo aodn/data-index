@@ -14,11 +14,10 @@ from data_index.testing import get_batch
 
 IMOS_DATA_BUCKET_PREFIXES = [
     # Processed
-    # "IMOS/AATAMS",
-    # "IMOS/ACORN_JCU_historical",
-    # "IMOS/ACORN",
-    # "IMOS/ANFOG",
-    "IMOS/ANMN",
+    "IMOS/AATAMS",
+    "IMOS/ACORN_JCU_historical",
+    "IMOS/ACORN",
+    "IMOS/ANFOG",
     "IMOS/Argo",
     "IMOS/AUV",
     "IMOS/BGC_DB",
@@ -32,6 +31,7 @@ IMOS_DATA_BUCKET_PREFIXES = [
     "IMOS/SAIMOS",
     "IMOS/SOOP",
     "IMOS/SRS",
+    "IMOS/ANMN",
 ]
 
 @prefect.flow(
@@ -44,7 +44,7 @@ def pipeline(
 ) -> None:
 
     batch_df = get_batch(
-        prefix=prefix,
+        collection=prefix.split("/")[-1],
         limit=limit,
     )
 

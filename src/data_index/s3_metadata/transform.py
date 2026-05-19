@@ -1,18 +1,20 @@
-import pathlib
-
 import polars
 import prefect
 
 
 @prefect.task
-def sink_transform_live_table(
-    inventory_parquet_path: pathlib.Path,
-    live_inventory_parquet_path: pathlib.Path,
-):
+def transform_live_table(
+    inventory_lf: polars.LazyFrame,
+) -> polars.LazyFrame:
     
-    (
+    return (
         # Source
-        polars.scan_parquet(inventory_parquet_path)
+        inventory_lf
+
+        # Filter to netcdf files
+        .filter(
+            polars.col("key").str.ends_with(".nc"),
+        )
 
         # Filter to the latest version of each object
         .filter(
@@ -23,18 +25,23 @@ def sink_transform_live_table(
 
         # Remove deleted objects
         .filter(polars.col("is_delete_marker").eq(False))
-        
-        # Sink
-        .sink_parquet(live_inventory_parquet_path)
+
+        # Add collection partition
+        .with_columns(
+            polars.col("key").str.extract_groups(r"^[^/]+/(?P<collection>[^/]+)").alias("collection"),
+        )
+        .unnest(polars.col("collection"))
     )
+
+    
     
 @prefect.task
-def describe_live_table(live_inventory_parquet_path: pathlib.Path):
+def describe_live_table(live_inventory_lf: polars.LazyFrame):
 
     logger = prefect.get_run_logger()
     logger.info("generating describe...")
     logger.info(
-        polars.scan_parquet(live_inventory_parquet_path)
+        live_inventory_lf
         .select("key", "size")
         .describe()
     )
@@ -42,20 +49,11 @@ def describe_live_table(live_inventory_parquet_path: pathlib.Path):
 
 @prefect.task
 def transform(
-    inventory_parquet_path: pathlib.Path = pathlib.Path("imos-data.inventory.parquet"),
-    live_inventory_parquet_path: pathlib.Path = pathlib.Path("live-imos-data.inventory.parquet"),
-):
+    inventory_lf: polars.LazyFrame,
+) -> polars.LazyFrame:
     
-    sink_transform_live_table(
-        inventory_parquet_path,
-        live_inventory_parquet_path,
+    inventory_live_lf = transform_live_table(
+        inventory_lf,
     )
-
-    # describe_live_table(live_inventory_parquet_path)
-
-
-
-
-
-if __name__ == "__main__":
-    transform()
+    describe_live_table(inventory_live_lf)
+    return inventory_live_lf
