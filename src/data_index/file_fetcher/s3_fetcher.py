@@ -17,5 +17,5 @@ class S3Fetcher:
             local_path = extract_path / s3_path.bucket / s3_path.key
             local_path.parent.mkdir(parents=True, exist_ok=True)
             s3.download_file(s3_path.bucket, s3_path.key, str(local_path))
-            entries.append(ManifestEntry(s3_uri=uri, absolute_path=local_path.resolve()))
+            entries.append(ManifestEntry(s3_uri=uri, target=local_path.resolve()))
         return entries

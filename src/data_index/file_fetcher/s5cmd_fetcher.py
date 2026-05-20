@@ -46,7 +46,7 @@ class S5CMDFetcher:
             if match:
                 s3_uri = match.group(1)
                 local_path = pathlib.Path(match.group(2)).resolve()
-                entries.append(ManifestEntry(s3_uri=s3_uri, absolute_path=local_path))
+                entries.append(ManifestEntry(s3_uri=s3_uri, target=local_path))
         
         return entries
 

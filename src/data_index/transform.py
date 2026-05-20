@@ -19,34 +19,33 @@ from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
 @prefect.task(
-    task_run_name="transform-single-{s3_uri}",
+    task_run_name="transform-single-{manifest_entry.s3_uri}",
 )
 def _transform_single(
-    s3_uri: str,
-    path: pathlib.Path,
+    manifest_entry: ManifestEntry,
     extractor: MetadataExtractor,
     unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
 ) -> ExtractionResult:
     try:
-        with xarray.open_dataset(path) as ds:
-            raw = extractor.extract(ds, s3_uri)
+        with manifest_entry.open_dataset() as ds:
+            raw = extractor.extract(ds=ds, s3_uri=manifest_entry.s3_uri)
         if raw.status == "failed":
             return ExtractionResult(
-                s3_uri=s3_uri,
+                s3_uri=manifest_entry.s3_uri,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
                 error=raw.error,
             )
         return ExtractionResult(
-            s3_uri=s3_uri,
+            s3_uri=manifest_entry.s3_uri,
             structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(s3_uri, raw.unstructured_metadata.load()),
+            unstructured_metadata=unstructured_metadata_factory(manifest_entry.s3_uri, raw.unstructured_metadata.load()),
             status="succeeded",
         )
     except Exception as exc:
         return ExtractionResult(
-            s3_uri=s3_uri,
+            s3_uri=manifest_entry.s3_uri,
             structured_metadata=None,
             unstructured_metadata=None,
             status="failed",
@@ -71,8 +70,7 @@ def transform(
     """
     futures = [
         _transform_single.submit(
-            s3_uri=entry.s3_uri,
-            path=entry.absolute_path,
+            manifest_entry=entry,
             extractor=extractor,
             unstructured_metadata_factory=metadata_factory,
         )
@@ -80,9 +78,11 @@ def transform(
     ]
     results: list[ExtractionResult] = [f.result() for f in futures]
 
-    for _, entry in zip(results, manifest):
-        if entry.absolute_path.exists():
-            entry.absolute_path.unlink()
+    # Remove files
+    for entry in manifest:
+        if isinstance(entry.target, pathlib.Path):
+            if entry.target.exists():
+                entry.target.unlink()
 
     failed = [r for r in results if r.status == "failed"]
     succeeded = [r for r in results if r.status == "succeeded"]

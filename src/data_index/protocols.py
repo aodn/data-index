@@ -7,11 +7,18 @@ import typing
 import polars
 import xarray
 import pydantic
-
+import fsspec.core
 
 class ManifestEntry(pydantic.BaseModel):
     s3_uri: str
-    absolute_path: pathlib.Path
+    target: pathlib.Path | fsspec.core.OpenFile
+    model_config=pydantic.ConfigDict(arbitrary_types_allowed=True)
+
+    def open_dataset(self) -> xarray.Dataset:
+        """
+        If new targets require additional support to be opened, put them here
+        """
+        return xarray.open_dataset(filename_or_obj=self.target)
 
 
 @dataclasses.dataclass
