@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import concurrent.futures
+import logging
 import typing
 
 import polars
 import prefect
 import prefect.artifacts
-import prefect.futures
 
 from data_index.protocols import (
     ExtractionResult,
@@ -17,17 +18,16 @@ from data_index.protocols import (
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
-@prefect.task(
-    task_run_name="transform-single-{xarray_handle.s3_uri}",
-)
 def _transform_single(
     xarray_handle: XarrayHandle,
     extractor: MetadataExtractor,
     unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
+    logger: logging.Logger,
 ) -> ExtractionResult:
     try:
         raw = extractor.extract(handle=xarray_handle)
         if raw.status == "failed":
+            logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
             return ExtractionResult(
                 s3_uri=xarray_handle.s3_uri,
                 structured_metadata=None,
@@ -35,6 +35,7 @@ def _transform_single(
                 status="failed",
                 error=raw.error,
             )
+        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
         return ExtractionResult(
             s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
@@ -42,6 +43,7 @@ def _transform_single(
             status="succeeded",
         )
     except Exception as exc:
+        logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
         return ExtractionResult(
             s3_uri=xarray_handle.s3_uri,
             structured_metadata=None,
@@ -60,26 +62,27 @@ def transform(
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
 ) -> list[ExtractionResult]:
     """
-    Transform a manifest of local NetCDF files into structured and unstructured metadata.
+    Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
-    Submits one _transform_single task per file (parallel). Each task immediately
-    persists unstructured metadata via metadata_factory(s3_uri, data). Deletes local
-    files after all tasks complete.
+    Runs one _transform_single call per file in parallel via a thread pool. Each call
+    immediately persists unstructured metadata via metadata_factory(s3_uri, data).
+    Releases handle resources after all threads complete.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
-    futures = [
-        _transform_single.submit(
-            xarray_handle=xarray_handle,
-            extractor=extractor,
-            unstructured_metadata_factory=metadata_factory,
-        )
-        for xarray_handle in xarray_handles
-    ]
-
-    results = []
-    for future in prefect.futures.as_completed(futures=futures):
-        results.append(future.result())
+    logger = prefect.get_run_logger()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        futures = {
+            pool.submit(
+                _transform_single,
+                xarray_handle=xarray_handle,
+                extractor=extractor,
+                unstructured_metadata_factory=metadata_factory,
+                logger=logger,
+            )
+            for xarray_handle in xarray_handles
+        }
+        results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
     # Release handle resources (e.g. delete local files for DiskXarrayHandle)
     for xarray_handle in xarray_handles:
@@ -87,11 +90,6 @@ def transform(
 
     failed = [r for r in results if r.status == "failed"]
     succeeded = [r for r in results if r.status == "succeeded"]
-
-    if failed:
-        logger = prefect.get_run_logger()
-        for r in failed:
-            logger.warning(f"transform failed for {r.s3_uri}: {r.error}")
 
     prefect.artifacts.create_table_artifact(
         key="transform-succeeded",

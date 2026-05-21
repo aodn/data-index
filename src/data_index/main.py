@@ -9,7 +9,8 @@ from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetche
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink
 from data_index.unstructured_sink import UnstructuredParquetSink
-from data_index.testing import get_batch, get_threshold_batch
+from data_index.testing import get_batch, get_threshold_batch, get_batch_filtered
+import polars
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +40,6 @@ IMOS_DATA_BUCKET_PREFIXES = [
 
 @prefect.flow(
     flow_run_name="pipeline-{prefix}",
-    task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=1),
 )
 def pipeline(
     prefix: str,
@@ -51,14 +51,21 @@ def pipeline(
     #     limit=limit,
     # )
 
-    batch_df = get_threshold_batch(threshold=1024 ** 2 * 8)
+    # batch_df = get_threshold_batch(threshold=1024 ** 2 * 10)
+
+    batch_df = get_batch_filtered(
+        expressions=[polars.col("size").le(1024 ** 2)],
+        limit=10_000,
+    )
 
     xarray_handles = extract(
         batch_df=batch_df,
         fetcher=ThresholdFileFetcher(
-            size_threshold_bytes=1024 ** 2 * 2,
+            size_threshold_bytes=1024 ** 2 * 10, # 10mb
             disk_fetcher=S5CMDFetcher(),
-            cloud_fetcher=S3Fetcher(),
+            cloud_fetcher=S3Fetcher(
+                block_size=1024 ** 2 * 5, # 5mb
+            ),
         ),
     )
     extraction_results = transform(

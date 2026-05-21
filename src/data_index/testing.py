@@ -96,7 +96,6 @@ def get_threshold_batch(
         .filter(
             polars.col("size").le(threshold)
         )
-        .limit(1_000)
         .collect()
     )
     gt_df = (
@@ -104,12 +103,11 @@ def get_threshold_batch(
         .filter(
             polars.col("size").gt(threshold)
         )
-        .limit(10)
         .collect()
     )
 
     return (
-        le_df.vstack(gt_df)
+        le_df.sample(1_000).vstack(gt_df.sample(100))
         .select(
             polars.concat_str(
                 polars.lit("s3:/"),
@@ -122,4 +120,30 @@ def get_threshold_batch(
         .sort(
             polars.col("s3_uri"),
         )
+    )
+
+
+def get_batch_filtered(
+    expressions: list[polars.Expr],
+    limit: int = 10_000,
+):
+    return (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            expressions,
+        )
+        .select(
+            polars.concat_str(
+                polars.lit("s3:/"),
+                polars.col("bucket"),
+                polars.col("key"),
+                separator="/"
+            ).alias("s3_uri"),
+            polars.col("size"),
+        )
+        .sort(
+            polars.col("s3_uri"),
+        )
+        .collect()
+        .sample(limit)
     )
