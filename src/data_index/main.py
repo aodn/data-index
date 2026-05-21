@@ -1,12 +1,11 @@
 import pathlib
 import prefect
 import prefect.task_runners
-import tempfile
 
 from data_index.extract import extract
 from data_index.transform import transform
 from data_index.load import load
-from data_index.file_fetcher import S5CMDFetcher, S3Fetcher
+from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink
 from data_index.unstructured_sink import UnstructuredParquetSink
@@ -54,7 +53,11 @@ def pipeline(
 
     xarray_handles = extract(
         batch_df=batch_df,
-        fetcher=S3Fetcher(),
+        fetcher=ThresholdFileFetcher(
+            size_threshold_bytes=128 * 1024,
+            disk_fetcher=S5CMDFetcher(),
+            cloud_fetcher=S3Fetcher(),
+        ),
     )
     extraction_results = transform(
         xarray_handles=xarray_handles,

@@ -8,6 +8,12 @@ import xarray
 
 
 @dataclasses.dataclass
+class BatchEntry:
+    uri: str
+    size_bytes: int | None = None
+
+
+@dataclasses.dataclass
 class StructuredMetadata:
     s3_uri: str
     lat_min: float | None
@@ -71,7 +77,7 @@ class XarrayHandle(typing.Protocol):
         ...
 
 class FileFetcher(typing.Protocol):
-    def fetch(self, uris: list[str]) -> list[XarrayHandle]:
+    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
         ...
 

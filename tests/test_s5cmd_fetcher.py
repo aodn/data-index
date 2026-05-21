@@ -5,17 +5,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
+from data_index.protocols import BatchEntry
 
 
 # --- Protocol conformance ---
 
 def test_fetch_signature_matches_file_fetcher_protocol():
-    """S5CMDFetcher.fetch() must accept exactly (self, uris: list[str]) to satisfy FileFetcher."""
+    """S5CMDFetcher.fetch() must accept exactly (self, entries: list[BatchEntry]) to satisfy FileFetcher."""
     sig = inspect.signature(S5CMDFetcher.fetch)
     params = list(sig.parameters.keys())
-    assert params == ["self", "uris"], (
+    assert params == ["self", "entries"], (
         f"S5CMDFetcher.fetch() has unexpected signature params: {params}. "
-        "FileFetcher protocol requires exactly (self, uris)."
+        "FileFetcher protocol requires exactly (self, entries)."
     )
 
 
@@ -74,7 +75,7 @@ def test_fetch_calls_s5cmd_run_with_cp_commands(tmp_path, fetcher):
     local_a = tmp_path / "bucket" / "a.nc"
     mock_sh.s5cmd.return_value = f"cp s3://bucket/a.nc {local_a}"
 
-    instance.fetch(["s3://bucket/a.nc"])
+    instance.fetch([BatchEntry(uri="s3://bucket/a.nc")])
 
     run_calls = [c for c in mock_sh.s5cmd.call_args_list if c.args and c.args[0] == "run"]
     assert len(run_calls) == 1

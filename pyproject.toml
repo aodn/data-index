@@ -17,6 +17,7 @@ dependencies = [
     "netcdf4>=1.7.4",
     "polars>=1.40.1",
     "prefect>=3.7.0",
+    "pyarrow>=24.0.0",
     "pyiceberg>=0.11.1",
     "s3fs>=2026.4.0",
     "scipy>=1.17.1",

@@ -1,11 +1,12 @@
 from data_index.file_fetcher.s3_fetcher import S3Fetcher
+from data_index.protocols import BatchEntry
 
 
 def test_returns_one_handle_per_uri():
     fetcher = S3Fetcher()
-    uris = ["s3://bucket/a.nc", "s3://bucket/b.nc", "s3://bucket/c.nc"]
+    entries = [BatchEntry(uri=u) for u in ["s3://bucket/a.nc", "s3://bucket/b.nc", "s3://bucket/c.nc"]]
 
-    handles = fetcher.fetch(uris)
+    handles = fetcher.fetch(entries)
 
     assert len(handles) == 3
 
@@ -13,8 +14,9 @@ def test_returns_one_handle_per_uri():
 def test_each_handle_s3_uri_matches_input():
     fetcher = S3Fetcher()
     uris = ["s3://bucket/a.nc", "s3://bucket/b.nc"]
+    entries = [BatchEntry(uri=u) for u in uris]
 
-    handles = fetcher.fetch(uris)
+    handles = fetcher.fetch(entries)
 
     assert {h.s3_uri for h in handles} == set(uris)
 

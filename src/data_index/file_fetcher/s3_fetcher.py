@@ -1,6 +1,6 @@
 import cloudpathlib
 
-from data_index.protocols import XarrayHandle
+from data_index.protocols import BatchEntry, XarrayHandle
 from data_index.xarray_handle import S3XarrayHandle
 
 class S3Fetcher:
@@ -12,10 +12,10 @@ class S3Fetcher:
     It passes back handles that intelligently query header information from NetCDF files in Cloud.
     """
 
-    def fetch(self, uris: list[str]) -> list[XarrayHandle]:
+    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         return [
             S3XarrayHandle(
-                path=cloudpathlib.S3Path(cloud_path=uri),
+                path=cloudpathlib.S3Path(cloud_path=entry.uri),
             )
-            for uri in uris
+            for entry in entries
         ]

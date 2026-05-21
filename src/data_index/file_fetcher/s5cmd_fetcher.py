@@ -4,7 +4,7 @@ import tempfile
 import sh
 import cloudpathlib
 import re
-from data_index.protocols import XarrayHandle
+from data_index.protocols import BatchEntry, XarrayHandle
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 
 
@@ -63,7 +63,8 @@ class S5CMDFetcher:
     def _is_missing_key_error(line: str) -> bool:
         return "NoSuchKey" in line or "The specified key does not exist" in line
 
-    def fetch(self, uris: list[str]) -> list[XarrayHandle]:
+    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
+        uris = [entry.uri for entry in entries]
         if not uris:
             return []
 

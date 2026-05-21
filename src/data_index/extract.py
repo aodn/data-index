@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import pathlib
-
 import polars
 import prefect
 import prefect.artifacts
 
-from data_index.protocols import FileFetcher, XarrayHandle
+from data_index.protocols import FileFetcher, XarrayHandle, BatchEntry
 
 
 @prefect.task
@@ -45,7 +43,8 @@ def extract(
     else:
         logger.info(f"Processing batch of `{len(batch_df)}` files => `{round(batch_df["size"].sum() / 2 ** 30, 2)}`GB")
     # Fetch
-    manifest = fetcher.fetch(batch_df["s3_uri"].to_list())
+    entries = [BatchEntry(uri=row["s3_uri"], size_bytes=row["size"]) for row in batch_df.iter_rows(named=True)]
+    manifest = fetcher.fetch(entries)
 
     # Report manifest
     prefect.artifacts.create_table_artifact(
