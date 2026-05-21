@@ -6,37 +6,41 @@ import tempfile
 from data_index.extract import extract
 from data_index.transform import transform
 from data_index.load import load
-from data_index.file_fetcher import S5CMDFetcher
+from data_index.file_fetcher import S5CMDFetcher, S3Fetcher
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink
 from data_index.unstructured_sink import UnstructuredParquetSink
 from data_index.testing import get_batch
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("fsspec").setLevel(logging.DEBUG)
+
 IMOS_DATA_BUCKET_PREFIXES = [
     # Processed
-    "IMOS/AATAMS",
-    "IMOS/ACORN_JCU_historical",
-    "IMOS/ACORN",
-    "IMOS/ANFOG",
-    "IMOS/Argo",
-    "IMOS/AUV",
-    "IMOS/BGC_DB",
-    "IMOS/COASTAL-WAVE-BUOYS",
-    "IMOS/DWM",
-    "IMOS/eMII",
-    "IMOS/FAIMMS",
-    "IMOS/NRMN",
-    "IMOS/NTP",
-    "IMOS/OceanCurrent",
-    "IMOS/SAIMOS",
-    "IMOS/SOOP",
+    # "IMOS/AATAMS",
+    # "IMOS/ACORN_JCU_historical",
+    # "IMOS/ACORN",
+    # "IMOS/ANFOG",
+    # "IMOS/Argo",
+    # "IMOS/AUV",
+    # "IMOS/BGC_DB",
+    # "IMOS/COASTAL-WAVE-BUOYS",
+    # "IMOS/DWM",
+    # "IMOS/eMII",
+    # "IMOS/FAIMMS",
+    # "IMOS/NRMN",
+    # "IMOS/NTP",
+    # "IMOS/OceanCurrent",
+    # "IMOS/SAIMOS",
+    # "IMOS/SOOP",
     "IMOS/SRS",
-    "IMOS/ANMN",
+    # "IMOS/ANMN",
 ]
 
 @prefect.flow(
     flow_run_name="pipeline-{prefix}",
-    task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=32),
+    task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=1),
 )
 def pipeline(
     prefix: str,
@@ -48,31 +52,28 @@ def pipeline(
         limit=limit,
     )
 
-    with tempfile.TemporaryDirectory() as temporary_directory:
-
-        manifest = extract(
-            batch_df=batch_df,
-            fetcher=S5CMDFetcher(),
-            extract_path=pathlib.Path(temporary_directory),
-        )
-        extraction_results = transform(
-            manifest=manifest,
-            extractor=NetCDFExtractor(),
-        )
-        load(
-            extraction_results=extraction_results,
-            structured_sink=StructuredParquetSink(
-                path=pathlib.Path(".load/structured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
-            ),
-            unstructured_sink=UnstructuredParquetSink(
-                path=pathlib.Path(".load/unstructured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
-            ),
-        )
+    xarray_handles = extract(
+        batch_df=batch_df,
+        fetcher=S3Fetcher(),
+    )
+    extraction_results = transform(
+        xarray_handles=xarray_handles,
+        extractor=NetCDFExtractor(),
+    )
+    load(
+        extraction_results=extraction_results,
+        structured_sink=StructuredParquetSink(
+            path=pathlib.Path(".load/structured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
+        ),
+        unstructured_sink=UnstructuredParquetSink(
+            path=pathlib.Path(".load/unstructured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
+        ),
+    )
 
 @prefect.flow
 def main(
     prefixes: list[str] = IMOS_DATA_BUCKET_PREFIXES,
-    limit: int = 1_000,
+    limit: int = 100,
 ) -> None:
     
     for prefix in prefixes:

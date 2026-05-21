@@ -6,7 +6,7 @@ import polars
 import prefect
 import prefect.artifacts
 
-from data_index.protocols import FileFetcher, ManifestEntry
+from data_index.protocols import FileFetcher, XarrayHandle
 
 
 @prefect.task
@@ -20,13 +20,12 @@ def extract(
         }
     ),
     batch_size_limit: int = 50 * 2**30,  # 50GB
-    extract_path: pathlib.Path = pathlib.Path(".extract"),
-) -> list[ManifestEntry]:
+) -> list[XarrayHandle]:
     """
     Sync a batch of S3 NetCDF files to local disk.
 
     Validates: schema, unique s3_uris, total size within limit.
-    Returns a list of ManifestEntry with s3_uri and absolute_path per file.
+    Returns a list of XarrayHandle with s3_uri and absolute_path per file.
     """
 
     logger = prefect.get_run_logger()
@@ -46,7 +45,7 @@ def extract(
     else:
         logger.info(f"Processing batch of `{len(batch_df)}` files => `{round(batch_df["size"].sum() / 2 ** 30, 2)}`GB")
     # Fetch
-    manifest = fetcher.fetch(batch_df["s3_uri"].to_list(), extract_path)
+    manifest = fetcher.fetch(batch_df["s3_uri"].to_list())
 
     # Report manifest
     prefect.artifacts.create_table_artifact(

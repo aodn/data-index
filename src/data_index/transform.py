@@ -6,11 +6,11 @@ import typing
 import polars
 import prefect
 import prefect.artifacts
-import xarray
+import prefect.futures
 
 from data_index.protocols import (
     ExtractionResult,
-    ManifestEntry,
+    XarrayHandle,
     MetadataExtractor,
     StructuredMetadata,
     UnstructuredMetadata,
@@ -19,43 +19,45 @@ from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
 @prefect.task(
-    task_run_name="transform-single-{manifest_entry.s3_uri}",
+    task_run_name="transform-single-{xarray_handle.s3_uri}",
 )
 def _transform_single(
-    manifest_entry: ManifestEntry,
+    xarray_handle: XarrayHandle,
     extractor: MetadataExtractor,
     unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
 ) -> ExtractionResult:
+    ds = xarray_handle.ds
     try:
-        with manifest_entry.open_dataset() as ds:
-            raw = extractor.extract(ds=ds, s3_uri=manifest_entry.s3_uri)
+        raw = extractor.extract(ds=ds, s3_uri=xarray_handle.s3_uri)
         if raw.status == "failed":
             return ExtractionResult(
-                s3_uri=manifest_entry.s3_uri,
+                s3_uri=xarray_handle.s3_uri,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
                 error=raw.error,
             )
         return ExtractionResult(
-            s3_uri=manifest_entry.s3_uri,
+            s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(manifest_entry.s3_uri, raw.unstructured_metadata.load()),
+            unstructured_metadata=unstructured_metadata_factory(xarray_handle.s3_uri, raw.unstructured_metadata),
             status="succeeded",
         )
     except Exception as exc:
         return ExtractionResult(
-            s3_uri=manifest_entry.s3_uri,
+            s3_uri=xarray_handle.s3_uri,
             structured_metadata=None,
             unstructured_metadata=None,
             status="failed",
             error=str(exc),
         )
+    finally:
+        ds.close()
 
 
 @prefect.task
 def transform(
-    manifest: list[ManifestEntry],
+    xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
 ) -> list[ExtractionResult]:
@@ -70,19 +72,20 @@ def transform(
     """
     futures = [
         _transform_single.submit(
-            manifest_entry=entry,
+            xarray_handle=xarray_handle,
             extractor=extractor,
             unstructured_metadata_factory=metadata_factory,
         )
-        for entry in manifest
+        for xarray_handle in xarray_handles
     ]
-    results: list[ExtractionResult] = [f.result() for f in futures]
 
-    # Remove files
-    for entry in manifest:
-        if isinstance(entry.target, pathlib.Path):
-            if entry.target.exists():
-                entry.target.unlink()
+    results = []
+    for future in prefect.futures.as_completed(futures=futures):
+        results.append(future.result())
+
+    # Release handle resources (e.g. delete local files for DiskXarrayHandle)
+    for xarray_handle in xarray_handles:
+        xarray_handle.cleanup()
 
     failed = [r for r in results if r.status == "failed"]
     succeeded = [r for r in results if r.status == "succeeded"]

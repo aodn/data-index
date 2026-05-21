@@ -30,12 +30,15 @@ def get_batch(
             ).alias("s3_uri"),
             polars.col("size"),
         )
+        .sort(
+            polars.col("s3_uri"),
+        )
         .collect()
     )
 
     # Apply limit as sample
     if limit:
-        df = df.sample(n=limit if limit <= len(df) else len(df))
+        df = df.head(n=limit if limit <= len(df) else len(df))
     
     return df
 

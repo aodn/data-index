@@ -3,7 +3,7 @@ import logging
 import sh
 import cloudpathlib
 import re
-from data_index.protocols import ManifestEntry
+from data_index.protocols import XarrayHandle
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class S5CMDFetcher:
         return commands
 
     @staticmethod
-    def _parse_s5cmd_output(stdout_str: str) -> list[ManifestEntry]:
+    def _parse_s5cmd_output(stdout_str: str) -> list[XarrayHandle]:
         """
         Parses s5cmd stdout to identify successful downloads.
         Expected line format: cp s3://bucket/key local/path
@@ -46,7 +46,7 @@ class S5CMDFetcher:
             if match:
                 s3_uri = match.group(1)
                 local_path = pathlib.Path(match.group(2)).resolve()
-                entries.append(ManifestEntry(s3_uri=s3_uri, target=local_path))
+                # entries.append(ManifestEntry(s3_uri=s3_uri, target=local_path))
         
         return entries
 
@@ -62,7 +62,7 @@ class S5CMDFetcher:
     def _is_missing_key_error(line: str) -> bool:
         return "NoSuchKey" in line or "The specified key does not exist" in line
 
-    def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[ManifestEntry]:
+    def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[XarrayHandle]:
         if not uris:
             return []
 

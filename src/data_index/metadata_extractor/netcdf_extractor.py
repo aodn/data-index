@@ -1,24 +1,23 @@
 import xarray
 import numpy
-from data_index.protocols import ExtractionResult, StructuredMetadata
-from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
+from data_index.protocols import RawExtractionResult, StructuredMetadata
 
 
 class NetCDFExtractor:
     """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
 
-    def extract(self, ds: xarray.Dataset, s3_uri: str) -> ExtractionResult:
+    def extract(self, ds: xarray.Dataset, s3_uri: str) -> RawExtractionResult:
         try:
             structured = self._extract_structured(ds, s3_uri)
             unstructured = self._extract_unstructured(ds)
-            return ExtractionResult(
+            return RawExtractionResult(
                 s3_uri=s3_uri,
                 structured_metadata=structured,
-                unstructured_metadata=InMemoryUnstructuredMetadata(s3_uri, unstructured),
+                unstructured_metadata=unstructured,
                 status="succeeded",
             )
         except Exception as exc:
-            return ExtractionResult(
+            return RawExtractionResult(
                 s3_uri=s3_uri,
                 structured_metadata=None,
                 unstructured_metadata=None,
