@@ -68,10 +68,10 @@ def pipeline(
     load(
         extraction_results=extraction_results,
         structured_sink=StructuredParquetSink(
-            path=pathlib.Path(".load/structured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
+            path=pathlib.Path(".load/structured_metadata") / pathlib.Path(f"prefix={prefix.removeprefix('IMOS/')}") / "0.parquet"
         ),
         unstructured_sink=UnstructuredParquetSink(
-            path=pathlib.Path(".load/unstructured_metadata") / pathlib.Path(f"prefix={prefix.lstrip("IMOS/")}") / "0.parquet"
+            path=pathlib.Path(".load/unstructured_metadata") / pathlib.Path(f"prefix={prefix.removeprefix('IMOS/')}") / "0.parquet"
         ),
     )
 
