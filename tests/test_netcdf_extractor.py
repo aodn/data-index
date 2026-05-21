@@ -33,6 +33,21 @@ def make_dataset(
     return ds
 
 
+class StubHandle:
+    """Minimal XarrayHandle stub for extractor tests."""
+    def __init__(self, ds: xarray.Dataset, s3_uri: str = "s3://bucket/file.nc", file_format: str | None = None):
+        self._ds = ds
+        self.s3_uri = s3_uri
+        self.file_format = file_format
+
+    @property
+    def ds(self) -> xarray.Dataset:
+        return self._ds
+
+    def cleanup(self) -> None:
+        pass
+
+
 @pytest.fixture
 def extractor():
     return NetCDFExtractor()
@@ -46,7 +61,7 @@ def test_extracts_lat_lon_time_ranges(extractor):
         lon=[100.0, 110.0],
         time=[numpy.datetime64("2020-01-01"), numpy.datetime64("2020-06-01")],
     )
-    result = extractor.extract(ds, s3_uri="s3://bucket/file.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
     assert result.status == "succeeded"
     sm = result.structured_metadata
@@ -63,7 +78,7 @@ def test_extracts_lat_lon_time_ranges(extractor):
 
 def test_returns_none_fields_for_missing_coordinates(extractor):
     ds = xarray.Dataset()
-    result = extractor.extract(ds, s3_uri="s3://bucket/empty.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/empty.nc"))
 
     assert result.status == "succeeded"
     sm = result.structured_metadata
@@ -81,7 +96,7 @@ def test_extracts_crs_from_crs_wkt_attribute(extractor):
         grid_mapping_var="crs",
         grid_mapping_var_attrs={"crs_wkt": "PROJCS[...]"},
     )
-    result = extractor.extract(ds, s3_uri="s3://bucket/crs.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/crs.nc"))
 
     assert result.structured_metadata.crs == "PROJCS[...]"
 
@@ -92,33 +107,31 @@ def test_extracts_crs_from_grid_mapping_name_when_no_crs_wkt(extractor):
         grid_mapping_var="crs",
         grid_mapping_var_attrs={"grid_mapping_name": "transverse_mercator"},
     )
-    result = extractor.extract(ds, s3_uri="s3://bucket/crs.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/crs.nc"))
 
     assert result.structured_metadata.crs == "transverse_mercator"
 
 
 def test_extracts_crs_from_global_attrs_when_no_grid_mapping(extractor):
     ds = make_dataset(lat=[0.0], global_attrs={"crs": "EPSG:4326"})
-    result = extractor.extract(ds, s3_uri="s3://bucket/crs.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/crs.nc"))
 
     assert result.structured_metadata.crs == "EPSG:4326"
 
 
 def test_returns_failed_status_when_extraction_raises(extractor):
-    class BrokenDataset:
-        @property
-        def coords(self):
-            raise RuntimeError("broken")
+    class BrokenHandle:
+        s3_uri = "s3://bucket/broken.nc"
+        file_format = None
 
         @property
-        def data_vars(self):
+        def ds(self):
             raise RuntimeError("broken")
 
-        @property
-        def attrs(self):
-            raise RuntimeError("broken")
+        def cleanup(self):
+            pass
 
-    result = extractor.extract(BrokenDataset(), s3_uri="s3://bucket/broken.nc")
+    result = extractor.extract(BrokenHandle())
 
     assert result.status == "failed"
     assert result.error is not None
@@ -130,7 +143,7 @@ def test_returns_failed_status_when_extraction_raises(extractor):
 
 def test_unstructured_metadata_contains_global_attrs_variables_coordinates(extractor):
     ds = make_dataset(lat=[-5.0, 5.0], global_attrs={"title": "Test dataset"})
-    result = extractor.extract(ds, s3_uri="s3://bucket/file.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
     um = result.unstructured_metadata
     assert "global_attrs" in um
@@ -142,7 +155,7 @@ def test_unstructured_metadata_contains_global_attrs_variables_coordinates(extra
 
 def test_unstructured_metadata_is_json_serialisable(extractor):
     ds = make_dataset(lat=[-5.0, 5.0], global_attrs={"title": "Test"})
-    result = extractor.extract(ds, s3_uri="s3://bucket/file.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
     # Should not raise
     json.dumps(result.unstructured_metadata)
@@ -151,9 +164,17 @@ def test_unstructured_metadata_is_json_serialisable(extractor):
 def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(extractor):
     """numpy.bool_ attributes (common in CF-NetCDF files) must be sanitised to native bool."""
     ds = make_dataset(lat=[-5.0, 5.0], global_attrs={"is_calibrated": numpy.bool_(True)})
-    result = extractor.extract(ds, s3_uri="s3://bucket/file.nc")
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
     # Should not raise — numpy.bool_ is not natively JSON-serialisable
     serialised = json.dumps(result.unstructured_metadata)
     data = json.loads(serialised)
     assert data["global_attrs"]["is_calibrated"] is True
+
+
+def test_file_format_propagates_to_structured_and_unstructured(extractor):
+    ds = make_dataset(lat=[-5.0, 5.0])
+    result = extractor.extract(StubHandle(ds, file_format="NETCDF4"))
+
+    assert result.structured_metadata.file_format == "NETCDF4"
+    assert result.unstructured_metadata["file_format"] == "NETCDF4"

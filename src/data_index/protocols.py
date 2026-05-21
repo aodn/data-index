@@ -23,6 +23,7 @@ class StructuredMetadata:
     time_min: str | None
     time_max: str | None
     crs: str | None
+    file_format: str | None = None
 
     polars_schema: typing.ClassVar[polars.Schema] = polars.Schema({
         "s3_uri": polars.String,
@@ -33,6 +34,7 @@ class StructuredMetadata:
         "time_min": polars.String,
         "time_max": polars.String,
         "crs": polars.String,
+        "file_format": polars.String,
     })
 
 
@@ -66,6 +68,7 @@ class ExtractionResult:
 
 class XarrayHandle(typing.Protocol):
     s3_uri: str
+    file_format: str | None
 
     @property
     def ds(self) -> xarray.Dataset:
@@ -83,8 +86,8 @@ class FileFetcher(typing.Protocol):
 
 
 class MetadataExtractor(typing.Protocol):
-    def extract(self, ds: xarray.Dataset, s3_uri: str) -> RawExtractionResult:
-        """Extract structured and unstructured metadata from an open xarray Dataset."""
+    def extract(self, handle: XarrayHandle) -> RawExtractionResult:
+        """Extract structured and unstructured metadata from an XarrayHandle."""
         ...
 
 

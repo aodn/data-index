@@ -9,7 +9,7 @@ from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetche
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink
 from data_index.unstructured_sink import UnstructuredParquetSink
-from data_index.testing import get_batch
+from data_index.testing import get_batch, get_threshold_batch
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -46,15 +46,17 @@ def pipeline(
     limit: int,
 ) -> None:
 
-    batch_df = get_batch(
-        collection=prefix.split("/")[-1],
-        limit=limit,
-    )
+    # batch_df = get_batch(
+    #     collection=prefix.split("/")[-1],
+    #     limit=limit,
+    # )
+
+    batch_df = get_threshold_batch(threshold=1024 ** 2 * 8)
 
     xarray_handles = extract(
         batch_df=batch_df,
         fetcher=ThresholdFileFetcher(
-            size_threshold_bytes=128 * 1024,
+            size_threshold_bytes=1024 ** 2 * 2,
             disk_fetcher=S5CMDFetcher(),
             cloud_fetcher=S3Fetcher(),
         ),

@@ -25,9 +25,8 @@ def _transform_single(
     extractor: MetadataExtractor,
     unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
 ) -> ExtractionResult:
-    ds = xarray_handle.ds
     try:
-        raw = extractor.extract(ds=ds, s3_uri=xarray_handle.s3_uri)
+        raw = extractor.extract(handle=xarray_handle)
         if raw.status == "failed":
             return ExtractionResult(
                 s3_uri=xarray_handle.s3_uri,
@@ -51,7 +50,7 @@ def _transform_single(
             error=str(exc),
         )
     finally:
-        ds.close()
+        xarray_handle.ds.close()
 
 
 @prefect.task

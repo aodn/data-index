@@ -17,6 +17,7 @@ def make_metadata(**kwargs) -> StructuredMetadata:
         time_min="2020-01-01",
         time_max="2020-06-01",
         crs="EPSG:4326",
+        file_format=None,
     )
     defaults.update(kwargs)
     return StructuredMetadata(**defaults)

@@ -86,3 +86,40 @@ def get_batch_from_s3_metadata(
         )
         .collect()
     )
+
+def get_threshold_batch(
+    threshold: int = 1024 * 128,
+):
+    
+    le_df = (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            polars.col("size").le(threshold)
+        )
+        .limit(1_000)
+        .collect()
+    )
+    gt_df = (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            polars.col("size").gt(threshold)
+        )
+        .limit(10)
+        .collect()
+    )
+
+    return (
+        le_df.vstack(gt_df)
+        .select(
+            polars.concat_str(
+                polars.lit("s3:/"),
+                polars.col("bucket"),
+                polars.col("key"),
+                separator="/"
+            ).alias("s3_uri"),
+            polars.col("size"),
+        )
+        .sort(
+            polars.col("s3_uri"),
+        )
+    )
