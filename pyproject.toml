@@ -10,6 +10,7 @@ requires-python = "~=3.12.0"
 dependencies = [
     "cftime>=1.6.5",
     "cloudpathlib[s3]>=0.24.0",
+    "diskcache>=5.6.3",
     "fsspec>=2026.4.0",
     "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
@@ -32,3 +33,14 @@ data-index = "data_index.main:main"
 
 [tool.prefect]
 home = ".prefect"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+analysis = [
+    "altair>=5",
+    "ipykernel>=6",
+    "jupyterlab>=4",
+    "rich>=13",
+]

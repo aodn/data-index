@@ -86,6 +86,8 @@ class NetCDFExtractor:
             return {k: self._sanitize_for_json(v) for k, v in data.items()}
         elif isinstance(data, (list, tuple)):
             return [self._sanitize_for_json(v) for v in data]
+        elif isinstance(data, numpy.bool_):
+            return bool(data)
         elif isinstance(data, (numpy.integer, numpy.int64, numpy.int32)):
             return int(data)
         elif isinstance(data, (numpy.floating, numpy.float64, numpy.float32)):

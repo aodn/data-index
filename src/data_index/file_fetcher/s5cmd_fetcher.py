@@ -1,9 +1,11 @@
 import pathlib
 import logging
+import tempfile
 import sh
 import cloudpathlib
 import re
 from data_index.protocols import XarrayHandle
+from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 
 
 logger = logging.getLogger(__name__)
@@ -11,7 +13,8 @@ logger = logging.getLogger(__name__)
 class S5CMDFetcher:
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
 
-    def __init__(self):
+    def __init__(self, extract_path: pathlib.Path | None = None):
+        self._extract_path = extract_path or pathlib.Path(tempfile.mkdtemp(prefix="s5cmd_fetch_"))
         self._check_availability()
 
     @staticmethod
@@ -37,8 +40,6 @@ class S5CMDFetcher:
         Expected line format: cp s3://bucket/key local/path
         """
         entries = []
-        # Regex to capture the S3 URI and the Local Path from 'cp' lines
-        # s5cmd output usually looks like: cp s3://source local/dest
         pattern = re.compile(r"cp\s+(s3://\S+)\s+(\S+)")
 
         for line in stdout_str.splitlines():
@@ -46,7 +47,7 @@ class S5CMDFetcher:
             if match:
                 s3_uri = match.group(1)
                 local_path = pathlib.Path(match.group(2)).resolve()
-                # entries.append(ManifestEntry(s3_uri=s3_uri, target=local_path))
+                entries.append(DiskXarrayHandle(path=local_path, s3_uri=s3_uri))
         
         return entries
 
@@ -62,11 +63,11 @@ class S5CMDFetcher:
     def _is_missing_key_error(line: str) -> bool:
         return "NoSuchKey" in line or "The specified key does not exist" in line
 
-    def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[XarrayHandle]:
+    def fetch(self, uris: list[str]) -> list[XarrayHandle]:
         if not uris:
             return []
 
-        commands = self._prepare_commands(uris, extract_path)
+        commands = self._prepare_commands(uris, self._extract_path)
         input_stream = "\n".join(commands) + "\n"
         
         try:
