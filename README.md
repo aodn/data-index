@@ -35,19 +35,19 @@ A pipeline that ingests CF-compliant NetCDF files from S3, extracts metadata, an
  │ Concurrently Executed Batch Process                      │
  ├──────────────────────────────────────────────────────────┤
  │                                                          │
- │    extract() ◄──────────── [ FileFetcher ]               │
+ │    extract() ◄──────────── [ FileFetcher.fetch() ]       │
  │        │                                                 │
  │        ▼                                                 │
- │   transform() ◄─────────── [ MetadataExtractor ]         │
+ │   transform() ◄─────────── [ MetadataExtractor.extract ] │
  │        │                                                 │
  │        ▼                                                 │
- │  ExtractionResult[]                                      │
- │  (structured + unstructured + status)                    │
+ │  ExtractionResult(structured + unstructured + status)    │
+ │                                                          │
  │        │                                                 │
  │        ▼                                                 │
  │     load()                                               │
- │        ├──► [ StructuredSink ]   ──► S3 Table (Iceberg)  │
- │        └──► [ UnstructuredSink ] ──► S3 Table (Iceberg)  │
+ │        ├──► [ StructuredSink.sink() ]   ──► store        │
+ │        └──► [ UnstructuredSink.sink() ] ──► store        │
  │                                                          │
  └──────────────────────────────────────────────────────────┘
 ```
