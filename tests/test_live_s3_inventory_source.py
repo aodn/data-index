@@ -3,8 +3,8 @@ import pathlib
 import polars
 import pytest
 
-from data_index.catalog_config import SqliteCatalogConfig
-from data_index.iceberg_table_config import IcebergTableConfig
+from data_index.iceberg_config import SqliteCatalogConfig
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.inventory_source.live_s3 import LiveS3InventorySource
 from data_index.s3_metadata.extract import TableScanConfig
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pydantic
 import pyiceberg.table
 
-from data_index.catalog_config import S3TablesCatalogConfig, SqliteCatalogConfig
+from .catalog_config import S3TablesCatalogConfig, SqliteCatalogConfig
 
 
 class IcebergTableConfig(pydantic.BaseModel):

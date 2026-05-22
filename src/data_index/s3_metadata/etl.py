@@ -18,7 +18,7 @@ def etl(
 
 
 if __name__ == "__main__":
-    from data_index.catalog_config import S3TablesCatalogConfig
+    from data_index.iceberg_config import S3TablesCatalogConfig
 
     etl(
         table_config=IcebergTableConfig(
