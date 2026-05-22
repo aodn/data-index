@@ -3,11 +3,14 @@ from __future__ import annotations
 import polars
 import prefect
 import prefect.artifacts
+import prefect.cache_policies
 
 from data_index.protocols import FileFetcher, XarrayHandle, BatchEntry
 
 
-@prefect.task
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE
+)
 def extract(
     batch_df: polars.DataFrame,
     fetcher: FileFetcher,

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import prefect
+import prefect.cache_policies
 
 from data_index.protocols import ExtractionResult, StructuredSink, UnstructuredSink
 
 
-@prefect.task
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE,
+)
 def load(
     extraction_results: list[ExtractionResult],
     structured_sink: StructuredSink,

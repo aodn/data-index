@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 class S5CMDFetcher:
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
 
-    def __init__(self, extract_path: pathlib.Path | None = None):
+    def __init__(self, extract_path: pathlib.Path | None = None, num_workers: int = 256, anon: bool = False):
         self._extract_path = extract_path or pathlib.Path(tempfile.mkdtemp(prefix="s5cmd_fetch_"))
+        self._num_workers = num_workers
+        self._anon = anon
         self._check_availability()
 
     @staticmethod
@@ -73,7 +75,11 @@ class S5CMDFetcher:
         
         try:
             # Capture stdout to see what s5cmd actually did
-            output = sh.s5cmd("run", _in=input_stream)
+            args = ["--numworkers", self._num_workers]
+            if self._anon:
+                args.append("--no-sign-request")
+            args += ["run"]
+            output = sh.s5cmd(*args, _in=input_stream)
             return self._parse_s5cmd_output(stdout_str=self._decode_stream(output))
         except sh.ErrorReturnCode as e:
             stdout_str = self._decode_stream(e.stdout)

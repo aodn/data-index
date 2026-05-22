@@ -10,6 +10,10 @@ class ParquetSink:
     def __init__(self, path: pathlib.Path = pathlib.Path("unstructured_metadata.parquet")) -> None:
         self.path = path
 
+    def provision(self) -> None:
+        """Create the parent directory for the Parquet file if it doesn't exist."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
     def write(self, data: dict[str, dict]) -> None:
         schema = polars.Schema({"s3_uri": polars.String, "metadata": polars.String})
         rows = [{"s3_uri": uri, "metadata": json.dumps(meta)} for uri, meta in data.items()]

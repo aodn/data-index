@@ -1,8 +1,12 @@
 import numpy
 import orjson
 
-def _serialize_with_orjson(data: dict):
-    return orjson.dumps(data, option=orjson.OPT_SERIALIZE_NUMPY).decode(encoding="utf-8")
+
+def _serialize_with_orjson(data: dict) -> dict:
+    """Sanitise numpy/xarray types to native Python primitives via orjson round-trip.
+    Faster than recursive Python traversal for large metadata dicts."""
+    return orjson.loads(orjson.dumps(data, option=orjson.OPT_SERIALIZE_NUMPY))
+
 
 def _sanitize_for_json(data):
     """Recursively convert numpy/xarray types to native Python primitives."""

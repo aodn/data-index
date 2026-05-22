@@ -77,5 +77,5 @@ def test_fetch_calls_s5cmd_run_with_cp_commands(tmp_path, fetcher):
 
     instance.fetch([BatchEntry(uri="s3://bucket/a.nc")])
 
-    run_calls = [c for c in mock_sh.s5cmd.call_args_list if c.args and c.args[0] == "run"]
+    run_calls = [c for c in mock_sh.s5cmd.call_args_list if c.args and "run" in c.args]
     assert len(run_calls) == 1

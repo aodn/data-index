@@ -7,6 +7,7 @@ import typing
 import polars
 import prefect
 import prefect.artifacts
+import prefect.cache_policies
 
 from data_index.protocols import (
     ExtractionResult,
@@ -55,11 +56,14 @@ def _transform_single(
         xarray_handle.ds.close()
 
 
-@prefect.task
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE
+)
 def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    max_workers: int | None = None,
 ) -> list[ExtractionResult]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
@@ -68,10 +72,20 @@ def transform(
     immediately persists unstructured metadata via metadata_factory(s3_uri, data).
     Releases handle resources after all threads complete.
 
+    Args:
+        max_workers: Maximum threads for the internal pool. None uses Python's default
+            (min(32, cpu_count + 4)). Set explicitly when multiple batches run
+            concurrently to avoid thread explosion across workers.
+
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
     logger = prefect.get_run_logger()
-    with concurrent.futures.ThreadPoolExecutor() as pool:
+    total = len(xarray_handles)
+    progress_artifact_id = prefect.artifacts.create_progress_artifact(
+        progress=0.0,
+        description=f"Transforming {total} files",
+    )
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
             pool.submit(
                 _transform_single,
@@ -82,7 +96,13 @@ def transform(
             )
             for xarray_handle in xarray_handles
         }
-        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        results = []
+        for done_count, future in enumerate(concurrent.futures.as_completed(futures), start=1):
+            results.append(future.result())
+            prefect.artifacts.update_progress_artifact(
+                artifact_id=progress_artifact_id,
+                progress=done_count / total * 100 if total else 100.0,
+            )
 
     # Release handle resources (e.g. delete local files for DiskXarrayHandle)
     for xarray_handle in xarray_handles:

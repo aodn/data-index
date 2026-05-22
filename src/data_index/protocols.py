@@ -24,6 +24,7 @@ class StructuredMetadata:
     time_max: str | None
     crs: str | None
     file_format: str | None = None
+    collection: str | None = None
 
     polars_schema: typing.ClassVar[polars.Schema] = polars.Schema({
         "s3_uri": polars.String,
@@ -35,6 +36,7 @@ class StructuredMetadata:
         "time_max": polars.String,
         "crs": polars.String,
         "file_format": polars.String,
+        "collection": polars.String,
     })
 
 
@@ -92,12 +94,32 @@ class MetadataExtractor(typing.Protocol):
 
 
 class StructuredSink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
     def write(self, data: list[StructuredMetadata]) -> None:
         """Persist Structured Metadata to a target store."""
         ...
 
 
 class UnstructuredSink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
     def write(self, data: dict[str, dict]) -> None:
         """Persist Unstructured Metadata dicts (keyed by s3_uri) to a target store."""
+        ...
+
+
+class InventorySource(typing.Protocol):
+    def inventory(self) -> polars.DataFrame:
+        """Return the full corpus inventory as a DataFrame with `s3_uri` and `size` columns."""
+        ...
+
+
+class BatchPartitioner(typing.Protocol):
+    def partition(self, inventory: polars.DataFrame) -> typing.Iterator[polars.DataFrame]:
+        """Split an inventory DataFrame into a sequence of Batches."""
         ...

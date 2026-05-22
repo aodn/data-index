@@ -172,6 +172,28 @@ def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(ex
     assert data["global_attrs"]["is_calibrated"] is True
 
 
+def test_extracts_collection_as_second_path_segment(extractor):
+    ds = xarray.Dataset()
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc"))
+
+    assert result.structured_metadata.collection == "ANMN"
+
+
+def test_collection_is_none_for_short_uri(extractor):
+    ds = xarray.Dataset()
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
+
+    assert result.structured_metadata.collection is None
+
+
+def test_collection_is_none_for_single_segment_key(extractor):
+    """A file one level deep must not have its filename treated as its collection."""
+    ds = xarray.Dataset()
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/IMOS/file.nc"))
+
+    assert result.structured_metadata.collection is None
+
+
 def test_file_format_propagates_to_structured_and_unstructured(extractor):
     ds = make_dataset(lat=[-5.0, 5.0])
     result = extractor.extract(StubHandle(ds, file_format="NETCDF4"))
