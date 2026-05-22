@@ -5,29 +5,51 @@ A pipeline that ingests CF-compliant NetCDF files from S3, extracts metadata, an
 ## Pipeline
 
 ```
-InventorySource
-      |
-      v
-BatchPartitioner
-      |
-      v
-Orchestrator  (Prefect flow)
-      |
-      |  for each Batch
-      v
-  extract()  <────────────  FileFetcher
-      |
-      v
-  transform()  <──────────  MetadataExtractor, UnstructuredMetadataExtractor
-      |
-      v
-  ExtractionResult[]
-  (structured row + unstructured ref + status)
-      |
-      v
-  load()
-      ├──  StructuredSink   ──►  S3 Table (Iceberg)
-      └──  UnstructuredSink ──►  S3 Table (Iceberg)
+[ INJECTED DEPENDENCIES ]
+  ├── InventorySource
+  ├── BatchPartitioner
+  ├── FileFetcher
+  ├── MetadataExtractor
+  ├── StructuredSink 
+  └── UnstructuredSink
+         │
+         ▼
+ ┌────────────────────────────────────────────────────────┐
+ │ Orchestrator (Prefect Flow)                            │
+ ├────────────────────────────────────────────────────────┤
+ │                                                        │
+ │  1. [ Structured/Unstructured Sink ].provision()       │
+ │                                                        │
+ │  2. [ InventorySource ].inventory() ──► Full Corpus    │
+ │                                           │            │
+ │  3. [ BatchPartitioner ].partition() ◄────┘            │
+ │            │                                           │
+ │            ▼                                           │
+ │     [ Split Batches ]                                  │
+ │            │                                           │
+ └────────────┼───────────────────────────────────────────┘
+              │
+              │ Dispatch concurrent workers
+              ▼
+ ┌──────────────────────────────────────────────────────────┐
+ │ Concurrently Executed Batch Process                      │
+ ├──────────────────────────────────────────────────────────┤
+ │                                                          │
+ │    extract() ◄──────────── [ FileFetcher ]               │
+ │        │                                                 │
+ │        ▼                                                 │
+ │   transform() ◄─────────── [ MetadataExtractor ]         │
+ │        │                                                 │
+ │        ▼                                                 │
+ │  ExtractionResult[]                                      │
+ │  (structured + unstructured + status)                    │
+ │        │                                                 │
+ │        ▼                                                 │
+ │     load()                                               │
+ │        ├──► [ StructuredSink ]   ──► S3 Table (Iceberg)  │
+ │        └──► [ UnstructuredSink ] ──► S3 Table (Iceberg)  │
+ │                                                          │
+ └──────────────────────────────────────────────────────────┘
 ```
 
 ## Running locally
