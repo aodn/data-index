@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import pathlib
 import typing
 
 import polars
 import prefect
-import prefect_dask
+import prefect.task_runners
 
 from data_index.protocols import (
     BatchPartitioner,
@@ -31,29 +30,41 @@ def _process_batch(
     unstructured_sink: UnstructuredSink,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
 ) -> None:
-    """Full ETL pipeline for a single Batch, dispatched as a Dask worker task."""
+    """Full ETL pipeline for a single Batch, dispatched as a worker task."""
     handles = extract(batch_df=batch_df, fetcher=fetcher)
     results = transform(xarray_handles=handles, extractor=extractor, metadata_factory=metadata_factory)
     load(extraction_results=results, structured_sink=structured_sink, unstructured_sink=unstructured_sink)
 
 
-@prefect.flow
+@prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner())
 def orchestrate(
-    inventory_source: InventorySource,
-    partitioner: BatchPartitioner,
-    fetcher: FileFetcher,
-    extractor: MetadataExtractor,
-    structured_sink: StructuredSink,
-    unstructured_sink: UnstructuredSink,
-    task_runner: prefect_dask.DaskTaskRunner | None = None,
-    metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    inventory_source,
+    partitioner,
+    fetcher,
+    extractor,
+    structured_sink,
+    unstructured_sink,
+    metadata_factory=None,
 ) -> None:
-    """Orchestrator flow: read inventory → partition → dispatch ETL tasks to Dask workers.
+    """Orchestrator flow: read inventory → partition → dispatch ETL tasks as concurrent workers.
 
-    Each Batch is dispatched as an independent Prefect task with retries. Sinks and
-    other dependencies are injected so the flow is testable without live infrastructure.
+    Defaults to ThreadPoolTaskRunner for local runs. For Fargate dispatch use:
+        orchestrate.with_options(task_runner=DaskTaskRunner(...))(...)
+
+    Sinks and other dependencies are injected so the flow is testable without live infrastructure.
+
+    Args:
+        inventory_source: InventorySource — provides the full corpus inventory DataFrame
+        partitioner: BatchPartitioner — splits inventory into Batches
+        fetcher: FileFetcher — fetches files for each Batch
+        extractor: MetadataExtractor — extracts structured/unstructured metadata
+        structured_sink: StructuredSink — persists structured metadata
+        unstructured_sink: UnstructuredSink — persists unstructured metadata
+        metadata_factory: callable(s3_uri, data) → UnstructuredMetadata
     """
     logger = prefect.get_run_logger()
+    if metadata_factory is None:
+        metadata_factory = DiskCachedUnstructuredMetadata
 
     inventory = inventory_source.inventory()
     batches = list(partitioner.partition(inventory))

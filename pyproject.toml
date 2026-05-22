@@ -10,6 +10,7 @@ requires-python = "~=3.12.0"
 dependencies = [
     "cftime>=1.6.5",
     "cloudpathlib[s3]>=0.24.0",
+    "dask-cloudprovider[aws]>=2025.9.0",
     "diskcache>=5.6.3",
     "fsspec>=2026.4.0",
     "h5netcdf>=1.8.1",
@@ -18,6 +19,7 @@ dependencies = [
     "numpy>=2.4.4",
     "polars>=1.40.1",
     "prefect>=3.7.0",
+    "prefect-dask>=0.3.6",
     "pyarrow>=24.0.0",
     "pyiceberg>=0.11.1",
     "s3fs>=2026.4.0",
@@ -33,6 +35,8 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 data-index = "data_index.component_testing:main"
+cluster-local = "data_index.cluster.run_local:main"
+cluster-fargate = "data_index.cluster.run_fargate:main"
 
 [tool.prefect]
 home = ".prefect"
