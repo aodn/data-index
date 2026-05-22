@@ -71,6 +71,11 @@ def transform(
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
     logger = prefect.get_run_logger()
+    total = len(xarray_handles)
+    progress_artifact_id = prefect.artifacts.create_progress_artifact(
+        progress=0.0,
+        description=f"Transforming {total} files",
+    )
     with concurrent.futures.ThreadPoolExecutor() as pool:
         futures = {
             pool.submit(
@@ -82,7 +87,13 @@ def transform(
             )
             for xarray_handle in xarray_handles
         }
-        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        results = []
+        for done_count, future in enumerate(concurrent.futures.as_completed(futures), start=1):
+            results.append(future.result())
+            prefect.artifacts.update_progress_artifact(
+                artifact_id=progress_artifact_id,
+                progress=done_count / total * 100 if total else 100.0,
+            )
 
     # Release handle resources (e.g. delete local files for DiskXarrayHandle)
     for xarray_handle in xarray_handles:
