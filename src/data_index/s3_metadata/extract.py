@@ -187,7 +187,6 @@ class TableScanConfig(pydantic.BaseModel):
 def load_table(
     s3_table_config: S3TablesConfig,
 ) -> pyiceberg.table.Table:
-
     # Load the catalog
     catalog = pyiceberg.catalog.load_catalog(
         # catalog = load_catalog(
@@ -256,7 +255,6 @@ def extract(
     table_scan_config: TableScanConfig = TableScanConfig(),
     inventory_parquet_path: pathlib.Path = pathlib.Path("imos-data.inventory.parquet"),
 ) -> polars.LazyFrame:
-
     table = load_table(s3_table_config)
     sink_table(
         table=table,

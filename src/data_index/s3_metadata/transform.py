@@ -6,7 +6,6 @@ import prefect
 def transform_live_table(
     inventory_lf: polars.LazyFrame,
 ) -> polars.LazyFrame:
-
     return (
         # Source
         inventory_lf
@@ -34,7 +33,6 @@ def transform_live_table(
 
 @prefect.task
 def describe_live_table(live_inventory_lf: polars.LazyFrame):
-
     logger = prefect.get_run_logger()
     logger.info("generating describe...")
     logger.info(live_inventory_lf.select("key", "size").describe())
@@ -44,7 +42,6 @@ def describe_live_table(live_inventory_lf: polars.LazyFrame):
 def transform(
     inventory_lf: polars.LazyFrame,
 ) -> polars.LazyFrame:
-
     inventory_live_lf = transform_live_table(
         inventory_lf,
     )

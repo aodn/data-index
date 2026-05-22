@@ -1,4 +1,3 @@
-
 import polars
 import pytest
 

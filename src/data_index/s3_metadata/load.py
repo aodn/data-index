@@ -9,7 +9,6 @@ def _load_collection(
     collection: str,
     path: pathlib.Path = pathlib.Path(".extract/s3_metadata"),
 ) -> None:
-
     path = path / collection
     path.mkdir(parents=True, exist_ok=True)
     live_inventory_lf.filter(polars.col("collection").eq(collection)).sink_parquet(
@@ -22,7 +21,6 @@ def load(
     live_inventory_lf: polars.LazyFrame,
     path: pathlib.Path = pathlib.Path(".extract/s3_metadata"),
 ) -> polars.LazyFrame:
-
     collections = (
         live_inventory_lf.select("collection")
         .unique()

@@ -47,7 +47,6 @@ def pipeline(
     prefix: str,
     limit: int,
 ) -> None:
-
     # batch_df = get_batch(
     #     collection=prefix.split("/")[-1],
     #     limit=limit,
@@ -95,7 +94,6 @@ def main(
     prefixes: list[str] = IMOS_DATA_BUCKET_PREFIXES,
     limit: int = 100,
 ) -> None:
-
     for prefix in prefixes:
         pipeline(
             prefix=prefix,

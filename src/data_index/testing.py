@@ -15,7 +15,6 @@ def get_batch(
     collection: str,
     limit: int | None = None,
 ) -> polars.DataFrame:
-
     # Pre-Process the S3 Metadata table
     df = (
         polars.scan_parquet(".extract/s3_metadata")
@@ -47,7 +46,6 @@ def get_batch_from_s3_metadata(
     prefix: str,
     limit: int | None = 10_000,
 ) -> polars.DataFrame:
-
     inventory_parquet_path = (
         pathlib.Path(".extract")
         / pathlib.Path(prefix)
@@ -99,7 +97,6 @@ def get_batch_from_s3_metadata(
 def get_threshold_batch(
     threshold: int = 1024 * 128,
 ):
-
     le_df = (
         polars.scan_parquet(".extract/s3_metadata")
         .filter(polars.col("size").le(threshold))

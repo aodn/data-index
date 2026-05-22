@@ -44,6 +44,7 @@ home = ".prefect"
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
+    "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "sqlalchemy>=2.0.49",
 ]
