@@ -18,16 +18,16 @@ Orchestrator  (Prefect flow)
   extract()  <────────────  FileFetcher
       |
       v
-  transform()  <──────────  MetadataExtractor
-      |                      UnstructuredMetadata persisted immediately
+  transform()  <──────────  MetadataExtractor, UnstructuredMetadataExtractor
+      |
       v
   ExtractionResult[]
   (structured row + unstructured ref + status)
       |
       v
   load()
-    ├──  StructuredSink   ──►  S3 Table (Iceberg)
-    └──  UnstructuredSink ──►  S3 Table (Iceberg)
+      ├──  StructuredSink   ──►  S3 Table (Iceberg)
+      └──  UnstructuredSink ──►  S3 Table (Iceberg)
 ```
 
 ## Running locally
