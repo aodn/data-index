@@ -1,34 +1,73 @@
-# Pipeline
+# Data Index
+
+A pipeline that ingests CF-compliant NetCDF files from S3, extracts metadata, and stores it for discovery and later analysis.
+
+## Pipeline
 
 ```
-Batch (S3 URIs + sizes)
-  |
-  v
-extract()  <--  FileFetcher
-  |
-  v
-Manifest (s3_uri + local path)
-  |
-  v
-transform()  <--  MetadataExtractor
-  |               UnstructuredMetadata (diskcache write)
-  v
-ExtractionResult (structured row + unstructured ref + status)  [x N files]
-  |
-  v
-load()
-  ├─ StructuredSink    -->  Parquet / S3 Table (not implemented)
-  └─ UnstructuredSink  -->  Parquet / DynamoDB (Not Implemented) / S3 Table (not implemented)
+InventorySource
+      |
+      v
+BatchPartitioner
+      |
+      v
+Orchestrator  (Prefect flow)
+      |
+      |  for each Batch
+      v
+  extract()  <────────────  FileFetcher
+      |
+      v
+  transform()  <──────────  MetadataExtractor
+      |                      UnstructuredMetadata persisted immediately
+      v
+  ExtractionResult[]
+  (structured row + unstructured ref + status)
+      |
+      v
+  load()
+    ├──  StructuredSink   ──►  S3 Table (Iceberg)
+    └──  UnstructuredSink ──►  S3 Table (Iceberg)
 ```
 
-# Running
+## Running locally
 
-## Run the uv server
+Start a local Prefect server:
 ```bash
 uv run prefect server start
 ```
 
-## Run the pipeline
+Run a local test against a sampled inventory:
 ```bash
-uv run data-index
+uv run cluster-local
+```
+
+Run against AWS Fargate (builds + pushes Docker image to ECR):
+```bash
+uv run cluster-fargate
+```
+
+## Reading results
+
+```python
+from pyiceberg.catalog.sql import SqlCatalog
+import polars
+
+catalog = SqlCatalog(
+    "data-index",
+    uri="sqlite:///.load/orchestrate-test/catalog.db",
+    warehouse=".load/orchestrate-test",
+)
+
+df = polars.from_arrow(
+    catalog.load_table(("structured-metadata", "test")).scan().to_arrow()
+)
+```
+
+## Development
+
+```bash
+uv sync --group dev
+uv run pre-commit install   # install ruff check + format hooks
+uv run pytest tests/ -v
 ```
