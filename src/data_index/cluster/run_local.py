@@ -15,6 +15,7 @@ import pathlib
 
 import polars
 import prefect.task_runners
+from pyiceberg.catalog.sql import SqlCatalog
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
 
@@ -22,9 +23,9 @@ from data_index.cluster.orchestrate import orchestrate
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.inventory_source.parquet import ParquetInventorySource
 from data_index.metadata_extractor import UnstructuedNetCDFExtractor
-from data_index.structured_sink import StructuredParquetSink
+from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
 from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
-from data_index.unstructured_sink import UnstructuredParquetSink
+from data_index.unstructured_sink import UnstructuredParquetSink, UnstructuredS3TableSink
 
 # --- Config ---
 LIMIT = 16_000             # total files to process
@@ -67,6 +68,12 @@ def prepare_inventory() -> None:
 def main() -> None:
     prepare_inventory()
 
+    catalog = SqlCatalog(
+        "data-index",
+        uri=f"sqlite:///{OUT_DIR}/catalog.db",
+        warehouse=str(OUT_DIR.resolve()),
+    )
+
     orchestrate.with_options(
         task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=MAX_WORKERS)
     )(
@@ -77,15 +84,19 @@ def main() -> None:
         ),
         fetcher=ThresholdFileFetcher(
             size_threshold_bytes=THRESHOLD_BYTES,
-            disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS),
+            disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True),
             cloud_fetcher=S3Fetcher(block_size=5 * 1024 ** 2),
         ),
         extractor=UnstructuedNetCDFExtractor(),
-        structured_sink=StructuredParquetSink(
-            path=OUT_DIR / "structured_metadata.parquet",
+        structured_sink=StructuredS3TableSink(
+            catalog=catalog,
+            namespace="structured-metadata",
+            table_name="test",
         ),
-        unstructured_sink=UnstructuredParquetSink(
-            path=OUT_DIR / "unstructured_metadata.parquet",
+        unstructured_sink=UnstructuredS3TableSink(
+            catalog=catalog,
+            namespace="unstructured-metadata",
+            table_name="test",
         ),
         metadata_factory=InMemoryUnstructuredMetadata,
         transform_max_workers=TRANSFORM_WORKERS,

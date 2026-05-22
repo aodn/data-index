@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import typing
+
 import polars
 import prefect
 import prefect.task_runners
+import prefect.cache_policies
 
 from data_index.protocols import (
     BatchPartitioner,
@@ -19,7 +22,7 @@ from data_index.load import load
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
-@prefect.task(retries=2)
+@prefect.task(retries=2, cache_policy=prefect.cache_policies.NO_CACHE)
 def _process_batch(
     batch_df: polars.DataFrame,
     fetcher: FileFetcher,
