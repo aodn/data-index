@@ -7,6 +7,7 @@ import typing
 import polars
 import prefect
 import prefect.artifacts
+import prefect.cache_policies
 
 from data_index.protocols import (
     ExtractionResult,
@@ -55,7 +56,9 @@ def _transform_single(
         xarray_handle.ds.close()
 
 
-@prefect.task
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE
+)
 def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
