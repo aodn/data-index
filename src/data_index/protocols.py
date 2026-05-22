@@ -101,3 +101,15 @@ class UnstructuredSink(typing.Protocol):
     def write(self, data: dict[str, dict]) -> None:
         """Persist Unstructured Metadata dicts (keyed by s3_uri) to a target store."""
         ...
+
+
+class InventorySource(typing.Protocol):
+    def inventory(self) -> polars.DataFrame:
+        """Return the full corpus inventory as a DataFrame with `s3_uri` and `size` columns."""
+        ...
+
+
+class BatchPartitioner(typing.Protocol):
+    def partition(self, inventory: polars.DataFrame) -> typing.Iterator[polars.DataFrame]:
+        """Split an inventory DataFrame into a sequence of Batches."""
+        ...

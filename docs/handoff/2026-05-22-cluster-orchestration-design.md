@@ -68,3 +68,33 @@ src/data_index/cluster/orchestrate.py  ← the Orchestrator Prefect flow
 ## Suggested skills for next session
 
 - `tdd` — to implement and test `InventorySource`, `BatchPartitioner`, and the Orchestrator flow red-green-refactor style
+
+---
+
+## Implementation — 2026-05-22
+
+Built all modules from the agreed layout using TDD (red-green-refactor). Run State File deferred as agreed.
+
+### Delivered
+
+| File | What |
+|---|---|
+| `src/data_index/protocols.py` | Added `InventorySource` + `BatchPartitioner` protocols |
+| `src/data_index/inventory_source/parquet.py` | `ParquetInventorySource` — reads local or S3 Parquet file |
+| `src/data_index/batch_partitioner/greedy.py` | `GreedyBatchPartitioner` — greedy bin-packing by `max_files` + `max_bytes` |
+| `src/data_index/cluster/orchestrate.py` | `orchestrate` Prefect flow + `_process_batch` task (2 retries), fully injectable dependencies |
+| `tests/test_greedy_batch_partitioner.py` | 5 tests: single batch, size limit split, count limit split, empty inventory, completeness |
+| `tests/test_parquet_inventory_source.py` | 2 tests: schema check, value check |
+
+### Test results
+
+- 7 new tests passing
+- 55 pre-existing tests unchanged
+- 3 pre-existing failures in `test_netcdf_extractor.py` confirmed pre-existing
+
+### Deferred
+
+- Run State File (S3 JSON batch resumption) — ADR-0006 still applies
+- `LiveS3InventorySource`
+- `CollectionGroupedBatchPartitioner`
+- ECS/EC2 orchestrator hosting
