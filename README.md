@@ -35,10 +35,10 @@ A pipeline that ingests CF-compliant NetCDF files from S3, extracts metadata, an
  │ Concurrently Executed Batch Process                      │
  ├──────────────────────────────────────────────────────────┤
  │                                                          │
- │    extract() ◄──────────── [ FileFetcher.fetch() ]       │
+ │    extract() ◄───────── [ FileFetcher.fetch() ]          │
  │        │                                                 │
  │        ▼                                                 │
- │   transform() ◄─────────── [ MetadataExtractor.extract ] │
+ │   transform() ◄──────── [ MetadataExtractor.extract() ]  │
  │        │                                                 │
  │        ▼                                                 │
  │  ExtractionResult(structured + unstructured + status)    │
