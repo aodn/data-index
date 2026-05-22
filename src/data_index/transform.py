@@ -60,6 +60,7 @@ def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    max_workers: int | None = None,
 ) -> list[ExtractionResult]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
@@ -67,6 +68,11 @@ def transform(
     Runs one _transform_single call per file in parallel via a thread pool. Each call
     immediately persists unstructured metadata via metadata_factory(s3_uri, data).
     Releases handle resources after all threads complete.
+
+    Args:
+        max_workers: Maximum threads for the internal pool. None uses Python's default
+            (min(32, cpu_count + 4)). Set explicitly when multiple batches run
+            concurrently to avoid thread explosion across workers.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
@@ -76,7 +82,7 @@ def transform(
         progress=0.0,
         description=f"Transforming {total} files",
     )
-    with concurrent.futures.ThreadPoolExecutor() as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
             pool.submit(
                 _transform_single,

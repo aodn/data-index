@@ -27,10 +27,11 @@ from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
 from data_index.unstructured_sink import UnstructuredParquetSink
 
 # --- Config ---
-LIMIT = 200             # total files to process
-BATCH_SIZE = 50         # files per batch
-MAX_WORKERS = 2         # concurrent batches (limits RAM/CPU pressure)
+LIMIT = 16_000             # total files to process
+BATCH_SIZE = 1_000         # files per batch
+MAX_WORKERS = 8         # concurrent batches (limits RAM/CPU pressure)
 S5CMD_WORKERS = 8       # s5cmd defaults to 256 — cap it for local runs
+TRANSFORM_WORKERS = 4   # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
 OUT_DIR = pathlib.Path(".load/orchestrate-test")
 INVENTORY_PATH = OUT_DIR / "inventory.parquet"
 THRESHOLD_BYTES = 10 * 1024 ** 2  # 10 MB
@@ -87,6 +88,7 @@ def main() -> None:
             path=OUT_DIR / "unstructured_metadata.parquet",
         ),
         metadata_factory=InMemoryUnstructuredMetadata,
+        transform_max_workers=TRANSFORM_WORKERS,
     )
 
 

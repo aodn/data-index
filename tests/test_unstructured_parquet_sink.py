@@ -5,6 +5,15 @@ import polars
 from data_index.unstructured_sink.parquet_sink import ParquetSink
 
 
+def test_provision_creates_parent_directory(tmp_path):
+    path = tmp_path / "nested" / "out.parquet"
+    sink = ParquetSink(path=path)
+
+    sink.provision()
+
+    assert path.parent.exists()
+
+
 def test_writes_rows_with_s3_uri_and_json_metadata(tmp_path):
     path = tmp_path / "out.parquet"
     sink = ParquetSink(path=path)

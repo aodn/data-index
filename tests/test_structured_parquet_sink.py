@@ -23,6 +23,15 @@ def make_metadata(**kwargs) -> StructuredMetadata:
     return StructuredMetadata(**defaults)
 
 
+def test_provision_creates_parent_directory(tmp_path):
+    path = tmp_path / "nested" / "dir" / "out.parquet"
+    sink = ParquetSink(path=path)
+
+    sink.provision()
+
+    assert path.parent.exists()
+
+
 def test_writes_rows_with_correct_schema_and_values(tmp_path):
     path = tmp_path / "out.parquet"
     sink = ParquetSink(path=path)

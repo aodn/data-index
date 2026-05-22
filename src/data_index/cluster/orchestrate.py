@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import typing
-
 import polars
 import prefect
 import prefect.task_runners
@@ -29,10 +27,11 @@ def _process_batch(
     structured_sink: StructuredSink,
     unstructured_sink: UnstructuredSink,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    transform_max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
     handles = extract(batch_df=batch_df, fetcher=fetcher)
-    results = transform(xarray_handles=handles, extractor=extractor, metadata_factory=metadata_factory)
+    results = transform(xarray_handles=handles, extractor=extractor, metadata_factory=metadata_factory, max_workers=transform_max_workers)
     load(extraction_results=results, structured_sink=structured_sink, unstructured_sink=unstructured_sink)
 
 
@@ -45,6 +44,7 @@ def orchestrate(
     structured_sink,
     unstructured_sink,
     metadata_factory=None,
+    transform_max_workers: int | None = None,
 ) -> None:
     """Orchestrator flow: read inventory → partition → dispatch ETL tasks as concurrent workers.
 
@@ -61,10 +61,15 @@ def orchestrate(
         structured_sink: StructuredSink — persists structured metadata
         unstructured_sink: UnstructuredSink — persists unstructured metadata
         metadata_factory: callable(s3_uri, data) → UnstructuredMetadata
+        transform_max_workers: max threads per batch in the transform step; None uses Python's default
     """
     logger = prefect.get_run_logger()
     if metadata_factory is None:
         metadata_factory = DiskCachedUnstructuredMetadata
+
+    logger.info("Provisioning sinks")
+    structured_sink.provision()
+    unstructured_sink.provision()
 
     inventory = inventory_source.inventory()
     batches = list(partitioner.partition(inventory))
@@ -78,6 +83,7 @@ def orchestrate(
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
             metadata_factory=metadata_factory,
+            transform_max_workers=transform_max_workers,
         )
         for batch in batches
     ]

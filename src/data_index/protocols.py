@@ -24,6 +24,7 @@ class StructuredMetadata:
     time_max: str | None
     crs: str | None
     file_format: str | None = None
+    collection: str | None = None
 
     polars_schema: typing.ClassVar[polars.Schema] = polars.Schema({
         "s3_uri": polars.String,
@@ -35,6 +36,7 @@ class StructuredMetadata:
         "time_max": polars.String,
         "crs": polars.String,
         "file_format": polars.String,
+        "collection": polars.String,
     })
 
 
@@ -92,12 +94,20 @@ class MetadataExtractor(typing.Protocol):
 
 
 class StructuredSink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
     def write(self, data: list[StructuredMetadata]) -> None:
         """Persist Structured Metadata to a target store."""
         ...
 
 
 class UnstructuredSink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
     def write(self, data: dict[str, dict]) -> None:
         """Persist Unstructured Metadata dicts (keyed by s3_uri) to a target store."""
         ...

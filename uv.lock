@@ -671,7 +671,9 @@ analysis = [
     { name = "rich" },
 ]
 dev = [
+    { name = "aiosqlite" },
     { name = "pytest" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
@@ -704,7 +706,11 @@ analysis = [
     { name = "jupyterlab", specifier = ">=4" },
     { name = "rich", specifier = ">=13" },
 ]
-dev = [{ name = "pytest", specifier = ">=9.0.3" }]
+dev = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "sqlalchemy", specifier = ">=2.0.49" },
+]
 
 [[package]]
 name = "dateparser"

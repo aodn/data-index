@@ -1,5 +1,6 @@
 import xarray
 import numpy
+from data_index._collection import derive_collection
 from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
 from data_index.metadata_extractor._sanitize import _sanitize_for_json, _serialize_with_orjson
 
@@ -67,6 +68,7 @@ class NetCDFExtractor:
             time_max=time_max,
             crs=crs,
             file_format=file_format,
+            collection=derive_collection(s3_uri),
         )
 
     def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None) -> dict:
