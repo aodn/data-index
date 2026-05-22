@@ -29,6 +29,10 @@ _Avoid_: version, encoding, NetCDF version
 
 ## Relationships
 
+- An **InventorySource** provides the inventory DataFrame consumed by a **BatchPartitioner**
+- A **BatchPartitioner** produces a sequence of **Batches** consumed by the **Orchestrator**
+- The **Orchestrator** dispatches each **Batch** to a Fargate worker task that runs the full extract → transform → load pipeline
+- The **Orchestrator** reads and writes the **Run State File** to track which Batches have been processed
 - A **Batch** is consumed by `extract` to produce a list of **XarrayHandle** objects
 - A list of **XarrayHandle** objects is consumed by `transform`; one `_transform_single` task runs per handle
 - Each `_transform_single` passes the full **XarrayHandle** to **MetadataExtractor** (not just the dataset), then produces one **Extraction Result**; unstructured metadata is persisted immediately by calling the injected `metadata_factory(s3_uri, data)`
@@ -36,6 +40,24 @@ _Avoid_: version, encoding, NetCDF version
 - `load` delegates persistence to an injected **StructuredSink** and **UnstructuredSink**
 - `extract` delegates file fetching to an injected **FileFetcher**, passing a list of **Batch Entry** objects
 - `transform` delegates metadata extraction to an injected **MetadataExtractor** and unstructured persistence to an injected `metadata_factory` callable
+
+## Cluster Run
+
+**Orchestrator**:
+The Prefect flow that reads an **InventorySource**, partitions it into **Batches** via a **BatchPartitioner**, consults the **Run State File** to skip already-completed Batches, and dispatches remaining Batches as tasks to a Fargate Dask cluster.
+_Avoid_: coordinator, driver, master, controller
+
+**InventorySource**:
+A pluggable component that provides the full corpus inventory as a DataFrame with `s3_uri` and `size` columns. Implementations: `ParquetInventorySource` (reads a local or S3 Parquet file) and `LiveS3InventorySource` (queries an S3 inventory table at runtime).
+_Avoid_: file list, manifest, catalogue
+
+**BatchPartitioner**:
+A pluggable component that splits an inventory DataFrame into a sequence of **Batches**, each satisfying configured file-count and size limits. Implementations: `GreedyBatchPartitioner` (pure size-based bin-packing) and `CollectionGroupedBatchPartitioner` (groups files by S3 prefix/collection before bin-packing).
+_Avoid_: chunker, splitter, batcher
+
+**Run State File**:
+An S3 JSON file written and read by the **Orchestrator** to track which Batch IDs have completed successfully. Enables a run to resume from the point of failure without re-processing completed Batches. Batch ID is a deterministic hash of the Batch's sorted `s3_uri` list.
+_Avoid_: checkpoint, progress file, resume file
 
 ## Plugin Protocols
 
