@@ -4,6 +4,7 @@ import typing
 
 import pydantic
 
+
 class PrefectFargateClusterConfig(pydantic.BaseModel):
     """
     Configuration for Dask ECS Clusters running on AWS Fargate.
@@ -35,15 +36,15 @@ class PrefectFargateClusterConfig(pydantic.BaseModel):
         description="Docker image for scheduler and workers.",
     )
     scheduler_cpu: int = pydantic.Field(
-        default=1024, 
-        ge=256, 
-        le=16384, 
+        default=1024,
+        ge=256,
+        le=16384,
         description="vCPU in milli-units (1024 = 1 vCPU)",
     )
     scheduler_mem: int = pydantic.Field(
-        default=4096, 
-        ge=512, 
-        le=122880, 
+        default=4096,
+        ge=512,
+        le=122880,
         description="Memory in Megabytes",
     )
 

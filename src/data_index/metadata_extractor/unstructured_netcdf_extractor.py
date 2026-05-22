@@ -1,7 +1,9 @@
 import xarray
-import numpy
 from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
-from data_index.metadata_extractor._sanitize import _sanitize_for_json, _serialize_with_orjson
+from data_index.metadata_extractor._sanitize import (
+    _serialize_with_orjson,
+)
+
 
 class UnstructuedNetCDFExtractor:
     """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
@@ -25,7 +27,9 @@ class UnstructuedNetCDFExtractor:
                 error=str(exc),
             )
 
-    def _extract_structured(self, ds: xarray.Dataset, s3_uri: str, file_format: str | None = None) -> StructuredMetadata:
+    def _extract_structured(
+        self, ds: xarray.Dataset, s3_uri: str, file_format: str | None = None
+    ) -> StructuredMetadata:
         """
         Dummy class that
         """
@@ -41,7 +45,9 @@ class UnstructuedNetCDFExtractor:
             crs=None,
         )
 
-    def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None = None) -> dict:
+    def _extract_unstructured(
+        self, ds: xarray.Dataset, file_format: str | None = None
+    ) -> dict:
         unstructured = {
             "file_format": file_format,
             "global_attrs": dict(ds.attrs),

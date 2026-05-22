@@ -1,14 +1,15 @@
 import polars
-import pytest
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
 
 
 def _inventory(*sizes: int) -> polars.DataFrame:
-    return polars.DataFrame({
-        "s3_uri": [f"s3://bucket/file{i}.nc" for i in range(len(sizes))],
-        "size": list(sizes),
-    })
+    return polars.DataFrame(
+        {
+            "s3_uri": [f"s3://bucket/file{i}.nc" for i in range(len(sizes))],
+            "size": list(sizes),
+        }
+    )
 
 
 def test_all_files_fit_in_one_batch():
@@ -50,5 +51,7 @@ def test_batches_contain_all_original_files():
     inventory = _inventory(10, 20, 30, 40)
     batches = list(partitioner.partition(inventory))
 
-    all_uris = [row["s3_uri"] for batch in batches for row in batch.iter_rows(named=True)]
+    all_uris = [
+        row["s3_uri"] for batch in batches for row in batch.iter_rows(named=True)
+    ]
     assert sorted(all_uris) == sorted(inventory["s3_uri"].to_list())

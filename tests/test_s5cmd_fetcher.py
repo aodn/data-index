@@ -1,6 +1,5 @@
 import inspect
-import pathlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -9,6 +8,7 @@ from data_index.protocols import BatchEntry
 
 
 # --- Protocol conformance ---
+
 
 def test_fetch_signature_matches_file_fetcher_protocol():
     """S5CMDFetcher.fetch() must accept exactly (self, entries: list[BatchEntry]) to satisfy FileFetcher."""
@@ -21,6 +21,7 @@ def test_fetch_signature_matches_file_fetcher_protocol():
 
 
 # --- Static helpers ---
+
 
 def test_prepare_commands_generates_cp_commands(tmp_path):
     uris = ["s3://bucket/a.nc", "s3://bucket/b.nc"]
@@ -54,6 +55,7 @@ def test_parse_s5cmd_output_ignores_non_cp_lines():
 
 
 # --- fetch() behaviour with mocked s5cmd ---
+
 
 @pytest.fixture
 def fetcher():

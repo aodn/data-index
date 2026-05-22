@@ -10,11 +10,19 @@ from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 
 logger = logging.getLogger(__name__)
 
+
 class S5CMDFetcher:
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
 
-    def __init__(self, extract_path: pathlib.Path | None = None, num_workers: int = 256, anon: bool = False):
-        self._extract_path = extract_path or pathlib.Path(tempfile.mkdtemp(prefix="s5cmd_fetch_"))
+    def __init__(
+        self,
+        extract_path: pathlib.Path | None = None,
+        num_workers: int = 256,
+        anon: bool = False,
+    ):
+        self._extract_path = extract_path or pathlib.Path(
+            tempfile.mkdtemp(prefix="s5cmd_fetch_")
+        )
         self._num_workers = num_workers
         self._anon = anon
         self._check_availability()
@@ -50,7 +58,7 @@ class S5CMDFetcher:
                 s3_uri = match.group(1)
                 local_path = pathlib.Path(match.group(2)).resolve()
                 entries.append(DiskXarrayHandle(path=local_path, s3_uri=s3_uri))
-        
+
         return entries
 
     @staticmethod
@@ -72,7 +80,7 @@ class S5CMDFetcher:
 
         commands = self._prepare_commands(uris, self._extract_path)
         input_stream = "\n".join(commands) + "\n"
-        
+
         try:
             # Capture stdout to see what s5cmd actually did
             args = ["--numworkers", self._num_workers]
@@ -86,9 +94,15 @@ class S5CMDFetcher:
             stderr_str = self._decode_stream(e.stderr)
 
             manifest = self._parse_s5cmd_output(stdout_str=stdout_str)
-            error_lines = [line.strip() for line in stderr_str.splitlines() if line.strip()]
-            missing_key_lines = [line for line in error_lines if self._is_missing_key_error(line)]
-            other_error_lines = [line for line in error_lines if not self._is_missing_key_error(line)]
+            error_lines = [
+                line.strip() for line in stderr_str.splitlines() if line.strip()
+            ]
+            missing_key_lines = [
+                line for line in error_lines if self._is_missing_key_error(line)
+            ]
+            other_error_lines = [
+                line for line in error_lines if not self._is_missing_key_error(line)
+            ]
 
             if missing_key_lines:
                 logger.warning(
@@ -98,6 +112,8 @@ class S5CMDFetcher:
                 )
 
             if other_error_lines:
-                raise RuntimeError(f"s5cmd execution failed:\n{'\n'.join(other_error_lines)}") from e
+                raise RuntimeError(
+                    f"s5cmd execution failed:\n{'\n'.join(other_error_lines)}"
+                ) from e
 
             return manifest

@@ -9,7 +9,7 @@ from nc_to_stac import nc_to_item
 from csv_to_stac import csv_to_item
 
 logging.basicConfig(
-    level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,8 @@ class AODNDataIndexer:
 
     def __init__(
         self,
-        catalog_href: str = 'examples/data_index/catalog.json',
-        temp_dir: str = 'examples/tmp',
+        catalog_href: str = "examples/data_index/catalog.json",
+        temp_dir: str = "examples/tmp",
         create=False,
     ):
         """
@@ -74,9 +74,9 @@ class AODNDataIndexer:
         self.temp_dir = Path(temp_dir)
         if create:
             self.catalog = pystac.Catalog(
-                id='data_index',
-                description='Index of all AODN data',
-                title='AODN Data Index',
+                id="data_index",
+                description="Index of all AODN data",
+                title="AODN Data Index",
             )
             self.save_catalog()
         else:
@@ -103,11 +103,11 @@ class AODNDataIndexer:
     @staticmethod
     def path_to_item(
         path: str,
-        bucket: str = 'imos-data',
+        bucket: str = "imos-data",
         item_id: str = None,
         checksum: str = None,
         size: int = None,
-        date = None,
+        date=None,
         save_path: Path = None,
         collection_id: str = None,
     ) -> pystac.Item:
@@ -130,37 +130,37 @@ class AODNDataIndexer:
         if collection_id is None:
             collection_id = AODNDataIndexer.get_collection_id(path)
             if collection_id is None:
-                logger.warning(f'Could not determine collection ID for {path}')
-                collection_id = 'unknown_collection'
+                logger.warning(f"Could not determine collection ID for {path}")
+                collection_id = "unknown_collection"
 
-        file_type = path.split('.')[-1]
+        file_type = path.split(".")[-1]
         match file_type:
-            case 'nc':
-                result = nc_to_item(f'{bucket}/{path}', collection_id, item_id)
-            case 'csv':
-                result = csv_to_item(f's3://{bucket}/{path}', collection_id, item_id)
+            case "nc":
+                result = nc_to_item(f"{bucket}/{path}", collection_id, item_id)
+            case "csv":
+                result = csv_to_item(f"s3://{bucket}/{path}", collection_id, item_id)
             case _:
-                raise ValueError(f'Unsupported file type: {file_type}')
+                raise ValueError(f"Unsupported file type: {file_type}")
 
         # Add object info to the data asset
         if checksum is not None or size is not None:
-            result.ext.add('file')
+            result.ext.add("file")
             file_stac_extension = pystac.extensions.file.FileExtension.ext(
-                result.assets['data']
+                result.assets["data"]
             )
             if size is not None:
                 file_stac_extension.apply(size=size)
             if checksum is not None:
                 file_stac_extension.apply(checksum=checksum)
         if date is not None:
-            result.properties['created'] = date.isoformat()
+            result.properties["created"] = date.isoformat()
             # This should more properly be the creation date of this STAC item, while the
             # creation date of the data file should be stored in the asset. If we plan to
             # keep the items in sync with the data files, setting it here can make it easier
             # for searching.
 
         if save_path is not None:
-            result.save_object(dest_href=save_path / collection_id / f'{item_id}.json')
+            result.save_object(dest_href=save_path / collection_id / f"{item_id}.json")
         return result
 
     def add_to_catalog(self, *items: pystac.Item):
@@ -172,7 +172,7 @@ class AODNDataIndexer:
         """
 
         collection = self.get_collection_or_create(items[0].collection_id)
-        logger.info(f'Adding {len(items)} items to collection {collection.id}')
+        logger.info(f"Adding {len(items)} items to collection {collection.id}")
 
         removed = False
         added_items = []
@@ -180,15 +180,22 @@ class AODNDataIndexer:
             # Check if the item is already in the collection
             old_item = collection.get_item(item.id)
             if old_item is not None:
-                if old_item.assets['data'].ext.file.checksum == item.assets['data'].ext.file.checksum:
-                    logger.warning(f'Item {item.id} is already in collection {collection.id}')
+                if (
+                    old_item.assets["data"].ext.file.checksum
+                    == item.assets["data"].ext.file.checksum
+                ):
+                    logger.warning(
+                        f"Item {item.id} is already in collection {collection.id}"
+                    )
                     continue
                 # Remove the old item before adding the new one
                 # TODO: use versioning extension to deprecate the old item
-                logger.error(f'Removing old item {item.id} from collection {collection.id}')
+                logger.error(
+                    f"Removing old item {item.id} from collection {collection.id}"
+                )
                 collection.remove_item(item.id)
                 removed = True
-            logger.debug(f'Adding item {item.id} to collection {collection.id}')
+            logger.debug(f"Adding item {item.id} to collection {collection.id}")
             collection.add_item(item)
             added_items.append(item)
         # Update extents of this collection and parent collections
@@ -199,14 +206,14 @@ class AODNDataIndexer:
         while isinstance(updating, pystac.Collection):
             # will stop at the root catalog
             old_extent = updating.extent
-            logger.debug(f'Updating extent of {updating.id}')
+            logger.debug(f"Updating extent of {updating.id}")
             if removed:
                 updating.update_extent_from_items()
             else:
                 updating.extent = join_extents(updating.extent, items_extent)
             if updating.extent == old_extent:
                 # No need to update parents if the extent hasn't changed
-                logger.debug(f'Extent of {updating.id} has not changed')
+                logger.debug(f"Extent of {updating.id} has not changed")
                 break
             updating = updating.get_parent()
 
@@ -224,23 +231,23 @@ class AODNDataIndexer:
         # This could be slow for a large catalog with nested collections
         collection = self.catalog.get_child(collection_id, recursive=True)
         if collection is None:
-            logger.info(f'Creating collection {collection_id}')
+            logger.info(f"Creating collection {collection_id}")
             metadata = self.get_collection_info(collection_id)
             collection = pystac.Collection(
                 id=collection_id,
-                title=metadata['title'] or collection_id,
-                description=metadata['description'],
+                title=metadata["title"] or collection_id,
+                description=metadata["description"],
                 extent=None,  # Will be updated when items are added
                 # We could add license, providers, keywords, etc. here
             )
-            if metadata['parent'] is not None:
-                parent_collection = self.get_collection_or_create(metadata['parent'])
+            if metadata["parent"] is not None:
+                parent_collection = self.get_collection_or_create(metadata["parent"])
                 parent_collection.add_child(collection)
             else:
                 self.catalog.add_child(collection)
         return collection
 
-    def index_files_from_prefix(self, prefix: str, bucket: str = 'imos-data'):
+    def index_files_from_prefix(self, prefix: str, bucket: str = "imos-data"):
         """
         Index files from an S3 prefix.
         Args:
@@ -248,26 +255,26 @@ class AODNDataIndexer:
             bucket (str, optional): The S3 bucket name. Defaults to 'imos-data'.
         """
 
-        s3 = boto3.resource('s3')
+        s3 = boto3.resource("s3")
         s3_bucket = s3.Bucket(bucket)
         for obj in s3_bucket.objects.filter(Prefix=prefix):
             checksum = obj.e_tag.strip('"')
 
-            item_id = obj.key.replace('/', '_').replace('.', '_')
+            item_id = obj.key.replace("/", "_").replace(".", "_")
             try:
                 collection_id = AODNDataIndexer.get_collection_id(obj.key)
                 if collection_id is None:
-                    logger.warning(f'Could not determine collection ID for {obj.key}')
-                    collection_id = 'unknown_collection'
+                    logger.warning(f"Could not determine collection ID for {obj.key}")
+                    collection_id = "unknown_collection"
                 # check if the item is already in the collection
                 collection = self.catalog.get_child(collection_id, recursive=True)
                 if collection is not None:
                     old_item = collection.get_item(item_id)
                     if old_item is not None:
                         # check if the checksum matches
-                        old_checksum = old_item.assets['data'].ext.file.checksum
+                        old_checksum = old_item.assets["data"].ext.file.checksum
                         if old_checksum == checksum:
-                            logger.info(f'Item {item_id} is already indexed')
+                            logger.info(f"Item {item_id} is already indexed")
                             continue
                 AODNDataIndexer.path_to_item(
                     obj.key,
@@ -280,7 +287,7 @@ class AODNDataIndexer:
                     collection_id=collection_id,
                 )
             except ValueError as e:
-                logger.warning(f'Could not index {obj.key}: {e}')
+                logger.warning(f"Could not index {obj.key}: {e}")
         self.add_temp_items_to_catalog()
 
     def add_temp_items_to_catalog(self):
@@ -360,12 +367,12 @@ class AODNDataIndexer:
         """
 
         endpoint = f"https://catalogue.aodn.org.au/geonetwork/srv/api/0.1/records/{collection_id}"
-        headers = {'accept': 'application/json'}
+        headers = {"accept": "application/json"}
         metadata = requests.get(endpoint, headers=headers).json()
 
         result = dict()
 
-        result['title'] = (
+        result["title"] = (
             metadata.get("mdb:identificationInfo", {})
             .get("mri:MD_DataIdentification", {})
             .get("mri:citation", {})
@@ -374,20 +381,20 @@ class AODNDataIndexer:
             .get("gco:CharacterString", {})
             .get("#text", None)
         )
-        result['description'] = (
+        result["description"] = (
             metadata.get("mdb:identificationInfo", {})
             .get("mri:MD_DataIdentification", {})
             .get("mri:abstract", {})
             .get("gco:CharacterString", {})
             .get("#text", None)
         )
-        result['parent'] = metadata.get("mdb:parentMetadata", {}).get("@uuidref", None)
+        result["parent"] = metadata.get("mdb:parentMetadata", {}).get("@uuidref", None)
 
         return result
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     indexer = AODNDataIndexer(
-        catalog_href='examples/data_index_test/catalog.json', create=True
+        catalog_href="examples/data_index_test/catalog.json", create=True
     )
-    indexer.index_files_from_prefix('IMOS/ANMN/SA/')
+    indexer.index_files_from_prefix("IMOS/ANMN/SA/")

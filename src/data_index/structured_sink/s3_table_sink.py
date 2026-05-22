@@ -6,7 +6,11 @@ import time
 
 import pyarrow as pa
 from pyiceberg.catalog import Catalog
-from pyiceberg.exceptions import CommitFailedException, NamespaceAlreadyExistsError, TableAlreadyExistsError
+from pyiceberg.exceptions import (
+    CommitFailedException,
+    NamespaceAlreadyExistsError,
+    TableAlreadyExistsError,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.types import DoubleType, NestedField, StringType
@@ -27,15 +31,31 @@ class StructuredS3TableSink:
 
     ICEBERG_SCHEMA = Schema(
         NestedField(field_id=1, name="s3_uri", field_type=StringType(), required=True),
-        NestedField(field_id=2, name="lat_min", field_type=DoubleType(), required=False),
-        NestedField(field_id=3, name="lat_max", field_type=DoubleType(), required=False),
-        NestedField(field_id=4, name="lon_min", field_type=DoubleType(), required=False),
-        NestedField(field_id=5, name="lon_max", field_type=DoubleType(), required=False),
-        NestedField(field_id=6, name="time_min", field_type=StringType(), required=False),
-        NestedField(field_id=7, name="time_max", field_type=StringType(), required=False),
+        NestedField(
+            field_id=2, name="lat_min", field_type=DoubleType(), required=False
+        ),
+        NestedField(
+            field_id=3, name="lat_max", field_type=DoubleType(), required=False
+        ),
+        NestedField(
+            field_id=4, name="lon_min", field_type=DoubleType(), required=False
+        ),
+        NestedField(
+            field_id=5, name="lon_max", field_type=DoubleType(), required=False
+        ),
+        NestedField(
+            field_id=6, name="time_min", field_type=StringType(), required=False
+        ),
+        NestedField(
+            field_id=7, name="time_max", field_type=StringType(), required=False
+        ),
         NestedField(field_id=8, name="crs", field_type=StringType(), required=False),
-        NestedField(field_id=9, name="file_format", field_type=StringType(), required=False),
-        NestedField(field_id=10, name="collection", field_type=StringType(), required=False),
+        NestedField(
+            field_id=9, name="file_format", field_type=StringType(), required=False
+        ),
+        NestedField(
+            field_id=10, name="collection", field_type=StringType(), required=False
+        ),
     )
 
     def __init__(self, catalog: Catalog, namespace: str, table_name: str) -> None:
@@ -75,23 +95,27 @@ class StructuredS3TableSink:
                 if attempt == _MAX_RETRIES - 1:
                     raise
                 table.refresh()
-                time.sleep(random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt))
+                time.sleep(
+                    random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
+                )
 
     @staticmethod
     def _to_arrow(data: list[StructuredMetadata]) -> pa.Table:
         rows = [dataclasses.asdict(row) for row in data]
-        schema = pa.schema([
-            pa.field("s3_uri", pa.string(), nullable=False),
-            pa.field("lat_min", pa.float64(), nullable=True),
-            pa.field("lat_max", pa.float64(), nullable=True),
-            pa.field("lon_min", pa.float64(), nullable=True),
-            pa.field("lon_max", pa.float64(), nullable=True),
-            pa.field("time_min", pa.string(), nullable=True),
-            pa.field("time_max", pa.string(), nullable=True),
-            pa.field("crs", pa.string(), nullable=True),
-            pa.field("file_format", pa.string(), nullable=True),
-            pa.field("collection", pa.string(), nullable=True),
-        ])
+        schema = pa.schema(
+            [
+                pa.field("s3_uri", pa.string(), nullable=False),
+                pa.field("lat_min", pa.float64(), nullable=True),
+                pa.field("lat_max", pa.float64(), nullable=True),
+                pa.field("lon_min", pa.float64(), nullable=True),
+                pa.field("lon_max", pa.float64(), nullable=True),
+                pa.field("time_min", pa.string(), nullable=True),
+                pa.field("time_max", pa.string(), nullable=True),
+                pa.field("crs", pa.string(), nullable=True),
+                pa.field("file_format", pa.string(), nullable=True),
+                pa.field("collection", pa.string(), nullable=True),
+            ]
+        )
         return pa.table(
             {
                 "s3_uri": pa.array([r["s3_uri"] for r in rows], type=pa.string()),
@@ -102,8 +126,12 @@ class StructuredS3TableSink:
                 "time_min": pa.array([r["time_min"] for r in rows], type=pa.string()),
                 "time_max": pa.array([r["time_max"] for r in rows], type=pa.string()),
                 "crs": pa.array([r["crs"] for r in rows], type=pa.string()),
-                "file_format": pa.array([r["file_format"] for r in rows], type=pa.string()),
-                "collection": pa.array([r["collection"] for r in rows], type=pa.string()),
+                "file_format": pa.array(
+                    [r["file_format"] for r in rows], type=pa.string()
+                ),
+                "collection": pa.array(
+                    [r["collection"] for r in rows], type=pa.string()
+                ),
             },
             schema=schema,
         )

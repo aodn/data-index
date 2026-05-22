@@ -8,9 +8,7 @@ import prefect.cache_policies
 from data_index.protocols import FileFetcher, XarrayHandle, BatchEntry
 
 
-@prefect.task(
-    cache_policy=prefect.cache_policies.NO_CACHE
-)
+@prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def extract(
     batch_df: polars.DataFrame,
     fetcher: FileFetcher,
@@ -32,7 +30,9 @@ def extract(
     logger = prefect.get_run_logger()
 
     if batch_df.schema != batch_schema:
-        raise ValueError(f"Batch schema mismatch: expected {batch_schema}, got {batch_df.schema}")
+        raise ValueError(
+            f"Batch schema mismatch: expected {batch_schema}, got {batch_df.schema}"
+        )
 
     if batch_df["s3_uri"].null_count() > 0:
         raise ValueError("Null s3_uris in batch")
@@ -42,21 +42,25 @@ def extract(
 
     total_size = batch_df["size"].sum()
     if total_size > batch_size_limit:
-        raise ValueError(f"Batch size {total_size} bytes exceeds limit {batch_size_limit}")
+        raise ValueError(
+            f"Batch size {total_size} bytes exceeds limit {batch_size_limit}"
+        )
     else:
-        logger.info(f"Processing batch of `{len(batch_df)}` files => `{round(batch_df["size"].sum() / 2 ** 30, 2)}`GB")
+        logger.info(
+            f"Processing batch of `{len(batch_df)}` files => `{round(batch_df['size'].sum() / 2**30, 2)}`GB"
+        )
     # Fetch
-    entries = [BatchEntry(uri=row["s3_uri"], size_bytes=row["size"]) for row in batch_df.iter_rows(named=True)]
+    entries = [
+        BatchEntry(uri=row["s3_uri"], size_bytes=row["size"])
+        for row in batch_df.iter_rows(named=True)
+    ]
     manifest = fetcher.fetch(entries)
 
     # Report manifest
     prefect.artifacts.create_table_artifact(
         key="extract-manifest",
-        table=[
-            manifest_entry.model_dump(mode="json")
-            for manifest_entry in manifest
-        ],
-        description="The extraction manifest"
+        table=[manifest_entry.model_dump(mode="json") for manifest_entry in manifest],
+        description="The extraction manifest",
     )
 
     return manifest

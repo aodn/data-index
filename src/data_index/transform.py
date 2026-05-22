@@ -40,7 +40,9 @@ def _transform_single(
         return ExtractionResult(
             s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(xarray_handle.s3_uri, raw.unstructured_metadata),
+            unstructured_metadata=unstructured_metadata_factory(
+                xarray_handle.s3_uri, raw.unstructured_metadata
+            ),
             status="succeeded",
         )
     except Exception as exc:
@@ -56,13 +58,13 @@ def _transform_single(
         xarray_handle.ds.close()
 
 
-@prefect.task(
-    cache_policy=prefect.cache_policies.NO_CACHE
-)
+@prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
-    metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    metadata_factory: typing.Callable[
+        [str, dict], UnstructuredMetadata
+    ] = DiskCachedUnstructuredMetadata,
     max_workers: int | None = None,
 ) -> list[ExtractionResult]:
     """
@@ -97,7 +99,9 @@ def transform(
             for xarray_handle in xarray_handles
         }
         results = []
-        for done_count, future in enumerate(concurrent.futures.as_completed(futures), start=1):
+        for done_count, future in enumerate(
+            concurrent.futures.as_completed(futures), start=1
+        ):
             results.append(future.result())
             prefect.artifacts.update_progress_artifact(
                 artifact_id=progress_artifact_id,
@@ -118,17 +122,24 @@ def transform(
     )
     prefect.artifacts.create_table_artifact(
         key="transform-failed",
-        table=[{"s3_uri": r.s3_uri, "error": r.error} for r in failed] or [{"s3_uri": None, "error": None}],
+        table=[{"s3_uri": r.s3_uri, "error": r.error} for r in failed]
+        or [{"s3_uri": None, "error": None}],
         description=f"{len(failed)}/{len(results)} files failed",
     )
 
-    structured = [r.structured_metadata for r in succeeded if r.structured_metadata is not None]
+    structured = [
+        r.structured_metadata for r in succeeded if r.structured_metadata is not None
+    ]
 
     _SAMPLE = 5
-    sample_df = polars.DataFrame(
-        [vars(s) for s in structured[:_SAMPLE]],
-        schema=StructuredMetadata.polars_schema,
-    ) if structured else polars.DataFrame(schema=StructuredMetadata.polars_schema)
+    sample_df = (
+        polars.DataFrame(
+            [vars(s) for s in structured[:_SAMPLE]],
+            schema=StructuredMetadata.polars_schema,
+        )
+        if structured
+        else polars.DataFrame(schema=StructuredMetadata.polars_schema)
+    )
     prefect.artifacts.create_table_artifact(
         key="structured-metadata-sample",
         table=sample_df.to_dicts(),
@@ -140,7 +151,14 @@ def transform(
         if sample_result.unstructured_metadata is not None:
             prefect.artifacts.create_table_artifact(
                 key="unstructured-metadata-sample",
-                table=[{"s3_uri": sample_result.s3_uri, "unstructured_metadata": str(sample_result.unstructured_metadata.load())}],
+                table=[
+                    {
+                        "s3_uri": sample_result.s3_uri,
+                        "unstructured_metadata": str(
+                            sample_result.unstructured_metadata.load()
+                        ),
+                    }
+                ],
                 description=f"Unstructured metadata sample from {sample_result.s3_uri}",
             )
 

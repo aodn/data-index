@@ -13,9 +13,10 @@ logging.basicConfig(level=logging.INFO)
 # Log Docker into ECR
 password = sh.aws("ecr", "get-login-password", "--region", "ap-southeast-2")
 sh.docker(
-    "login", 
-    "--username", "AWS", 
-    "--password-stdin", 
+    "login",
+    "--username",
+    "AWS",
+    "--password-stdin",
     "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com",
     _in=password,
 )
@@ -46,15 +47,18 @@ fargate_cluster_config = fargate_cluster_config.PrefectFargateClusterConfig(
 )
 rich.print(fargate_cluster_config.model_dump(exclude_none=True))
 
+
 @prefect.task
 def other_task():
     pass
+
 
 # Dask worker item
 @prefect.task
 def sq(x: int) -> int:
     other_task()
     return x**2
+
 
 # Dask Scheduler, essentially (I think?), distributing the work
 
@@ -67,6 +71,7 @@ def sq(x: int) -> int:
 # The Dask Scheduler: This is a separate process (the "brain") that lives inside your Fargate cluster. It receives the tasks from the Flow and decides which worker is free.
 
 # The Dask Workers: These are the "muscles" (the Fargate containers). They execute the tasks.
+
 
 # The Prefect Tasks: These are the Units of Work (the functions) being sent to the workers.
 @prefect.flow(

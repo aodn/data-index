@@ -26,8 +26,14 @@ def make_dataset(
     ds = xarray.Dataset(coords=coords, attrs=global_attrs or {})
 
     if grid_mapping_var is not None:
-        ds[grid_mapping_var] = xarray.Variable([], 0, attrs=grid_mapping_var_attrs or {})
-        data_var = xarray.Variable(["latitude"], numpy.zeros(len(lat or [1])), attrs={"grid_mapping": grid_mapping_var})
+        ds[grid_mapping_var] = xarray.Variable(
+            [], 0, attrs=grid_mapping_var_attrs or {}
+        )
+        data_var = xarray.Variable(
+            ["latitude"],
+            numpy.zeros(len(lat or [1])),
+            attrs={"grid_mapping": grid_mapping_var},
+        )
         ds["data"] = data_var
 
     return ds
@@ -35,7 +41,13 @@ def make_dataset(
 
 class StubHandle:
     """Minimal XarrayHandle stub for extractor tests."""
-    def __init__(self, ds: xarray.Dataset, s3_uri: str = "s3://bucket/file.nc", file_format: str | None = None):
+
+    def __init__(
+        self,
+        ds: xarray.Dataset,
+        s3_uri: str = "s3://bucket/file.nc",
+        file_format: str | None = None,
+    ):
         self._ds = ds
         self.s3_uri = s3_uri
         self.file_format = file_format
@@ -54,6 +66,7 @@ def extractor():
 
 
 # --- Structured metadata extraction ---
+
 
 def test_extracts_lat_lon_time_ranges(extractor):
     ds = make_dataset(
@@ -141,6 +154,7 @@ def test_returns_failed_status_when_extraction_raises(extractor):
 
 # --- Unstructured metadata extraction ---
 
+
 def test_unstructured_metadata_contains_global_attrs_variables_coordinates(extractor):
     ds = make_dataset(lat=[-5.0, 5.0], global_attrs={"title": "Test dataset"})
     result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
@@ -161,9 +175,13 @@ def test_unstructured_metadata_is_json_serialisable(extractor):
     json.dumps(result.unstructured_metadata)
 
 
-def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(extractor):
+def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(
+    extractor,
+):
     """numpy.bool_ attributes (common in CF-NetCDF files) must be sanitised to native bool."""
-    ds = make_dataset(lat=[-5.0, 5.0], global_attrs={"is_calibrated": numpy.bool_(True)})
+    ds = make_dataset(
+        lat=[-5.0, 5.0], global_attrs={"is_calibrated": numpy.bool_(True)}
+    )
     result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
     # Should not raise — numpy.bool_ is not natively JSON-serialisable
@@ -174,7 +192,9 @@ def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(ex
 
 def test_extracts_collection_as_second_path_segment(extractor):
     ds = xarray.Dataset()
-    result = extractor.extract(StubHandle(ds, s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc"))
+    result = extractor.extract(
+        StubHandle(ds, s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc")
+    )
 
     assert result.structured_metadata.collection == "ANMN"
 

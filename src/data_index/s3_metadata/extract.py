@@ -135,9 +135,12 @@ INVENTORY_TABLE_SCHEMA = pyarrow.schema(
     ]
 )
 
+
 class S3TablesConfig(pydantic.BaseModel):
     region: str
-    arn: str = pydantic.Field(pattern=r"arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}")
+    arn: str = pydantic.Field(
+        pattern=r"arn:aws[-a-z0-9]*:[a-z0-9]+:[-a-z0-9]*:[0-9]{12}:bucket/[a-z0-9_-]{3,63}"
+    )
     namespace: str
     table_name: str
 
@@ -150,11 +153,11 @@ class TableScanConfig(pydantic.BaseModel):
     """
     Configuration for an Iceberg table scan using Pydantic.
     """
+
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
     row_filter: str | pyiceberg.expressions.BooleanExpression | None = pydantic.Field(
-        default=None,
-        description="Filter expression for rows to include in the scan."
+        default=None, description="Filter expression for rows to include in the scan."
     )
     selected_fields: tuple[str, ...] = pydantic.Field(
         default=(
@@ -165,19 +168,18 @@ class TableScanConfig(pydantic.BaseModel):
             "sequence_number",
             "is_delete_marker",
         ),
-        description="List of columns to project."
+        description="List of columns to project.",
     )
     case_sensitive: bool = pydantic.Field(
         default=True,
-        description="Whether column name lookups should be case sensitive."
+        description="Whether column name lookups should be case sensitive.",
     )
     snapshot_id: int | None = pydantic.Field(
         default=None,
-        description="The ID of the snapshot to read for time-travel queries."
+        description="The ID of the snapshot to read for time-travel queries.",
     )
     limit: int | None = pydantic.Field(
-        default=None,
-        description="Maximum number of rows to return."
+        default=None, description="Maximum number of rows to return."
     )
 
 
@@ -205,12 +207,13 @@ def load_table(
     # Load the table
     return table
 
+
 @prefect.task
 def sink_table(
     table: pyiceberg.table.Table,
     table_scan_config: TableScanConfig,
     inventory_parquet_path: pathlib.Path,
-): 
+):
     logger = prefect.get_run_logger()
 
     # Pre-construct the parent directory to save batches in
@@ -222,22 +225,25 @@ def sink_table(
     with table.scan(
         **table_scan_config.model_dump(exclude_none=True)
     ).to_arrow_batch_reader() as batches:
-
         # Set up the batch writer
         with pyarrow.parquet.ParquetWriter(
             where=inventory_parquet_path,
-            schema=pyarrow.schema([
-                field
-                for field in INVENTORY_TABLE_SCHEMA
-                if field.name in table_scan_config.selected_fields
-            ]),
+            schema=pyarrow.schema(
+                [
+                    field
+                    for field in INVENTORY_TABLE_SCHEMA
+                    if field.name in table_scan_config.selected_fields
+                ]
+            ),
             compression="zstd",
         ) as writer:
-            
             # Write batches
             for batch in batches:
                 writer.write_batch(batch=batch)
-                logger.info(f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes...")
+                logger.info(
+                    f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes..."
+                )
+
 
 @prefect.task
 def extract(
@@ -260,6 +266,6 @@ def extract(
 
     return polars.scan_parquet(inventory_parquet_path)
 
+
 if __name__ == "__main__":
     extract()
-    

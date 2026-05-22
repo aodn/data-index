@@ -17,13 +17,18 @@ class GreedyBatchPartitioner:
         self.max_files = max_files
         self.max_bytes = max_bytes
 
-    def partition(self, inventory: polars.DataFrame) -> typing.Iterator[polars.DataFrame]:
+    def partition(
+        self, inventory: polars.DataFrame
+    ) -> typing.Iterator[polars.DataFrame]:
         current_rows: list[dict] = []
         current_bytes = 0
 
         for row in inventory.iter_rows(named=True):
             size = row["size"] or 0
-            if current_rows and (len(current_rows) >= self.max_files or current_bytes + size > self.max_bytes):
+            if current_rows and (
+                len(current_rows) >= self.max_files
+                or current_bytes + size > self.max_bytes
+            ):
                 yield polars.DataFrame(current_rows, schema=inventory.schema)
                 current_rows = []
                 current_bytes = 0

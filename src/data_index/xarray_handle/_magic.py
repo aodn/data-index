@@ -9,6 +9,6 @@ MAGIC_NUMBERS: dict[bytes, str] = {
 def format_from_magic(magic: bytes) -> str | None:
     """Return the NetCDF format string for the given magic bytes, or None if unrecognised."""
     for signature, fmt in MAGIC_NUMBERS.items():
-        if magic[:len(signature)] == signature:
+        if magic[: len(signature)] == signature:
             return fmt
     return None

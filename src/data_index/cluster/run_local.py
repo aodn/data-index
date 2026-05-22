@@ -23,19 +23,23 @@ from data_index.cluster.orchestrate import orchestrate
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.inventory_source.parquet import ParquetInventorySource
 from data_index.metadata_extractor import UnstructuedNetCDFExtractor
-from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
+from data_index.structured_sink import StructuredS3TableSink
 from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
-from data_index.unstructured_sink import UnstructuredParquetSink, UnstructuredS3TableSink
+from data_index.unstructured_sink import (
+    UnstructuredS3TableSink,
+)
 
 # --- Config ---
-LIMIT = 16_000             # total files to process
-BATCH_SIZE = 1_000         # files per batch
-MAX_WORKERS = 8         # concurrent batches (limits RAM/CPU pressure)
-S5CMD_WORKERS = 8       # s5cmd defaults to 256 — cap it for local runs
-TRANSFORM_WORKERS = 4   # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
+LIMIT = 16_000  # total files to process
+BATCH_SIZE = 1_000  # files per batch
+MAX_WORKERS = 8  # concurrent batches (limits RAM/CPU pressure)
+S5CMD_WORKERS = 8  # s5cmd defaults to 256 — cap it for local runs
+TRANSFORM_WORKERS = (
+    4  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
+)
 OUT_DIR = pathlib.Path(".load/orchestrate-test")
 INVENTORY_PATH = OUT_DIR / "inventory.parquet"
-THRESHOLD_BYTES = 10 * 1024 ** 2  # 10 MB
+THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +51,7 @@ def prepare_inventory() -> None:
         polars.scan_parquet(".extract/s3_metadata")
         .filter(
             polars.col("key").str.ends_with(".nc"),
-            polars.col("size").le(1024 ** 2),  # ≤ 1 MB for a fast local test
+            polars.col("size").le(1024**2),  # ≤ 1 MB for a fast local test
         )
         .select(
             polars.concat_str(
@@ -80,12 +84,12 @@ def main() -> None:
         inventory_source=ParquetInventorySource(path=INVENTORY_PATH),
         partitioner=GreedyBatchPartitioner(
             max_files=BATCH_SIZE,
-            max_bytes=50 * 1024 ** 3,  # 50 GB
+            max_bytes=50 * 1024**3,  # 50 GB
         ),
         fetcher=ThresholdFileFetcher(
             size_threshold_bytes=THRESHOLD_BYTES,
             disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True),
-            cloud_fetcher=S3Fetcher(block_size=5 * 1024 ** 2),
+            cloud_fetcher=S3Fetcher(block_size=5 * 1024**2),
         ),
         extractor=UnstructuedNetCDFExtractor(),
         structured_sink=StructuredS3TableSink(

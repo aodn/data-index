@@ -5,14 +5,16 @@ import fsspec
 
 from data_index.xarray_handle._magic import format_from_magic
 
+
 class S3XarrayHandle(pydantic.BaseModel):
     """
     Cache the necessary information to resolve a s3 file to an `xarray.Dataset`
     via fsspec
     """
+
     path: cloudpathlib.S3Path
     cache_type: str = "blockcache"
-    block_size: int = 1024 ** 2
+    block_size: int = 1024**2
 
     @property
     def s3_uri(self) -> str:
@@ -21,7 +23,7 @@ class S3XarrayHandle(pydantic.BaseModel):
     @property
     def file_format(self) -> str | None:
         s3fs = fsspec.filesystem(protocol="s3", anon=True)
-        with s3fs.open(f"{self.path.bucket}/{self.path.key}", 'rb') as f:
+        with s3fs.open(f"{self.path.bucket}/{self.path.key}", "rb") as f:
             return format_from_magic(f.read(8))
 
     @property

@@ -23,7 +23,9 @@ def load(
     logger = prefect.get_run_logger()
     succeeded = [r for r in extraction_results if r.status == "succeeded"]
 
-    structured = [r.structured_metadata for r in succeeded if r.structured_metadata is not None]
+    structured = [
+        r.structured_metadata for r in succeeded if r.structured_metadata is not None
+    ]
     structured_sink.write(structured)
     logger.info(f"Wrote {len(structured)} structured metadata rows")
 

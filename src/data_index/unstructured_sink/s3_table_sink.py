@@ -6,7 +6,11 @@ import time
 
 import pyarrow as pa
 from pyiceberg.catalog import Catalog
-from pyiceberg.exceptions import CommitFailedException, NamespaceAlreadyExistsError, TableAlreadyExistsError
+from pyiceberg.exceptions import (
+    CommitFailedException,
+    NamespaceAlreadyExistsError,
+    TableAlreadyExistsError,
+)
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
 from pyiceberg.types import NestedField, StringType
@@ -16,11 +20,13 @@ from data_index._collection import derive_collection
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
 
-_ARROW_SCHEMA = pa.schema([
-    pa.field("s3_uri", pa.string(), nullable=False),
-    pa.field("collection", pa.string(), nullable=True),
-    pa.field("metadata", pa.string(), nullable=True),
-])
+_ARROW_SCHEMA = pa.schema(
+    [
+        pa.field("s3_uri", pa.string(), nullable=False),
+        pa.field("collection", pa.string(), nullable=True),
+        pa.field("metadata", pa.string(), nullable=True),
+    ]
+)
 
 
 class UnstructuredS3TableSink:
@@ -35,8 +41,12 @@ class UnstructuredS3TableSink:
 
     ICEBERG_SCHEMA = Schema(
         NestedField(field_id=1, name="s3_uri", field_type=StringType(), required=True),
-        NestedField(field_id=2, name="collection", field_type=StringType(), required=False),
-        NestedField(field_id=3, name="metadata", field_type=StringType(), required=False),
+        NestedField(
+            field_id=2, name="collection", field_type=StringType(), required=False
+        ),
+        NestedField(
+            field_id=3, name="metadata", field_type=StringType(), required=False
+        ),
     )
 
     def __init__(self, catalog: Catalog, namespace: str, table_name: str) -> None:
@@ -72,7 +82,9 @@ class UnstructuredS3TableSink:
                 if attempt == _MAX_RETRIES - 1:
                     raise
                 table.refresh()
-                time.sleep(random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt))
+                time.sleep(
+                    random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
+                )
 
     @staticmethod
     def _to_arrow(data: dict[str, dict]) -> pa.Table:
@@ -89,4 +101,3 @@ class UnstructuredS3TableSink:
             },
             schema=_ARROW_SCHEMA,
         )
-

@@ -8,9 +8,7 @@ import prefect.task_runners
 import prefect.cache_policies
 
 from data_index.protocols import (
-    BatchPartitioner,
     FileFetcher,
-    InventorySource,
     MetadataExtractor,
     StructuredSink,
     UnstructuredSink,
@@ -29,13 +27,24 @@ def _process_batch(
     extractor: MetadataExtractor,
     structured_sink: StructuredSink,
     unstructured_sink: UnstructuredSink,
-    metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
+    metadata_factory: typing.Callable[
+        [str, dict], UnstructuredMetadata
+    ] = DiskCachedUnstructuredMetadata,
     transform_max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
     handles = extract(batch_df=batch_df, fetcher=fetcher)
-    results = transform(xarray_handles=handles, extractor=extractor, metadata_factory=metadata_factory, max_workers=transform_max_workers)
-    load(extraction_results=results, structured_sink=structured_sink, unstructured_sink=unstructured_sink)
+    results = transform(
+        xarray_handles=handles,
+        extractor=extractor,
+        metadata_factory=metadata_factory,
+        max_workers=transform_max_workers,
+    )
+    load(
+        extraction_results=results,
+        structured_sink=structured_sink,
+        unstructured_sink=unstructured_sink,
+    )
 
 
 @prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner())

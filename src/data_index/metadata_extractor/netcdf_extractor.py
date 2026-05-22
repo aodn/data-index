@@ -1,8 +1,9 @@
 import xarray
-import numpy
 from data_index._collection import derive_collection
 from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
-from data_index.metadata_extractor._sanitize import _sanitize_for_json, _serialize_with_orjson
+from data_index.metadata_extractor._sanitize import (
+    _serialize_with_orjson,
+)
 
 
 class NetCDFExtractor:
@@ -28,9 +29,15 @@ class NetCDFExtractor:
                 error=str(exc),
             )
 
-    def _extract_structured(self, ds: xarray.Dataset, s3_uri: str, file_format: str | None) -> StructuredMetadata:
-        lat_coord = next((c for c in ds.coords if c in ("LATITUDE", "latitude", "lat")), None)
-        lon_coord = next((c for c in ds.coords if c in ("LONGITUDE", "longitude", "lon")), None)
+    def _extract_structured(
+        self, ds: xarray.Dataset, s3_uri: str, file_format: str | None
+    ) -> StructuredMetadata:
+        lat_coord = next(
+            (c for c in ds.coords if c in ("LATITUDE", "latitude", "lat")), None
+        )
+        lon_coord = next(
+            (c for c in ds.coords if c in ("LONGITUDE", "longitude", "lon")), None
+        )
         time_coord = next((c for c in ds.coords if c in ("TIME", "time")), None)
 
         lat_min = lat_max = lon_min = lon_max = None
@@ -53,7 +60,9 @@ class NetCDFExtractor:
             gm_name = var.attrs.get("grid_mapping")
             if gm_name and gm_name in ds:
                 gm_var = ds[gm_name]
-                crs = gm_var.attrs.get("crs_wkt") or gm_var.attrs.get("grid_mapping_name")
+                crs = gm_var.attrs.get("crs_wkt") or gm_var.attrs.get(
+                    "grid_mapping_name"
+                )
                 break
         if crs is None:
             crs = ds.attrs.get("crs")
@@ -71,7 +80,9 @@ class NetCDFExtractor:
             collection=derive_collection(s3_uri),
         )
 
-    def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None) -> dict:
+    def _extract_unstructured(
+        self, ds: xarray.Dataset, file_format: str | None
+    ) -> dict:
         unstructured = {
             "file_format": file_format,
             "global_attrs": dict(ds.attrs),

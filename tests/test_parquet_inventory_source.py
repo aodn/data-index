@@ -1,5 +1,4 @@
 import pathlib
-import tempfile
 
 import polars
 import pytest
@@ -9,10 +8,12 @@ from data_index.inventory_source.parquet import ParquetInventorySource
 
 @pytest.fixture
 def parquet_file(tmp_path: pathlib.Path) -> pathlib.Path:
-    df = polars.DataFrame({
-        "s3_uri": ["s3://bucket/a.nc", "s3://bucket/b.nc"],
-        "size": [100, 200],
-    })
+    df = polars.DataFrame(
+        {
+            "s3_uri": ["s3://bucket/a.nc", "s3://bucket/b.nc"],
+            "size": [100, 200],
+        }
+    )
     path = tmp_path / "inventory.parquet"
     df.write_parquet(path)
     return path

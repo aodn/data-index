@@ -9,24 +9,23 @@ from data_index.s3_metadata import (
 import prefect
 import polars
 
+
 @prefect.task
 def get_batch(
     collection: str,
     limit: int | None = None,
 ) -> polars.DataFrame:
-    
+
     # Pre-Process the S3 Metadata table
     df = (
         polars.scan_parquet(".extract/s3_metadata")
-        .filter(
-            polars.col("collection").eq(collection)
-        )
+        .filter(polars.col("collection").eq(collection))
         .select(
             polars.concat_str(
                 polars.lit("s3:/"),
                 polars.col("bucket"),
                 polars.col("key"),
-                separator="/"
+                separator="/",
             ).alias("s3_uri"),
             polars.col("size"),
         )
@@ -39,17 +38,26 @@ def get_batch(
     # Apply limit as sample
     if limit:
         df = df.head(n=limit if limit <= len(df) else len(df))
-    
+
     return df
+
 
 @prefect.flow
 def get_batch_from_s3_metadata(
     prefix: str,
     limit: int | None = 10_000,
 ) -> polars.DataFrame:
-    
-    inventory_parquet_path = pathlib.Path(".extract") / pathlib.Path(prefix) / pathlib.Path(f"limit={limit}/imos-data.inventory.parquet")
-    live_inventory_parquet_path = pathlib.Path(".extract") / pathlib.Path(prefix) / pathlib.Path(f"limit={limit}/live-imos-data.inventory.parquet")
+
+    inventory_parquet_path = (
+        pathlib.Path(".extract")
+        / pathlib.Path(prefix)
+        / pathlib.Path(f"limit={limit}/imos-data.inventory.parquet")
+    )
+    live_inventory_parquet_path = (
+        pathlib.Path(".extract")
+        / pathlib.Path(prefix)
+        / pathlib.Path(f"limit={limit}/live-imos-data.inventory.parquet")
+    )
     extract(
         table_scan_config=TableScanConfig(
             limit=limit,
@@ -77,7 +85,7 @@ def get_batch_from_s3_metadata(
                 polars.lit("s3:/"),
                 polars.col("bucket"),
                 polars.col("key"),
-                separator="/"
+                separator="/",
             ).alias("s3_uri"),
             polars.col("size"),
         )
@@ -87,33 +95,31 @@ def get_batch_from_s3_metadata(
         .collect()
     )
 
+
 def get_threshold_batch(
     threshold: int = 1024 * 128,
 ):
-    
+
     le_df = (
         polars.scan_parquet(".extract/s3_metadata")
-        .filter(
-            polars.col("size").le(threshold)
-        )
+        .filter(polars.col("size").le(threshold))
         .collect()
     )
     gt_df = (
         polars.scan_parquet(".extract/s3_metadata")
-        .filter(
-            polars.col("size").gt(threshold)
-        )
+        .filter(polars.col("size").gt(threshold))
         .collect()
     )
 
     return (
-        le_df.sample(1_000).vstack(gt_df.sample(100))
+        le_df.sample(1_000)
+        .vstack(gt_df.sample(100))
         .select(
             polars.concat_str(
                 polars.lit("s3:/"),
                 polars.col("bucket"),
                 polars.col("key"),
-                separator="/"
+                separator="/",
             ).alias("s3_uri"),
             polars.col("size"),
         )
@@ -137,7 +143,7 @@ def get_batch_filtered(
                 polars.lit("s3:/"),
                 polars.col("bucket"),
                 polars.col("key"),
-                separator="/"
+                separator="/",
             ).alias("s3_uri"),
             polars.col("size"),
         )

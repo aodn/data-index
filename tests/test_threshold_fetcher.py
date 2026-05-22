@@ -9,6 +9,7 @@ from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
 
 # --- Stubs ---
 
+
 class _StubDiskFetcher:
     def __init__(self):
         self.received: list[BatchEntry] = []
@@ -25,22 +26,33 @@ class _StubCloudFetcher:
     def fetch(self, entries: list[BatchEntry]):
         self.received = entries
         import cloudpathlib
+
         return [S3XarrayHandle(path=cloudpathlib.S3Path(e.uri)) for e in entries]
 
 
 def _fake_path(uri: str):
     import pathlib
+
     return pathlib.Path("/tmp") / uri.lstrip("s3://")
 
 
 # --- Tests ---
 
+
 @pytest.fixture
 def fetcher():
     disk = _StubDiskFetcher()
     cloud = _StubCloudFetcher()
-    with patch("data_index.file_fetcher.threshold_fetcher.prefect.artifacts.create_table_artifact"):
-        yield ThresholdFileFetcher(size_threshold_bytes=100, disk_fetcher=disk, cloud_fetcher=cloud), disk, cloud
+    with patch(
+        "data_index.file_fetcher.threshold_fetcher.prefect.artifacts.create_table_artifact"
+    ):
+        yield (
+            ThresholdFileFetcher(
+                size_threshold_bytes=100, disk_fetcher=disk, cloud_fetcher=cloud
+            ),
+            disk,
+            cloud,
+        )
 
 
 def test_fetch_returns_empty_for_empty_input(fetcher):
@@ -110,4 +122,3 @@ def test_entry_at_threshold_routed_to_cloud_fetcher(fetcher):
 
     assert len(handles) == 1
     assert isinstance(handles[0], S3XarrayHandle)
-

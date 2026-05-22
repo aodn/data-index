@@ -1,8 +1,8 @@
-
 import pathlib
 import prefect.docker
 import pydantic
 import typing
+
 
 class DockerImage(pydantic.BaseModel):
     """
@@ -17,9 +17,7 @@ class DockerImage(pydantic.BaseModel):
     name: str
     tag: str | None
     dockerfile: pathlib.Path | typing.Literal["auto"] = pydantic.Field(default="auto")
-    build_kwargs: dict[str, typing.Any] = pydantic.Field(
-        default_factory=lambda: {}
-    )
+    build_kwargs: dict[str, typing.Any] = pydantic.Field(default_factory=lambda: {})
 
     @property
     def full_name(self) -> str:

@@ -1,9 +1,6 @@
-import dataclasses
 
-import polars
 import pytest
 from pyiceberg.catalog.sql import SqlCatalog
-from pyiceberg.partitioning import PartitionSpec
 
 from data_index.protocols import StructuredMetadata
 from data_index.structured_sink.s3_table_sink import StructuredS3TableSink

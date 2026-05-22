@@ -4,7 +4,10 @@ from data_index.protocols import BatchEntry
 
 def test_returns_one_handle_per_uri():
     fetcher = S3Fetcher()
-    entries = [BatchEntry(uri=u) for u in ["s3://bucket/a.nc", "s3://bucket/b.nc", "s3://bucket/c.nc"]]
+    entries = [
+        BatchEntry(uri=u)
+        for u in ["s3://bucket/a.nc", "s3://bucket/b.nc", "s3://bucket/c.nc"]
+    ]
 
     handles = fetcher.fetch(entries)
 

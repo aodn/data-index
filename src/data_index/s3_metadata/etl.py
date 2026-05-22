@@ -4,6 +4,7 @@ from .load import load
 
 import prefect
 
+
 @prefect.flow
 def etl(
     table_scan_config: TableScanConfig,
@@ -11,6 +12,7 @@ def etl(
     inventory_lf = extract(table_scan_config=table_scan_config)
     live_inventory_lf = transform(inventory_lf)
     load(live_inventory_lf)
+
 
 if __name__ == "__main__":
     etl(

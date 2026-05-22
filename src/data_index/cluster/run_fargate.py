@@ -38,7 +38,7 @@ LIMIT = 20
 BATCH_SIZE = 5
 OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
 INVENTORY_PATH = OUT_DIR / "inventory.parquet"
-THRESHOLD_BYTES = 10 * 1024 ** 2  # 10 MB
+THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +69,7 @@ def prepare_inventory() -> None:
         polars.scan_parquet(".extract/s3_metadata")
         .filter(
             polars.col("key").str.ends_with(".nc"),
-            polars.col("size").le(1024 ** 2),
+            polars.col("size").le(1024**2),
         )
         .select(
             polars.concat_str(
@@ -92,7 +92,8 @@ def main() -> None:
     password = sh.aws("ecr", "get-login-password", "--region", REGION)
     sh.docker(
         "login",
-        "--username", "AWS",
+        "--username",
+        "AWS",
         "--password-stdin",
         ECR_REGISTRY,
         _in=password,
@@ -114,12 +115,12 @@ def main() -> None:
         inventory_source=ParquetInventorySource(path=INVENTORY_PATH),
         partitioner=GreedyBatchPartitioner(
             max_files=BATCH_SIZE,
-            max_bytes=50 * 1024 ** 3,
+            max_bytes=50 * 1024**3,
         ),
         fetcher=ThresholdFileFetcher(
             size_threshold_bytes=THRESHOLD_BYTES,
             disk_fetcher=S5CMDFetcher(),
-            cloud_fetcher=S3Fetcher(block_size=5 * 1024 ** 2),
+            cloud_fetcher=S3Fetcher(block_size=5 * 1024**2),
         ),
         extractor=UnstructuedNetCDFExtractor(),
         structured_sink=StructuredParquetSink(

@@ -43,7 +43,8 @@ class ThresholdFileFetcher:
             table=[
                 {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "disk"}
                 for e in disk_entries
-            ] + [
+            ]
+            + [
                 {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "cloud"}
                 for e in cloud_entries
             ],

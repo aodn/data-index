@@ -26,18 +26,20 @@ class StructuredMetadata:
     file_format: str | None = None
     collection: str | None = None
 
-    polars_schema: typing.ClassVar[polars.Schema] = polars.Schema({
-        "s3_uri": polars.String,
-        "lat_min": polars.Float64,
-        "lat_max": polars.Float64,
-        "lon_min": polars.Float64,
-        "lon_max": polars.Float64,
-        "time_min": polars.String,
-        "time_max": polars.String,
-        "crs": polars.String,
-        "file_format": polars.String,
-        "collection": polars.String,
-    })
+    polars_schema: typing.ClassVar[polars.Schema] = polars.Schema(
+        {
+            "s3_uri": polars.String,
+            "lat_min": polars.Float64,
+            "lat_max": polars.Float64,
+            "lon_min": polars.Float64,
+            "lon_max": polars.Float64,
+            "time_min": polars.String,
+            "time_max": polars.String,
+            "crs": polars.String,
+            "file_format": polars.String,
+            "collection": polars.String,
+        }
+    )
 
 
 class UnstructuredMetadata(typing.Protocol):
@@ -50,6 +52,7 @@ class UnstructuredMetadata(typing.Protocol):
 class RawExtractionResult:
     """Intermediate result returned by MetadataExtractor.extract(). Unstructured metadata
     is a plain dict — persistence wrapping is the responsibility of transform."""
+
     s3_uri: str
     structured_metadata: StructuredMetadata | None
     unstructured_metadata: dict | None
@@ -61,6 +64,7 @@ class RawExtractionResult:
 class ExtractionResult:
     """Final result returned by _transform_single. Unstructured metadata is a persisted
     UnstructuredMetadata handle (written by metadata_factory during transform)."""
+
     s3_uri: str
     structured_metadata: StructuredMetadata | None
     unstructured_metadata: UnstructuredMetadata | None
@@ -80,6 +84,7 @@ class XarrayHandle(typing.Protocol):
     def cleanup(self) -> None:
         """Release any resources associated with this handle (e.g. delete a local file)."""
         ...
+
 
 class FileFetcher(typing.Protocol):
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
@@ -120,6 +125,8 @@ class InventorySource(typing.Protocol):
 
 
 class BatchPartitioner(typing.Protocol):
-    def partition(self, inventory: polars.DataFrame) -> typing.Iterator[polars.DataFrame]:
+    def partition(
+        self, inventory: polars.DataFrame
+    ) -> typing.Iterator[polars.DataFrame]:
         """Split an inventory DataFrame into a sequence of Batches."""
         ...
