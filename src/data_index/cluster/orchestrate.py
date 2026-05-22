@@ -79,14 +79,16 @@ def orchestrate(
     if metadata_factory is None:
         metadata_factory = DiskCachedUnstructuredMetadata
 
-    logger.info("Provisioning sinks")
+    logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
     structured_sink.provision()
     unstructured_sink.provision()
 
+    logger.info(f"Provisioning inventory: `{inventory_source}`")
     inventory = inventory_source.inventory()
     batches = list(partitioner.partition(inventory))
-    logger.info(f"Dispatching {len(batches)} batches ({len(inventory)} files total)")
 
+    logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
+    logger.info(f"Dispatching {len(batches)} batches ({len(inventory)} files total)")
     futures = [
         _process_batch.submit(
             batch_df=batch,

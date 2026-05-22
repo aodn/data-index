@@ -18,7 +18,7 @@ import prefect.task_runners
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
 from data_index.catalog_config import S3TablesCatalogConfig, SqliteCatalogConfig
 from data_index.cluster.orchestrate import orchestrate
-from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
+from data_index.file_fetcher import S5CMDFetcher
 from data_index.iceberg_table_config import IcebergTableConfig
 from data_index.inventory_source.live_s3 import LiveS3InventorySource
 from data_index.metadata_extractor import UnstructuedNetCDFExtractor
@@ -72,11 +72,7 @@ def main() -> None:
             max_files=BATCH_SIZE,
             max_bytes=50 * 1024**3,  # 50 GB
         ),
-        fetcher=ThresholdFileFetcher(
-            size_threshold_bytes=THRESHOLD_BYTES,
-            disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True),
-            cloud_fetcher=S3Fetcher(block_size=5 * 1024**2),
-        ),
+        fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True),
         extractor=UnstructuedNetCDFExtractor(),
         structured_sink=StructuredS3TableSink(
             catalog=sink_catalog,
