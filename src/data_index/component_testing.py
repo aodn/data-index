@@ -72,7 +72,7 @@ def pipeline(
     )
     extraction_results = transform(
         xarray_handles=xarray_handles,
-        extractor=NetCDFExtractor(),
+        extractor=UnstructuedNetCDFExtractor(),
         metadata_factory=InMemoryUnstructuredMetadata,
     )
     load(

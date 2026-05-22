@@ -8,9 +8,8 @@ class UnstructuedNetCDFExtractor:
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
         try:
-            file_format = handle.file_format
-            structured = self._extract_structured(handle.ds, handle.s3_uri, file_format)
-            unstructured = self._extract_unstructured(handle.ds, file_format)
+            structured = self._extract_structured(handle.ds, handle.s3_uri)
+            unstructured = self._extract_unstructured(handle.ds)
             return RawExtractionResult(
                 s3_uri=handle.s3_uri,
                 structured_metadata=structured,
@@ -26,12 +25,13 @@ class UnstructuedNetCDFExtractor:
                 error=str(exc),
             )
 
-    def _extract_structured(self, ds: xarray.Dataset, s3_uri: str, file_format: str | None) -> StructuredMetadata:
+    def _extract_structured(self, ds: xarray.Dataset, s3_uri: str, file_format: str | None = None) -> StructuredMetadata:
         """
         Dummy class that
         """
         return StructuredMetadata(
             s3_uri=s3_uri,
+            file_format=file_format,
             lat_min=None,
             lat_max=None,
             lon_min=None,
@@ -39,10 +39,9 @@ class UnstructuedNetCDFExtractor:
             time_min=None,
             time_max=None,
             crs=None,
-            file_format=None,
         )
 
-    def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None) -> dict:
+    def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None = None) -> dict:
         unstructured = {
             "file_format": file_format,
             "global_attrs": dict(ds.attrs),
