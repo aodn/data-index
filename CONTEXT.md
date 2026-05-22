@@ -48,7 +48,7 @@ The Prefect flow that reads an **InventorySource**, partitions it into **Batches
 _Avoid_: coordinator, driver, master, controller
 
 **InventorySource**:
-A pluggable component that provides the full corpus inventory as a DataFrame with `s3_uri` and `size` columns. Implementations: `ParquetInventorySource` (reads a local or S3 Parquet file) and `LiveS3InventorySource` (queries an S3 inventory table at runtime).
+A pluggable component that provides the full corpus inventory as a DataFrame with `s3_uri` and `size` columns. Two implementations: `ParquetInventorySource` (reads a pre-materialized local or S3 Parquet file — used for re-running from a cached snapshot) and `LiveS3InventorySource` (runs the s3_metadata ETL — `extract()` → `transform()` → `load()` — to materialise the live S3 inventory table to disk, then reads it back; accepts `S3TablesConfig`, `TableScanConfig`, `path`, and `skip_if_exists: bool = True`).
 _Avoid_: file list, manifest, catalogue
 
 **BatchPartitioner**:

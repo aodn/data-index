@@ -1,9 +1,8 @@
-from .extract import extract, TableScanConfig, S3TablesConfig
+from .extract import extract, TableScanConfig
 from .transform import transform
 
 __all__ = [
     "TableScanConfig",
-    "S3TablesConfig",
     "extract",
     "transform",
 ]
