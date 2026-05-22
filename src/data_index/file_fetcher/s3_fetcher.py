@@ -1,21 +1,25 @@
-import pathlib
-
-import boto3
 import cloudpathlib
 
-from data_index.protocols import ManifestEntry
-
+from data_index.protocols import BatchEntry, XarrayHandle
+from data_index.xarray_handle import S3XarrayHandle
 
 class S3Fetcher:
-    """FileFetcher implementation that downloads files from S3 using boto3."""
+    """
+    FileFetcher implementation that downloads files from S3 using boto3.
+    
+    Note this fetcher does not actually load any data.
 
-    def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[ManifestEntry]:
-        s3 = boto3.client("s3")
-        entries: list[ManifestEntry] = []
-        for uri in uris:
-            s3_path = cloudpathlib.S3Path(uri)
-            local_path = extract_path / s3_path.bucket / s3_path.key
-            local_path.parent.mkdir(parents=True, exist_ok=True)
-            s3.download_file(s3_path.bucket, s3_path.key, str(local_path))
-            entries.append(ManifestEntry(s3_uri=uri, absolute_path=local_path.resolve()))
-        return entries
+    It passes back handles that intelligently query header information from NetCDF files in Cloud.
+    """
+
+    def __init__(self, block_size: int = 1024 ** 2) -> None:
+        self.block_size = block_size
+
+    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
+        return [
+            S3XarrayHandle(
+                path=cloudpathlib.S3Path(cloud_path=entry.uri),
+                block_size=self.block_size,
+            )
+            for entry in entries
+        ]

@@ -30,12 +30,15 @@ def get_batch(
             ).alias("s3_uri"),
             polars.col("size"),
         )
+        .sort(
+            polars.col("s3_uri"),
+        )
         .collect()
     )
 
     # Apply limit as sample
     if limit:
-        df = df.sample(n=limit if limit <= len(df) else len(df))
+        df = df.head(n=limit if limit <= len(df) else len(df))
     
     return df
 
@@ -82,4 +85,65 @@ def get_batch_from_s3_metadata(
             polars.col("s3_uri"),
         )
         .collect()
+    )
+
+def get_threshold_batch(
+    threshold: int = 1024 * 128,
+):
+    
+    le_df = (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            polars.col("size").le(threshold)
+        )
+        .collect()
+    )
+    gt_df = (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            polars.col("size").gt(threshold)
+        )
+        .collect()
+    )
+
+    return (
+        le_df.sample(1_000).vstack(gt_df.sample(100))
+        .select(
+            polars.concat_str(
+                polars.lit("s3:/"),
+                polars.col("bucket"),
+                polars.col("key"),
+                separator="/"
+            ).alias("s3_uri"),
+            polars.col("size"),
+        )
+        .sort(
+            polars.col("s3_uri"),
+        )
+    )
+
+
+def get_batch_filtered(
+    expressions: list[polars.Expr],
+    limit: int = 10_000,
+):
+    return (
+        polars.scan_parquet(".extract/s3_metadata")
+        .filter(
+            expressions,
+        )
+        .select(
+            polars.concat_str(
+                polars.lit("s3:/"),
+                polars.col("bucket"),
+                polars.col("key"),
+                separator="/"
+            ).alias("s3_uri"),
+            polars.col("size"),
+        )
+        .sort(
+            polars.col("s3_uri"),
+        )
+        .collect()
+        .sample(limit)
     )

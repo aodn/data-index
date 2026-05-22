@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import pathlib
+import concurrent.futures
+import logging
 import typing
 
 import polars
 import prefect
 import prefect.artifacts
-import xarray
 
 from data_index.protocols import (
     ExtractionResult,
-    ManifestEntry,
+    XarrayHandle,
     MetadataExtractor,
     StructuredMetadata,
     UnstructuredMetadata,
@@ -18,79 +18,78 @@ from data_index.protocols import (
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
-@prefect.task(
-    task_run_name="transform-single-{s3_uri}",
-)
 def _transform_single(
-    s3_uri: str,
-    path: pathlib.Path,
+    xarray_handle: XarrayHandle,
     extractor: MetadataExtractor,
     unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
+    logger: logging.Logger,
 ) -> ExtractionResult:
     try:
-        with xarray.open_dataset(path) as ds:
-            raw = extractor.extract(ds, s3_uri)
+        raw = extractor.extract(handle=xarray_handle)
         if raw.status == "failed":
+            logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
             return ExtractionResult(
-                s3_uri=s3_uri,
+                s3_uri=xarray_handle.s3_uri,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
                 error=raw.error,
             )
+        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
         return ExtractionResult(
-            s3_uri=s3_uri,
+            s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(s3_uri, raw.unstructured_metadata.load()),
+            unstructured_metadata=unstructured_metadata_factory(xarray_handle.s3_uri, raw.unstructured_metadata),
             status="succeeded",
         )
     except Exception as exc:
+        logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
         return ExtractionResult(
-            s3_uri=s3_uri,
+            s3_uri=xarray_handle.s3_uri,
             structured_metadata=None,
             unstructured_metadata=None,
             status="failed",
             error=str(exc),
         )
+    finally:
+        xarray_handle.ds.close()
 
 
 @prefect.task
 def transform(
-    manifest: list[ManifestEntry],
+    xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
     metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata] = DiskCachedUnstructuredMetadata,
 ) -> list[ExtractionResult]:
     """
-    Transform a manifest of local NetCDF files into structured and unstructured metadata.
+    Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
-    Submits one _transform_single task per file (parallel). Each task immediately
-    persists unstructured metadata via metadata_factory(s3_uri, data). Deletes local
-    files after all tasks complete.
+    Runs one _transform_single call per file in parallel via a thread pool. Each call
+    immediately persists unstructured metadata via metadata_factory(s3_uri, data).
+    Releases handle resources after all threads complete.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
-    futures = [
-        _transform_single.submit(
-            s3_uri=entry.s3_uri,
-            path=entry.absolute_path,
-            extractor=extractor,
-            unstructured_metadata_factory=metadata_factory,
-        )
-        for entry in manifest
-    ]
-    results: list[ExtractionResult] = [f.result() for f in futures]
+    logger = prefect.get_run_logger()
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        futures = {
+            pool.submit(
+                _transform_single,
+                xarray_handle=xarray_handle,
+                extractor=extractor,
+                unstructured_metadata_factory=metadata_factory,
+                logger=logger,
+            )
+            for xarray_handle in xarray_handles
+        }
+        results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
-    for _, entry in zip(results, manifest):
-        if entry.absolute_path.exists():
-            entry.absolute_path.unlink()
+    # Release handle resources (e.g. delete local files for DiskXarrayHandle)
+    for xarray_handle in xarray_handles:
+        xarray_handle.cleanup()
 
     failed = [r for r in results if r.status == "failed"]
     succeeded = [r for r in results if r.status == "succeeded"]
-
-    if failed:
-        logger = prefect.get_run_logger()
-        for r in failed:
-            logger.warning(f"transform failed for {r.s3_uri}: {r.error}")
 
     prefect.artifacts.create_table_artifact(
         key="transform-succeeded",

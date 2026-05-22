@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import dataclasses
-import pathlib
 import typing
 
 import polars
 import xarray
-import pydantic
 
 
-class ManifestEntry(pydantic.BaseModel):
-    s3_uri: str
-    absolute_path: pathlib.Path
+@dataclasses.dataclass
+class BatchEntry:
+    uri: str
+    size_bytes: int | None = None
 
 
 @dataclasses.dataclass
@@ -24,6 +23,7 @@ class StructuredMetadata:
     time_min: str | None
     time_max: str | None
     crs: str | None
+    file_format: str | None = None
 
     polars_schema: typing.ClassVar[polars.Schema] = polars.Schema({
         "s3_uri": polars.String,
@@ -34,6 +34,7 @@ class StructuredMetadata:
         "time_min": polars.String,
         "time_max": polars.String,
         "crs": polars.String,
+        "file_format": polars.String,
     })
 
 
@@ -44,7 +45,20 @@ class UnstructuredMetadata(typing.Protocol):
 
 
 @dataclasses.dataclass
+class RawExtractionResult:
+    """Intermediate result returned by MetadataExtractor.extract(). Unstructured metadata
+    is a plain dict — persistence wrapping is the responsibility of transform."""
+    s3_uri: str
+    structured_metadata: StructuredMetadata | None
+    unstructured_metadata: dict | None
+    status: str  # "succeeded" or "failed"
+    error: str | None = None
+
+
+@dataclasses.dataclass
 class ExtractionResult:
+    """Final result returned by _transform_single. Unstructured metadata is a persisted
+    UnstructuredMetadata handle (written by metadata_factory during transform)."""
     s3_uri: str
     structured_metadata: StructuredMetadata | None
     unstructured_metadata: UnstructuredMetadata | None
@@ -52,15 +66,28 @@ class ExtractionResult:
     error: str | None = None
 
 
+class XarrayHandle(typing.Protocol):
+    s3_uri: str
+    file_format: str | None
+
+    @property
+    def ds(self) -> xarray.Dataset:
+        """Return an xarray dataset"""
+        ...
+
+    def cleanup(self) -> None:
+        """Release any resources associated with this handle (e.g. delete a local file)."""
+        ...
+
 class FileFetcher(typing.Protocol):
-    def fetch(self, uris: list[str], extract_path: pathlib.Path) -> list[ManifestEntry]:
-        """Download files and return a Manifest as a list of ManifestEntry."""
+    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
+        """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
         ...
 
 
 class MetadataExtractor(typing.Protocol):
-    def extract(self, ds: xarray.Dataset, s3_uri: str) -> ExtractionResult:
-        """Extract structured and unstructured metadata from an open xarray Dataset."""
+    def extract(self, handle: XarrayHandle) -> RawExtractionResult:
+        """Extract structured and unstructured metadata from an XarrayHandle."""
         ...
 
 
