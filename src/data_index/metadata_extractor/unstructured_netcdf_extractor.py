@@ -3,8 +3,7 @@ import numpy
 from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
 from data_index.metadata_extractor._sanitize import _sanitize_for_json, _serialize_with_orjson
 
-
-class NetCDFExtractor:
+class UnstructuedNetCDFExtractor:
     """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
@@ -28,45 +27,19 @@ class NetCDFExtractor:
             )
 
     def _extract_structured(self, ds: xarray.Dataset, s3_uri: str, file_format: str | None) -> StructuredMetadata:
-        lat_coord = next((c for c in ds.coords if c in ("LATITUDE", "latitude", "lat")), None)
-        lon_coord = next((c for c in ds.coords if c in ("LONGITUDE", "longitude", "lon")), None)
-        time_coord = next((c for c in ds.coords if c in ("TIME", "time")), None)
-
-        lat_min = lat_max = lon_min = lon_max = None
-        time_min = time_max = None
-
-        if lat_coord:
-            vals = ds.coords[lat_coord]
-            lat_min, lat_max = float(vals.min()), float(vals.max())
-
-        if lon_coord:
-            vals = ds.coords[lon_coord]
-            lon_min, lon_max = float(vals.min()), float(vals.max())
-
-        if time_coord:
-            vals = ds.coords[time_coord]
-            time_min, time_max = str(vals.min().values), str(vals.max().values)
-
-        crs = None
-        for var in ds.data_vars.values():
-            gm_name = var.attrs.get("grid_mapping")
-            if gm_name and gm_name in ds:
-                gm_var = ds[gm_name]
-                crs = gm_var.attrs.get("crs_wkt") or gm_var.attrs.get("grid_mapping_name")
-                break
-        if crs is None:
-            crs = ds.attrs.get("crs")
-
+        """
+        Dummy class that
+        """
         return StructuredMetadata(
             s3_uri=s3_uri,
-            lat_min=lat_min,
-            lat_max=lat_max,
-            lon_min=lon_min,
-            lon_max=lon_max,
-            time_min=time_min,
-            time_max=time_max,
-            crs=crs,
-            file_format=file_format,
+            lat_min=None,
+            lat_max=None,
+            lon_min=None,
+            lon_max=None,
+            time_min=None,
+            time_max=None,
+            crs=None,
+            file_format=None,
         )
 
     def _extract_unstructured(self, ds: xarray.Dataset, file_format: str | None) -> dict:

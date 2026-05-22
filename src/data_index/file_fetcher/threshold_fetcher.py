@@ -9,7 +9,7 @@ class ThresholdFileFetcher:
 
     Entries with size_bytes < size_threshold_bytes are routed to disk_fetcher (full download).
     Entries with size_bytes >= size_threshold_bytes, or with size_bytes=None, are routed to
-    cloud_fetcher (byte-range reads via fsspec — no download required).
+    cloud_fetcher (byte-range reads via fsspec — no up front download required).
     """
 
     def __init__(

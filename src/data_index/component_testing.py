@@ -6,15 +6,16 @@ from data_index.extract import extract
 from data_index.transform import transform
 from data_index.load import load
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
-from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
+from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink
 from data_index.unstructured_sink import UnstructuredParquetSink
+from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
 from data_index.testing import get_batch, get_threshold_batch, get_batch_filtered
 import polars
 
 import logging
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("fsspec").setLevel(logging.DEBUG)
+# logging.basicConfig(level=logging.INFO)
+# logging.getLogger("fsspec").setLevel(logging.DEBUG)
 
 IMOS_DATA_BUCKET_PREFIXES = [
     # Processed
@@ -40,6 +41,7 @@ IMOS_DATA_BUCKET_PREFIXES = [
 
 @prefect.flow(
     flow_run_name="pipeline-{prefix}",
+    task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=32)
 )
 def pipeline(
     prefix: str,
@@ -71,6 +73,7 @@ def pipeline(
     extraction_results = transform(
         xarray_handles=xarray_handles,
         extractor=NetCDFExtractor(),
+        metadata_factory=InMemoryUnstructuredMetadata,
     )
     load(
         extraction_results=extraction_results,
