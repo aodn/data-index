@@ -17,6 +17,7 @@ import polars
 import prefect.task_runners
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
+
 from data_index.cluster.orchestrate import orchestrate
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.inventory_source.parquet import ParquetInventorySource
@@ -26,8 +27,10 @@ from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
 from data_index.unstructured_sink import UnstructuredParquetSink
 
 # --- Config ---
-LIMIT = 100_000          # total files to process
-BATCH_SIZE = 10_000      # files per batch → 4 batches
+LIMIT = 200             # total files to process
+BATCH_SIZE = 50         # files per batch
+MAX_WORKERS = 2         # concurrent batches (limits RAM/CPU pressure)
+S5CMD_WORKERS = 8       # s5cmd defaults to 256 — cap it for local runs
 OUT_DIR = pathlib.Path(".load/orchestrate-test")
 INVENTORY_PATH = OUT_DIR / "inventory.parquet"
 THRESHOLD_BYTES = 10 * 1024 ** 2  # 10 MB
@@ -63,7 +66,9 @@ def prepare_inventory() -> None:
 def main() -> None:
     prepare_inventory()
 
-    orchestrate(
+    orchestrate.with_options(
+        task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=MAX_WORKERS)
+    )(
         inventory_source=ParquetInventorySource(path=INVENTORY_PATH),
         partitioner=GreedyBatchPartitioner(
             max_files=BATCH_SIZE,
@@ -71,7 +76,7 @@ def main() -> None:
         ),
         fetcher=ThresholdFileFetcher(
             size_threshold_bytes=THRESHOLD_BYTES,
-            disk_fetcher=S5CMDFetcher(),
+            disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS),
             cloud_fetcher=S3Fetcher(block_size=5 * 1024 ** 2),
         ),
         extractor=UnstructuedNetCDFExtractor(),
