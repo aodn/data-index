@@ -18,11 +18,11 @@ A pipeline that ingests CF-compliant NetCDF files from S3, extracts metadata, an
  │ Orchestrator (Prefect Flow)                            │
  ├────────────────────────────────────────────────────────┤
  │                                                        │
- │  1. [ Structured/Unstructured Sink ].provision()       │
+ │  1. [ Sinks.provision() ]                              │
  │                                                        │
- │  2. [ InventorySource ].inventory() ──► Full Corpus    │
+ │  2. [ InventorySource.inventory() ] ──► Full Corpus    │
  │                                           │            │
- │  3. [ BatchPartitioner ].partition() ◄────┘            │
+ │  3. [ BatchPartitioner.partition() ] ◄────┘            │
  │            │                                           │
  │            ▼                                           │
  │     [ Split Batches ]                                  │
