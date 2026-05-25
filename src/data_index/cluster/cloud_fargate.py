@@ -14,8 +14,20 @@ from __future__ import annotations
 
 import pathlib
 import subprocess
+import tempfile
 
-subprocess.run(["uv", "pip", "install", "."], check=True)
+# Freeze already-installed packages as overrides so uv won't upgrade or
+# replace them — only missing dependencies of data_index will be installed.
+with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as _f:
+    _freeze = subprocess.run(
+        ["uv", "pip", "freeze", "--system"], capture_output=True, text=True, check=True
+    )
+    _f.write(_freeze.stdout)
+    _f.flush()
+    subprocess.run(
+        ["uv", "pip", "install", "--system", "--override", _f.name, "."],
+        check=True,
+    )
 
 import prefect  # noqa: E402
 import prefect_dask  # noqa: E402
