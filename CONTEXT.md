@@ -92,6 +92,16 @@ _Avoid_: writer, exporter
 - NetCDF4/HDF5 files require multiple block fetches to traverse the HDF5 btree even for metadata-only reads; this makes `S3XarrayHandle` slower for large NetCDF4 files than for NetCDF3
 - **Three-layer concurrency model**: peak resource usage is `batch_workers × transform_threads × s5cmd_workers`. On Fargate each worker runs in an isolated container so all three can be maximised independently. For local runs all three layers share the same machine and must be capped together to avoid memory exhaustion and CPU saturation.
 
+## Releases
+
+**Release**:
+A versioned snapshot of the package published as a GitHub Release. Triggered by pushing a Git tag matching `vMAJOR.MINOR.PATCH` (e.g. `v1.2.3`). The release workflow: runs lint + tests, builds a wheel and sdist using `hatch-vcs` (version derived from the tag), attaches them to the GitHub Release with an auto-generated changelog. Installable via a direct URL from the release page.
+_Avoid_: deploy, publish, ship (use "release" consistently)
+
+**CI Workflow**:
+A GitHub Actions workflow that runs on every pull request to `main`: lint (`ruff check` + `ruff format --check`) and the full test suite (`pytest`). Passing CI is a required status check — PRs cannot be merged until CI passes.
+_Avoid_: build pipeline, validation pipeline
+
 ## Example dialogue
 
 > **Dev:** "Should we re-index a file if we've already seen it?"
