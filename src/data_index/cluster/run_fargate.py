@@ -46,7 +46,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 docker_image = DockerImage(
     name=f"{ECR_REGISTRY}/prefect",
     tag="prefect-dask",
-    dockerfile=pathlib.Path("src/data_index/cluster/Dockerfile"),
+    dockerfile=pathlib.Path("Dockerfile"),
 )
 
 # --- Fargate cluster config ---

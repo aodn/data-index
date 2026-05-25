@@ -1,7 +1,4 @@
-FROM python:3.12-slim
-
-# Install uv (matches the local toolchain)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28 AS base
 
 # System libraries required by netcdf4, h5py, scipy
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -27,4 +24,13 @@ RUN uv sync --frozen
 # Put the venv on PATH for the dask worker entry-point
 ENV PATH="/app/.venv/bin:$PATH"
 
+
+FROM base AS test
+
+RUN uv sync --frozen --group dev
+COPY tests/ ./tests/
+RUN uv run pytest tests/ -v
+
+
+FROM base AS production
 # Dask workers are launched by FargateCluster; no CMD needed
