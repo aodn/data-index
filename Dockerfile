@@ -24,6 +24,9 @@ RUN uv sync --frozen --no-install-project
 # Copy the package source
 COPY src/ ./src/
 
+# Explicitly install your build backend globally first
+RUN uv pip install hatchling
+
 # Install the data-index package itself (still using frozen lock)
 RUN uv sync --frozen --no-build-isolation
 
