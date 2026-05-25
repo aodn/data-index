@@ -15,10 +15,9 @@ from __future__ import annotations
 import pathlib
 import subprocess
 
-import prefect
-
 subprocess.run(["uv", "pip", "install", "."], check=True)
 
+import prefect  # noqa: E402
 import prefect_dask  # noqa: E402
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner  # noqa: E402
