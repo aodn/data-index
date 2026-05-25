@@ -1,7 +1,7 @@
-FROM python:3.12-slim
+FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28
 
-# Install uv (matches the local toolchain)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+# Install uv for fast dependency installation
+COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /usr/local/bin/
 
 # System libraries required by netcdf4, h5py, scipy
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,21 +10,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+# -- Build app --
 WORKDIR /app
 
-# Copy dependency manifests first — layer cache stays valid until these change
-COPY pyproject.toml uv.lock README.md ./
-
-# Install all dependencies from the lock file (no project install yet)
-RUN uv sync --frozen --no-install-project
-
-# Copy the package source
+# Install dependencies from the pinned lock file, capture constraints in constraints.txt
+COPY requirements.txt ./
+COPY constraints.txt ./
+RUN uv pip install --system --build-constraints constraints.txt --requirements requirements.txt
+    
+# Copy the package source and install data-index itself
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.1.0
 COPY src/ ./src/
-
-# Install the data-index package itself (still using frozen lock)
-RUN uv sync --frozen
-
-# Put the venv on PATH for the dask worker entry-point
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Dask workers are launched by FargateCluster; no CMD needed
+COPY pyproject.toml README.md ./
+RUN uv pip install --system --no-deps .

@@ -11,3 +11,9 @@ repos:
         language: system
         entry: uvx ruff format
         types: [python]
+      - id: uv-export
+        name: uv export requirements.txt
+        language: system
+        entry: uv export --no-dev --no-emit-project --format requirements.txt --output-file requirements.txt
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
