@@ -13,22 +13,26 @@ The Docker image must be built and pushed to ECR before invoking this flow
 from __future__ import annotations
 
 import pathlib
+import subprocess
 
 import prefect
-import prefect_dask
 
-from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
-from data_index.cluster.fargate_cluster_config import PrefectFargateClusterConfig
-from data_index.cluster.orchestrate import orchestrate
-from data_index.file_fetcher import S5CMDFetcher
-from data_index.iceberg_config import S3TablesCatalogConfig
-from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
-from data_index.inventory_source.live_s3 import LiveS3InventorySource
-from data_index.metadata_extractor import UnstructuedNetCDFExtractor
-from data_index.s3_metadata.extract import TableScanConfig
-from data_index.structured_sink import StructuredS3TableSink
-from data_index.unstructured_metadata import InMemoryUnstructuredMetadata
-from data_index.unstructured_sink import UnstructuredS3TableSink
+subprocess.run(["uv", "pip", "install", "."], check=True)
+
+import prefect_dask  # noqa: E402
+
+from data_index.batch_partitioner.greedy import GreedyBatchPartitioner  # noqa: E402
+from data_index.cluster.fargate_cluster_config import PrefectFargateClusterConfig  # noqa: E402
+from data_index.cluster.orchestrate import orchestrate  # noqa: E402
+from data_index.file_fetcher import S5CMDFetcher  # noqa: E402
+from data_index.iceberg_config import S3TablesCatalogConfig  # noqa: E402
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig  # noqa: E402
+from data_index.inventory_source.live_s3 import LiveS3InventorySource  # noqa: E402
+from data_index.metadata_extractor import UnstructuedNetCDFExtractor  # noqa: E402
+from data_index.s3_metadata.extract import TableScanConfig  # noqa: E402
+from data_index.structured_sink import StructuredS3TableSink  # noqa: E402
+from data_index.unstructured_metadata import InMemoryUnstructuredMetadata  # noqa: E402
+from data_index.unstructured_sink import UnstructuredS3TableSink  # noqa: E402
 
 ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
 DEFAULT_IMAGE = f"{ECR_REGISTRY}/prefect:prefect-dask"
@@ -40,7 +44,7 @@ THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 @prefect.flow
 def cloud_fargate(
-    prefect_fargate_cluster_config=PrefectFargateClusterConfig(
+    prefect_fargate_cluster_config: PrefectFargateClusterConfig = PrefectFargateClusterConfig(
         n_workers=4,
         image=DEFAULT_IMAGE,
         cpu_architecture="ARM64",
@@ -62,6 +66,18 @@ def cloud_fargate(
         worker_mem: Memory in MB per worker.
         batch_size: Maximum files per Batch dispatched to a worker.
     """
+
+    if prefect_fargate_cluster_config is None:
+        prefect_fargate_cluster_config = PrefectFargateClusterConfig(
+            n_workers=4,
+            image=DEFAULT_IMAGE,
+            cpu_architecture="ARM64",
+            scheduler_cpu=4096,
+            scheduler_mem=16384,
+            worker_cpu=4096,
+            worker_mem=16384,
+        )
+
     logger = prefect.get_run_logger()
 
     logger.info(f"Using image: {prefect_fargate_cluster_config.image}")
@@ -103,11 +119,3 @@ def cloud_fargate(
         ),
         metadata_factory=InMemoryUnstructuredMetadata,
     )
-
-
-def main() -> None:
-    cloud_fargate()
-
-
-if __name__ == "__main__":
-    main()
