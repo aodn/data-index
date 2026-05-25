@@ -18,14 +18,15 @@ WORKDIR /app
 # Copy dependency manifests first — layer cache stays valid until these change
 COPY pyproject.toml uv.lock README.md ./
 
+# Explicitly install your build backend globally first
+RUN uv pip install hatchling
+
 # Install all dependencies from the lock file (no project install yet)
 RUN uv sync --frozen --no-install-project
 
 # Copy the package source
 COPY src/ ./src/
 
-# Explicitly install your build backend globally first
-RUN uv pip install hatchling
 
 # Install the data-index package itself (still using frozen lock)
 RUN uv sync --frozen --no-build-isolation
