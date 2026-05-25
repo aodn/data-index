@@ -32,7 +32,6 @@ class PrefectFargateClusterConfig(pydantic.BaseModel):
 
     # --- Resource Allocation ---
     image: str = pydantic.Field(
-        default="daskdev/dask:latest",
         description="Docker image for scheduler and workers.",
     )
     scheduler_cpu: int = pydantic.Field(
