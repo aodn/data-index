@@ -27,7 +27,6 @@ RUN uv sync --frozen --no-install-project
 # Copy the package source
 COPY src/ ./src/
 
-
 # Install the data-index package itself (still using frozen lock)
 RUN uv sync --frozen --no-build-isolation
 
