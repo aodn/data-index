@@ -41,6 +41,12 @@ data-index = "data_index.component_testing:main"
 cluster-local = "data_index.cluster.run_local:main"
 cluster-fargate = "data_index.cluster.run_fargate:main"
 
+[tool.pytest.ini_options]
+filterwarnings = ["ignore:Logger 'prefect.*' attempted to send logs"]
+
+[tool.ruff]
+exclude = ["analysis/"]
+
 [tool.prefect]
 home = ".prefect"
 
@@ -49,6 +55,7 @@ dev = [
     "aiosqlite>=0.22.1",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
+    "ruff>=0.11.0",
     "sqlalchemy>=2.0.49",
 ]
 analysis = [

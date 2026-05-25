@@ -4,7 +4,7 @@ import pathlib
 
 import polars
 
-from data_index.iceberg_table_config import IcebergTableConfig
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.s3_metadata.extract import TableScanConfig, extract
 from data_index.s3_metadata.load import load
 from data_index.s3_metadata.transform import transform
