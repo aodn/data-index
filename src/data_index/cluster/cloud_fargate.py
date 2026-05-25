@@ -24,10 +24,16 @@ with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as _f:
     )
     _f.write(_freeze.stdout)
     _f.flush()
-    subprocess.run(
+    _result = subprocess.run(
         ["uv", "pip", "install", "--system", "--override", _f.name, "."],
-        check=True,
+        capture_output=True,
+        text=True,
     )
+    if _result.returncode != 0:
+        raise RuntimeError(
+            f"uv pip install failed (exit {_result.returncode}):\n"
+            f"{_result.stdout}\n{_result.stderr}"
+        )
 
 import prefect  # noqa: E402
 import prefect_dask  # noqa: E402
