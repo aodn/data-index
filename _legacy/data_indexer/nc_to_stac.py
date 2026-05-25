@@ -42,54 +42,54 @@ def classify_coord(coord: xr.DataArray) -> str:
     str: The classification of the coordinate.
     """
     attrs = coord.attrs
-    standard_name = attrs.get('standard_name', '').lower()
-    if standard_name in ['latitude', 'longitude', 'depth', 'time']:
+    standard_name = attrs.get("standard_name", "").lower()
+    if standard_name in ["latitude", "longitude", "depth", "time"]:
         return standard_name
 
-    unit = attrs.get('units')
-    positive = attrs.get('positive', '').lower()
+    unit = attrs.get("units")
+    positive = attrs.get("positive", "").lower()
     if unit in [
-        'degrees_north',
-        'degree_north',
-        'degree_N',
-        'degrees_N',
-        'degreeN',
-        'degreesN',
+        "degrees_north",
+        "degree_north",
+        "degree_N",
+        "degrees_N",
+        "degreeN",
+        "degreesN",
     ]:
-        return 'latitude'
+        return "latitude"
     elif unit in [
-        'degrees_east',
-        'degree_east',
-        'degree_E',
-        'degrees_E',
-        'degreeE',
-        'degreesE',
+        "degrees_east",
+        "degree_east",
+        "degree_E",
+        "degrees_E",
+        "degreeE",
+        "degreesE",
     ]:
-        return 'longitude'
-    elif hasattr(coord, 'dt'):
-        return 'time'
+        return "longitude"
+    elif hasattr(coord, "dt"):
+        return "time"
     else:
         try:
             unit = cf_units.Unit(unit)
         except ValueError:
-            return 'other'
+            return "other"
         if unit.is_time_reference():
-            return 'time'
+            return "time"
         elif (
             (
-                unit.is_convertible('bar')
+                unit.is_convertible("bar")
                 or positive
                 in [
-                    'up',
-                    'down',
+                    "up",
+                    "down",
                 ]
             )
             and "air" not in standard_name
             and "stress" not in standard_name
         ):
-            return 'depth'
+            return "depth"
         else:
-            return 'other'
+            return "other"
 
 
 def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pystac.Item:
@@ -111,12 +111,12 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
     - It uses the DataCube extension to add dimensions and variables to the item.
     """
 
-    logger.info(f'Processing NetCDF file {nc_file_path}')
+    logger.info(f"Processing NetCDF file {nc_file_path}")
     if item_id is None:
-        item_id = nc_file_path.replace('/', '_').replace('.', '_')
+        item_id = nc_file_path.replace("/", "_").replace(".", "_")
 
     fs = s3fs.S3FileSystem(anon=True)
-    with fs.open(nc_file_path, 'rb') as f:
+    with fs.open(nc_file_path, "rb") as f:
         ds = xr.open_dataset(f)
 
         # find latitude, longitude and time coordinates
@@ -126,13 +126,13 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         depth = []
         for coord in ds.coords:
             coord_type = classify_coord(ds[coord])
-            if coord_type == 'latitude':
+            if coord_type == "latitude":
                 lat.append(coord)
-            elif coord_type == 'longitude':
+            elif coord_type == "longitude":
                 lon.append(coord)
-            elif coord_type == 'time':
+            elif coord_type == "time":
                 time.append(coord)
-            elif coord_type == 'depth':
+            elif coord_type == "depth":
                 depth.append(coord)
         if not lat or not lon or not time:
             # try looking at variables
@@ -141,37 +141,37 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
             time_vars = []
             for var in ds.variables:
                 coord_type = classify_coord(ds[var])
-                if not lat and coord_type == 'latitude':
+                if not lat and coord_type == "latitude":
                     lat_vars.append(var)
-                elif not lon and coord_type == 'longitude':
+                elif not lon and coord_type == "longitude":
                     lon_vars.append(var)
-                elif not time and coord_type == 'time':
+                elif not time and coord_type == "time":
                     time_vars.append(var)
             lat = lat or lat_vars
             lon = lon or lon_vars
             time = time or time_vars
 
         if not lat:
-            raise ValueError('Latitude coordinate not found')
+            raise ValueError("Latitude coordinate not found")
         if len(lat) > 1:
-            logger.warning(f'Multiple latitude coordinates found: {lat}')
+            logger.warning(f"Multiple latitude coordinates found: {lat}")
         lat = lat[0]
 
         if not lon:
-            raise ValueError('Longitude coordinate not found')
+            raise ValueError("Longitude coordinate not found")
         if len(lon) > 1:
-            logger.warning(f'Multiple longitude coordinates found: {lon}')
+            logger.warning(f"Multiple longitude coordinates found: {lon}")
         lon = lon[0]
 
         if not time:
-            raise ValueError('Time coordinate not found')
+            raise ValueError("Time coordinate not found")
         if len(time) > 1:
-            logger.warning(f'Multiple time coordinates found: {time}')
+            logger.warning(f"Multiple time coordinates found: {time}")
         time = time[0]
 
         # Depth is optional
         if len(depth) > 1:
-            logger.warning(f'Multiple depth coordinates found: {depth}')
+            logger.warning(f"Multiple depth coordinates found: {depth}")
         depth = depth[0] if depth else None
 
         # Create geoJSON box geometry
@@ -185,10 +185,10 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         # TODO: work out 3D geometries
 
         if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
-            geometry = dict(type='Point', coordinates=[bbox[0], bbox[1]])
+            geometry = dict(type="Point", coordinates=[bbox[0], bbox[1]])
         else:
             geometry = dict(
-                type='Polygon',
+                type="Polygon",
                 coordinates=[
                     [
                         [bbox[0], bbox[1]],
@@ -201,18 +201,18 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
             )
 
         start_datetime = ds[time].min(skipna=True)
-        if hasattr(start_datetime, 'dt'):
+        if hasattr(start_datetime, "dt"):
             start_datetime = pd.to_datetime(str(start_datetime.values), utc=True)
         else:
             start_datetime = pd.to_datetime(start_datetime, utc=True)
         end_datetime = ds[time].max(skipna=True)
-        if hasattr(end_datetime, 'dt'):
+        if hasattr(end_datetime, "dt"):
             end_datetime = pd.to_datetime(str(end_datetime.values), utc=True)
         else:
             end_datetime = pd.to_datetime(end_datetime, utc=True)
 
         if start_datetime is None or end_datetime is None:
-            raise ValueError('Invalid time coordinate')
+            raise ValueError("Invalid time coordinate")
 
         # We must provide either a single datetime or a start and end datetime
         if start_datetime == end_datetime:
@@ -222,11 +222,11 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
             single_datetime = None
 
         properties = ds.attrs
-        if 'abstract' in properties:
+        if "abstract" in properties:
             # 'description' is the preferred name in STAC
             # For this we could use 'comment' from CF conventions or 'abstract' (from IMOS conventions?)
-            properties['description'] = properties.pop(
-                'abstract'
+            properties["description"] = properties.pop(
+                "abstract"
             )  # Should we duplicate it?
         # 'title' has the same name in CF and STAC
 
@@ -241,15 +241,13 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#instrument
         # - any other metadata that is not already covered by the STAC spec
 
-        assets = (
-            dict()
-        )  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
-        assets['data'] = pystac.Asset(
-            href=f's3://{nc_file_path}',  # We could use a different URI if we process the file locally
-            media_type='application/netcdf',
-            title='NetCDF data',
+        assets = dict()  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
+        assets["data"] = pystac.Asset(
+            href=f"s3://{nc_file_path}",  # We could use a different URI if we process the file locally
+            media_type="application/netcdf",
+            title="NetCDF data",
             # other standard roles are "thumbnail", "overview", "metadata"
-            roles=['data'],
+            roles=["data"],
         )
 
         # Create base item without any extensions
@@ -266,53 +264,53 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         )
 
         # DataCube extension for netcdf/zarr attributes and variables
-        item.ext.add('cube')
+        item.ext.add("cube")
 
         dimensions = dict()
 
         for dim in ds.dims:
             dim_info = dict()
             if dim == time:
-                dim_info['type'] = 'temporal'
+                dim_info["type"] = "temporal"
             elif dim == lon:
-                dim_info['type'] = 'spatial'
-                dim_info['axis'] = 'x'
+                dim_info["type"] = "spatial"
+                dim_info["axis"] = "x"
             elif dim == lat:
-                dim_info['type'] = 'spatial'
-                dim_info['axis'] = 'y'
+                dim_info["type"] = "spatial"
+                dim_info["axis"] = "y"
             elif dim == depth:
-                dim_info['type'] = 'spatial'
-                dim_info['axis'] = 'z'
+                dim_info["type"] = "spatial"
+                dim_info["axis"] = "z"
             else:
-                dim_info['type'] = 'other'
+                dim_info["type"] = "other"
 
             # TODO: work out CRS information. Could use projection extension.
             # if dim_info['type'] == 'spatial':
             #     dim_info['reference_system'] = epsg
 
-            dim_info['extent'] = [ds[dim].min().values, ds[dim].max().values]
+            dim_info["extent"] = [ds[dim].min().values, ds[dim].max().values]
 
             delta = ds[dim].diff(dim)
             if len(delta) > 1 and (delta[0] == delta[1:]).all():
-                if dim_info['type'] == 'temporal':
-                    dim_info['step'] = pd.to_timedelta(delta[0].values).isoformat()
+                if dim_info["type"] == "temporal":
+                    dim_info["step"] = pd.to_timedelta(delta[0].values).isoformat()
                 else:
-                    dim_info['step'] = delta[0].values
+                    dim_info["step"] = delta[0].values
 
             # Check for monotonic dimensions, not part of the indexing but could be easy to do here
             # increasing = (ds[dim][1:] >= ds[dim][:-1]).all()
             # decreasing = (ds[dim][1:] <= ds[dim][:-1]).all()
             # assert increasing or decreasing, f"Dimension '{dim}' is not monotonic"
 
-            description = ds[dim].attrs.get('long_name') or ds[dim].attrs.get(
-                'description'
+            description = ds[dim].attrs.get("long_name") or ds[dim].attrs.get(
+                "description"
             )
             if description:
-                dim_info['description'] = description
+                dim_info["description"] = description
 
-            unit = ds[dim].attrs.get('units') or ds[dim].attrs.get('unit')
+            unit = ds[dim].attrs.get("units") or ds[dim].attrs.get("unit")
             if unit:
-                dim_info['unit'] = unit
+                dim_info["unit"] = unit
 
             dimensions[dim] = Dimension(json_type_conversion(dim_info))
 
@@ -321,24 +319,24 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         all_vars = list(ds.data_vars) + [c for c in ds.coords if c not in ds.dims]
         for var in all_vars:
             var_info = dict()
-            var_info['dimensions'] = list(ds[var].dims)
+            var_info["dimensions"] = list(ds[var].dims)
             if var in ds.coords:
-                var_info['type'] = 'auxiliary'
+                var_info["type"] = "auxiliary"
             else:
-                var_info['type'] = 'data'
+                var_info["type"] = "data"
 
-            description = ds[var].attrs.get('description') or ds[var].attrs.get(
-                'long_name'
+            description = ds[var].attrs.get("description") or ds[var].attrs.get(
+                "long_name"
             )
             if description:
-                var_info['description'] = description
+                var_info["description"] = description
 
-            unit = ds[var].attrs.get('units') or ds[var].attrs.get('unit')
+            unit = ds[var].attrs.get("units") or ds[var].attrs.get("unit")
             if unit:
-                var_info['unit'] = unit
+                var_info["unit"] = unit
 
-            var_info['attrs'] = ds[var].attrs
-            var_info['shape'] = list(ds[var].shape)
+            var_info["attrs"] = ds[var].attrs
+            var_info["shape"] = list(ds[var].shape)
 
             variables[var] = Variable(json_type_conversion(var_info))
 
@@ -346,7 +344,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         item.ext.cube.apply(dimensions, variables)
 
         # Version extension for tracking changes to the item
-        item.ext.add('version')
-        item.ext.version.apply(version='1', deprecated=False)
+        item.ext.add("version")
+        item.ext.version.apply(version="1", deprecated=False)
 
     return item

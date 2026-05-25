@@ -29,14 +29,14 @@ def csv_to_item(
     - It uses the Table extension to list columns and their types.
     """
 
-    logger.info(f'Processing CSV file {csv_file_path}')
+    logger.info(f"Processing CSV file {csv_file_path}")
     if item_id is None:
-        item_id = csv_file_path.replace('/', '_').replace('.', '_')
+        item_id = csv_file_path.replace("/", "_").replace(".", "_")
     df = pd.read_csv(csv_file_path)
 
-    lat_names = ['latitude', 'lat']
-    lon_names = ['longitude', 'lon']
-    time_names = ['time', 'date']
+    lat_names = ["latitude", "lat"]
+    lon_names = ["longitude", "lon"]
+    time_names = ["time", "date"]
 
     lat = None
     lon = None

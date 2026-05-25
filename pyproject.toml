@@ -1,0 +1,66 @@
+[project]
+name = "data-index"
+dynamic = ["version"]
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Tom Galindo", email = "98626996+thommodin@users.noreply.github.com" }
+]
+requires-python = "~=3.12.0"
+dependencies = [
+    "cftime>=1.6.5",
+    "cloudpathlib[s3]>=0.24.0",
+    "dask-cloudprovider[aws]>=2025.9.0",
+    "diskcache>=5.6.3",
+    "fsspec>=2026.4.0",
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
+    "netcdf4>=1.7.4",
+    "numpy>=2.4.4",
+    "polars>=1.40.1",
+    "prefect>=3.7.0",
+    "prefect-dask>=0.3.6",
+    "pyarrow>=24.0.0",
+    "pyiceberg>=0.11.1",
+    "s3fs>=2026.4.0",
+    "scipy>=1.17.1",
+    "sh>=2.2.2",
+    "vl-convert-python>=1.9.0.post1",
+    "xarray>=2026.4.0",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[project.scripts]
+data-index = "data_index.component_testing:main"
+cluster-local = "data_index.cluster.run_local:main"
+cluster-fargate = "data_index.cluster.run_fargate:main"
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore:Logger 'prefect.*' attempted to send logs"]
+
+[tool.ruff]
+exclude = ["analysis/"]
+
+[tool.prefect]
+home = ".prefect"
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "ruff>=0.11.0",
+    "sqlalchemy>=2.0.49",
+]
+analysis = [
+    "altair>=5",
+    "ipykernel>=6",
+    "jupyterlab>=4",
+    "rich>=13",
+]
