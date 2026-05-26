@@ -39,11 +39,15 @@ import prefect  # noqa: E402
 import prefect_dask  # noqa: E402
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner  # noqa: E402
-from data_index.cluster.fargate_cluster_config import PrefectFargateClusterConfig  # noqa: E402
+from data_index.cluster.fargate_cluster_config import (
+    PrefectFargateClusterConfig,  # noqa: E402
+)
 from data_index.cluster.orchestrate import orchestrate  # noqa: E402
 from data_index.file_fetcher import S5CMDFetcher  # noqa: E402
 from data_index.iceberg_config import S3TablesCatalogConfig  # noqa: E402
-from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig  # noqa: E402
+from data_index.iceberg_config.iceberg_table_config import (
+    IcebergTableConfig,  # noqa: E402
+)
 from data_index.inventory_source.live_s3 import LiveS3InventorySource  # noqa: E402
 from data_index.metadata_extractor import UnstructuedNetCDFExtractor  # noqa: E402
 from data_index.s3_metadata.extract import TableScanConfig  # noqa: E402

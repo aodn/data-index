@@ -1,7 +1,7 @@
-import pydantic
 import cloudpathlib
-import xarray
 import fsspec
+import pydantic
+import xarray
 
 from data_index.xarray_handle._magic import format_from_magic
 

@@ -3,12 +3,12 @@ import pathlib
 import polars
 import prefect
 import pyarrow.parquet
-import pyiceberg.expressions
-import pyiceberg.table
 import pydantic
+import pyiceberg.table
 
 from data_index.iceberg_config import S3TablesCatalogConfig
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
+
 from ._schema import INVENTORY_TABLE_SCHEMA
 
 

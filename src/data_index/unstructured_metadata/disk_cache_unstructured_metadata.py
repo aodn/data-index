@@ -1,8 +1,9 @@
-import pathlib
-import typing
-import tempfile
-import diskcache
 import atexit
+import pathlib
+import tempfile
+import typing
+
+import diskcache
 
 
 class DiskCachedUnstructuredMetadata:

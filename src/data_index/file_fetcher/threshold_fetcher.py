@@ -1,8 +1,8 @@
 import prefect.artifacts
-
-from data_index.protocols import BatchEntry, XarrayHandle
-from data_index.file_fetcher import S3Fetcher, S5CMDFetcher
 import pydantic
+
+from data_index.file_fetcher import S3Fetcher, S5CMDFetcher
+from data_index.protocols import BatchEntry, XarrayHandle
 
 
 class ThresholdFileFetcher(pydantic.BaseModel):

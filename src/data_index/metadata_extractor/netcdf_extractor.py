@@ -1,10 +1,11 @@
+import pydantic
 import xarray
+
 from data_index._collection import derive_collection
-from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
 from data_index.metadata_extractor._sanitize import (
     _serialize_with_orjson,
 )
-import pydantic
+from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
 
 
 class NetCDFExtractor(pydantic.BaseModel):

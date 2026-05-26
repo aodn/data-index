@@ -1,11 +1,13 @@
-import pathlib
 import logging
-import sh
-import cloudpathlib
+import pathlib
 import re
+
+import cloudpathlib
+import pydantic
+import sh
+
 from data_index.protocols import BatchEntry, XarrayHandle
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
-import pydantic
 
 logger = logging.getLogger(__name__)
 
