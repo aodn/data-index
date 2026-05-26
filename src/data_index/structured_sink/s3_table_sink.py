@@ -75,14 +75,14 @@ class StructuredS3TableSink(pydantic.BaseModel):
 
     @property
     def catalog(self) -> Catalog:
-        return self.instances.get(
+        return self._instances.get(
             "catalog",
             self.iceberg_table_config.catalog_config.build(),
         )
 
     @property
     def table(self) -> Table:
-        return self.instances.get(
+        return self._instances.get(
             "table",
             self.iceberg_table_config.load(),
         )
@@ -94,12 +94,15 @@ class StructuredS3TableSink(pydantic.BaseModel):
         Defaults to no partitioning.
         """
         try:
-            self.catalog.create_namespace(self._namespace)
+            self.catalog.create_namespace(self.iceberg_table_config.namespace)
         except NamespaceAlreadyExistsError:
             pass
         try:
             self.catalog.create_table(
-                identifier=(self._namespace, self._table_name),
+                identifier=(
+                    self.iceberg_table_config.namespace,
+                    self.iceberg_table_config.table_name,
+                ),
                 schema=self._ICEBERG_SCHEMA,
                 partition_spec=partition_spec or PartitionSpec(),
             )

@@ -1,6 +1,11 @@
+import pathlib
+
 import pytest
+import pydantic
 from unittest.mock import patch
 
+from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
+from data_index.file_fetcher.s3_fetcher import S3Fetcher
 from data_index.file_fetcher.threshold_fetcher import ThresholdFileFetcher
 from data_index.protocols import BatchEntry
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
@@ -10,28 +15,25 @@ from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
 # --- Stubs ---
 
 
-class _StubDiskFetcher:
-    def __init__(self):
-        self.received: list[BatchEntry] = []
+class _StubDiskFetcher(S5CMDFetcher):
+    received: list = pydantic.Field(default_factory=list)
 
     def fetch(self, entries: list[BatchEntry]):
-        self.received = entries
+        self.received = list(entries)
         return [DiskXarrayHandle(path=_fake_path(e.uri), s3_uri=e.uri) for e in entries]
 
 
-class _StubCloudFetcher:
-    def __init__(self):
-        self.received: list[BatchEntry] = []
+class _StubCloudFetcher(S3Fetcher):
+    received: list = pydantic.Field(default_factory=list)
 
     def fetch(self, entries: list[BatchEntry]):
-        self.received = entries
+        self.received = list(entries)
         import cloudpathlib
 
         return [S3XarrayHandle(path=cloudpathlib.S3Path(e.uri)) for e in entries]
 
 
 def _fake_path(uri: str):
-    import pathlib
 
     return pathlib.Path("/tmp") / uri.lstrip("s3://")
 

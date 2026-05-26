@@ -31,7 +31,7 @@ class LiveS3InventorySource(pydantic.BaseModel):
     skip_if_exists: bool = pydantic.Field(default=True)
 
     def _has_data(self) -> bool:
-        return self._path.exists() and any(self._path.rglob("*.parquet"))
+        return self.path.exists() and any(self.path.rglob("*.parquet"))
 
     def _run_etl(self) -> None:
         inventory_lf = extract(
@@ -40,14 +40,14 @@ class LiveS3InventorySource(pydantic.BaseModel):
             inventory_parquet_path=_INVENTORY_PARQUET,
         )
         live_lf = transform(inventory_lf)
-        load(live_lf, path=self._path)
+        load(live_lf, path=self.path)
 
     def inventory(self) -> polars.DataFrame:
-        if not (self._skip_if_exists and self._has_data()):
+        if not (self.skip_if_exists and self._has_data()):
             self._run_etl()
 
         return (
-            polars.scan_parquet(self._path / "**" / "*.parquet")
+            polars.scan_parquet(self.path / "**" / "*.parquet")
             .select(
                 polars.concat_str(
                     polars.lit("s3://"),

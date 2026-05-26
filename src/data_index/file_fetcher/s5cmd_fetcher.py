@@ -73,13 +73,13 @@ class S5CMDFetcher(pydantic.BaseModel):
         if not uris:
             return []
 
-        commands = self._prepare_commands(uris, self._extract_path)
+        commands = self._prepare_commands(uris, self.extract_path)
         input_stream = "\n".join(commands) + "\n"
 
         try:
             # Capture stdout to see what s5cmd actually did
-            args = ["--numworkers", self._num_workers]
-            if self._anon:
+            args = ["--numworkers", self.num_workers]
+            if self.anon:
                 args.append("--no-sign-request")
             args += ["run"]
             output = sh.s5cmd(*args, _in=input_stream)

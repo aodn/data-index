@@ -18,7 +18,10 @@ class ThresholdFileFetcher(pydantic.BaseModel):
     cloud_fetcher: S3Fetcher
 
     def _is_small(self, entry: BatchEntry) -> bool:
-        return entry.size_bytes is not None and entry.size_bytes < self._threshold
+        return (
+            entry.size_bytes is not None
+            and entry.size_bytes < self.size_threshold_bytes
+        )
 
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         if not entries:
@@ -43,7 +46,7 @@ class ThresholdFileFetcher(pydantic.BaseModel):
                 {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "cloud"}
                 for e in cloud_entries
             ],
-            description=f"Routing decisions (threshold: {self._threshold:,} bytes)",
+            description=f"Routing decisions (threshold: {self.size_threshold_bytes:,} bytes)",
         )
 
         return results
