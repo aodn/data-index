@@ -1,6 +1,6 @@
 import pytest
-from pyiceberg.catalog.sql import SqlCatalog
 
+from data_index.iceberg_config import IcebergTableConfig, SqliteCatalogConfig
 from data_index.protocols import StructuredMetadata
 from data_index.structured_sink.s3_table_sink import StructuredS3TableSink
 
@@ -9,15 +9,18 @@ TABLE_NAME = "structured_metadata"
 
 
 @pytest.fixture
-def catalog(tmp_path):
-    cat = SqlCatalog(
-        "test",
+def table_config(tmp_path):
+    catalog_config = SqliteCatalogConfig(
         uri=f"sqlite:///{tmp_path}/catalog.db",
         warehouse=str(tmp_path / "warehouse"),
     )
-    sink = StructuredS3TableSink(cat, NAMESPACE, TABLE_NAME)
-    sink.provision()
-    return cat
+    config = IcebergTableConfig(
+        catalog_config=catalog_config,
+        namespace=NAMESPACE,
+        table_name=TABLE_NAME,
+    )
+    StructuredS3TableSink(iceberg_table_config=config).provision()
+    return config
 
 
 def make_metadata(**kwargs) -> StructuredMetadata:
@@ -37,13 +40,14 @@ def make_metadata(**kwargs) -> StructuredMetadata:
     return StructuredMetadata(**defaults)
 
 
-def test_provision_is_idempotent(catalog):
-    sink = StructuredS3TableSink(catalog, NAMESPACE, TABLE_NAME)
-    sink.provision()  # table already exists — must not raise
+def test_provision_is_idempotent(table_config):
+    StructuredS3TableSink(
+        iceberg_table_config=table_config
+    ).provision()  # table already exists — must not raise
 
 
-def test_writes_rows_with_correct_values(catalog):
-    sink = StructuredS3TableSink(catalog, NAMESPACE, TABLE_NAME)
+def test_writes_rows_with_correct_values(table_config):
+    sink = StructuredS3TableSink(iceberg_table_config=table_config)
     rows = [
         make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/a.nc", lat_min=-1.0),
         make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/b.nc", lat_min=-2.0),
@@ -51,8 +55,7 @@ def test_writes_rows_with_correct_values(catalog):
 
     sink.write(rows)
 
-    table = catalog.load_table((NAMESPACE, TABLE_NAME))
-    df = table.scan().to_pandas()
+    df = table_config.load().scan().to_pandas()
     assert len(df) == 2
     assert set(df["s3_uri"]) == {
         "s3://imos-data/IMOS/ANMN/a.nc",
@@ -60,34 +63,31 @@ def test_writes_rows_with_correct_values(catalog):
     }
 
 
-def test_appends_on_subsequent_writes(catalog):
-    sink = StructuredS3TableSink(catalog, NAMESPACE, TABLE_NAME)
+def test_appends_on_subsequent_writes(table_config):
+    sink = StructuredS3TableSink(iceberg_table_config=table_config)
 
     sink.write([make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/a.nc")])
     sink.write([make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/b.nc")])
 
-    table = catalog.load_table((NAMESPACE, TABLE_NAME))
-    df = table.scan().to_pandas()
+    df = table_config.load().scan().to_pandas()
     assert len(df) == 2
 
 
-def test_empty_write_is_noop(catalog):
-    sink = StructuredS3TableSink(catalog, NAMESPACE, TABLE_NAME)
+def test_empty_write_is_noop(table_config):
+    sink = StructuredS3TableSink(iceberg_table_config=table_config)
 
     sink.write([])
 
-    table = catalog.load_table((NAMESPACE, TABLE_NAME))
-    df = table.scan().to_pandas()
+    df = table_config.load().scan().to_pandas()
     assert len(df) == 0
 
 
-def test_null_fields_survive_roundtrip(catalog):
-    sink = StructuredS3TableSink(catalog, NAMESPACE, TABLE_NAME)
+def test_null_fields_survive_roundtrip(table_config):
+    sink = StructuredS3TableSink(iceberg_table_config=table_config)
 
     sink.write([make_metadata(lat_min=None, lat_max=None, crs=None, collection=None)])
 
-    table = catalog.load_table((NAMESPACE, TABLE_NAME))
-    df = table.scan().to_pandas()
+    df = table_config.load().scan().to_pandas()
     assert df["lat_min"].isna().all()
     assert df["crs"].isna().all()
     assert df["collection"].isna().all()

@@ -15,9 +15,7 @@ from ._schema import INVENTORY_TABLE_SCHEMA
 class TableScanConfig(pydantic.BaseModel):
     """Configuration for an Iceberg table scan."""
 
-    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
-
-    row_filter: str | pyiceberg.expressions.BooleanExpression | None = pydantic.Field(
+    row_filter: str | None = pydantic.Field(
         default=None, description="Filter expression for rows to include in the scan."
     )
     selected_fields: tuple[str, ...] = pydantic.Field(

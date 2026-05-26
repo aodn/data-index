@@ -538,11 +538,11 @@ wheels = [
 
 [[package]]
 name = "coolname"
-version = "5.0.0"
+version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fe/45/deae12f31934301a488df985880240a200119aca2e4b5ceba71d73bc5e86/coolname-5.0.0.tar.gz", hash = "sha256:594bc6c98ebc75ddd51c0ce10efbb5d2556c14eac60b5b36900dfdd5db20eecf", size = 45800, upload-time = "2026-04-23T06:04:50.824Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/90/0cb2e364ed736c01790b264a2cafbe7702fc50090337ce37366e03384d20/coolname-4.2.0.tar.gz", hash = "sha256:b0f2d6d4654d627230e143f9efa5c5e1955b11e0cdd54211558c1170496f9f19", size = 38718, upload-time = "2026-04-11T17:26:13.142Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/35/cf824e535233c432048bd7455b28808776471ab5861375772b2c98ea4cbd/coolname-5.0.0-py3-none-any.whl", hash = "sha256:b86eea9670aa0620965167d1bfadfe654fabec839a5b51e8da611c4a64f86192", size = 47368, upload-time = "2026-04-23T06:04:49.374Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/9f/9aec78a18b64333f9a54d18f9d2f479d51c25bc715dc57e46c12bfd5ce21/coolname-4.2.0-py3-none-any.whl", hash = "sha256:6a67db5e3c3f1b196a9ad4563af118da0d962875ed9b6e8a6dfd96e045847c3a", size = 40130, upload-time = "2026-04-11T17:26:10.382Z" },
 ]
 
 [[package]]
@@ -661,6 +661,7 @@ dependencies = [
     { name = "numpy" },
     { name = "polars" },
     { name = "prefect" },
+    { name = "prefect-aws" },
     { name = "prefect-dask" },
     { name = "pyarrow" },
     { name = "pyiceberg" },
@@ -698,7 +699,8 @@ requires-dist = [
     { name = "netcdf4", specifier = ">=1.7.4" },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "polars", specifier = ">=1.40.1" },
-    { name = "prefect", specifier = ">=3.7.0" },
+    { name = "prefect", specifier = ">=3.6.28" },
+    { name = "prefect-aws", specifier = ">=0.7.7" },
     { name = "prefect-dask", specifier = ">=0.3.6" },
     { name = "pyarrow", specifier = ">=24.0.0" },
     { name = "pyiceberg", specifier = ">=0.11.1" },
@@ -1845,11 +1847,11 @@ wheels = [
 
 [[package]]
 name = "packaging"
-version = "26.2"
+version = "26.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/df/de/0d2b39fb4af88a0258f3bac87dfcbb48e73fbdea4a2ed0e2213f9a4c2f9a/packaging-26.1.tar.gz", hash = "sha256:f042152b681c4bfac5cae2742a55e103d27ab2ec0f3d88037136b6bfe7c9c5de", size = 215519, upload-time = "2026-04-14T21:12:49.362Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/c2/920ef838e2f0028c8262f16101ec09ebd5969864e5a64c4c05fad0617c56/packaging-26.1-py3-none-any.whl", hash = "sha256:5d9c0669c6285e491e0ced2eee587eaf67b670d94a19e94e3984a481aba6802f", size = 95831, upload-time = "2026-04-14T21:12:47.56Z" },
 ]
 
 [[package]]
@@ -2012,7 +2014,7 @@ wheels = [
 
 [[package]]
 name = "prefect"
-version = "3.7.0"
+version = "3.6.28"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -2071,9 +2073,28 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/b2/556577a5fc0bb6b89f8347593d44f410f22a7967b8689202f31b133e35fc/prefect-3.7.0.tar.gz", hash = "sha256:f7a494d464ee736efa15640c9a991c40647e6cb80f4fdf01964b517551c6b727", size = 13860516, upload-time = "2026-05-06T15:21:46.37Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/0c/aaf6a4f7fd73f7fe0fbfb8f96549e2cee7186d36f397d7236e904776777b/prefect-3.6.28.tar.gz", hash = "sha256:9d12bd372da185df94095045085bf61be42b9bfdf4289717b4d24eec76d4d1b8", size = 11152250, upload-time = "2026-04-24T17:40:42.907Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/4b/c5396bc404830f954eaf34976a09417db03510cf0872122cc60522745fa1/prefect-3.7.0-py3-none-any.whl", hash = "sha256:4f0ed2ca02c46780eb2e2c22f4af082928055d2450b31c33f30001aa40638922", size = 14707279, upload-time = "2026-05-06T15:21:43.127Z" },
+    { url = "https://files.pythonhosted.org/packages/78/56/9d1c942dab45df5efeb24856359354fedf80009db73dcbb01a83252c6196/prefect-3.6.28-py3-none-any.whl", hash = "sha256:9fa56cfd65e5cf67cef1cd9fd737b00f62eba3a81db80b5072fabc41ee5e147b", size = 11995014, upload-time = "2026-04-24T17:40:39.232Z" },
+]
+
+[[package]]
+name = "prefect-aws"
+version = "0.7.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiobotocore" },
+    { name = "boto3" },
+    { name = "botocore" },
+    { name = "prefect" },
+    { name = "pyparsing" },
+    { name = "rich" },
+    { name = "tenacity" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c4/80/f2f159f60f5ccf3832df1dd5bb166db21bb33f6842598632f2ee479a897a/prefect_aws-0.7.7.tar.gz", hash = "sha256:939d5dad269c3cfc59a7c44c8b77d123bec83c0aede236e225e35c426d3d6f49", size = 158979, upload-time = "2026-03-30T20:29:11.983Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/58/889c448f2185abef8510a4afad5bf2d89f9295966871f85bc33c69dcc709/prefect_aws-0.7.7-py3-none-any.whl", hash = "sha256:539815c48490209a8841757c4001cf5631d586f55139291c484940216c8d48b9", size = 93852, upload-time = "2026-03-30T20:29:09.965Z" },
 ]
 
 [[package]]

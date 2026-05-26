@@ -1,31 +1,23 @@
 import pathlib
 import logging
-import tempfile
 import sh
 import cloudpathlib
 import re
 from data_index.protocols import BatchEntry, XarrayHandle
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
-
+import pydantic
 
 logger = logging.getLogger(__name__)
 
 
-class S5CMDFetcher:
+class S5CMDFetcher(pydantic.BaseModel):
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
 
-    def __init__(
-        self,
-        extract_path: pathlib.Path | None = None,
-        num_workers: int = 256,
-        anon: bool = False,
-    ):
-        self._extract_path = extract_path or pathlib.Path(
-            tempfile.mkdtemp(prefix="s5cmd_fetch_")
-        )
-        self._num_workers = num_workers
-        self._anon = anon
-        self._check_availability()
+    extract_path: pathlib.Path = pydantic.Field(
+        default_factory=lambda: pathlib.Path("/tmp")
+    )
+    num_workers: int = pydantic.Field(default=256)
+    anon: bool = pydantic.Field(default=False)
 
     @staticmethod
     def _check_availability() -> str:
@@ -74,17 +66,20 @@ class S5CMDFetcher:
         return "NoSuchKey" in line or "The specified key does not exist" in line
 
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
+
+        self._check_availability()
+
         uris = [entry.uri for entry in entries]
         if not uris:
             return []
 
-        commands = self._prepare_commands(uris, self._extract_path)
+        commands = self._prepare_commands(uris, self.extract_path)
         input_stream = "\n".join(commands) + "\n"
 
         try:
             # Capture stdout to see what s5cmd actually did
-            args = ["--numworkers", self._num_workers]
-            if self._anon:
+            args = ["--numworkers", self.num_workers]
+            if self.anon:
                 args.append("--no-sign-request")
             args += ["run"]
             output = sh.s5cmd(*args, _in=input_stream)

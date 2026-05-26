@@ -3,9 +3,10 @@ from data_index.protocols import RawExtractionResult, StructuredMetadata, Xarray
 from data_index.metadata_extractor._sanitize import (
     _serialize_with_orjson,
 )
+import pydantic
 
 
-class UnstructuedNetCDFExtractor:
+class UnstructuedNetCDFExtractor(pydantic.BaseModel):
     """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:

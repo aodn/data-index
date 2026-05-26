@@ -1,10 +1,11 @@
 import prefect.artifacts
 
-from data_index.protocols import BatchEntry, FileFetcher, XarrayHandle
-from data_index.file_fetcher.s3_fetcher import S3Fetcher
+from data_index.protocols import BatchEntry, XarrayHandle
+from data_index.file_fetcher import S3Fetcher, S5CMDFetcher
+import pydantic
 
 
-class ThresholdFileFetcher:
+class ThresholdFileFetcher(pydantic.BaseModel):
     """FileFetcher that routes each entry to a disk or cloud fetcher based on file size.
 
     Entries with size_bytes < size_threshold_bytes are routed to disk_fetcher (full download).
@@ -12,18 +13,15 @@ class ThresholdFileFetcher:
     cloud_fetcher (byte-range reads via fsspec — no up front download required).
     """
 
-    def __init__(
-        self,
-        size_threshold_bytes: int,
-        disk_fetcher: FileFetcher,
-        cloud_fetcher: FileFetcher | None = None,
-    ):
-        self._threshold = size_threshold_bytes
-        self._disk_fetcher = disk_fetcher
-        self._cloud_fetcher = cloud_fetcher or S3Fetcher()
+    size_threshold_bytes: int
+    disk_fetcher: S5CMDFetcher
+    cloud_fetcher: S3Fetcher
 
     def _is_small(self, entry: BatchEntry) -> bool:
-        return entry.size_bytes is not None and entry.size_bytes < self._threshold
+        return (
+            entry.size_bytes is not None
+            and entry.size_bytes < self.size_threshold_bytes
+        )
 
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         if not entries:
@@ -34,9 +32,9 @@ class ThresholdFileFetcher:
 
         results: list[XarrayHandle] = []
         if disk_entries:
-            results.extend(self._disk_fetcher.fetch(disk_entries))
+            results.extend(self.disk_fetcher.fetch(disk_entries))
         if cloud_entries:
-            results.extend(self._cloud_fetcher.fetch(cloud_entries))
+            results.extend(self.cloud_fetcher.fetch(cloud_entries))
 
         prefect.artifacts.create_table_artifact(
             key="threshold-fetcher-routing",
@@ -48,7 +46,7 @@ class ThresholdFileFetcher:
                 {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "cloud"}
                 for e in cloud_entries
             ],
-            description=f"Routing decisions (threshold: {self._threshold:,} bytes)",
+            description=f"Routing decisions (threshold: {self.size_threshold_bytes:,} bytes)",
         )
 
         return results
