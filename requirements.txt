@@ -336,10 +336,6 @@ fsspec==2026.4.0 \
     #   prefect
     #   pyiceberg
     #   s3fs
-graphql-core==3.2.8 \
-    --hash=sha256:015457da5d996c924ddf57a43f4e959b0b94fb695b85ed4c29446e508ed65cf3 \
-    --hash=sha256:cbee07bee1b3ed5e531723685369039f32ff815ef60166686e0162f540f1520c
-    # via sgqlc
 graphviz==0.21 \
     --hash=sha256:20743e7183be82aaaa8ad6c93f8893c923bd6658a04c32ee115edb3c8a835f78 \
     --hash=sha256:54f33de9f4f911d7e84e4191749cac8cc5653f815b06738c54db9a15ab8b1e42
@@ -688,7 +684,6 @@ prefect==3.6.28 \
     #   data-index
     #   prefect-aws
     #   prefect-dask
-    #   prefect-github
 prefect-aws==0.7.7 \
     --hash=sha256:539815c48490209a8841757c4001cf5631d586f55139291c484940216c8d48b9 \
     --hash=sha256:939d5dad269c3cfc59a7c44c8b77d123bec83c0aede236e225e35c426d3d6f49
@@ -696,10 +691,6 @@ prefect-aws==0.7.7 \
 prefect-dask==0.3.6 \
     --hash=sha256:776151f6865dfca7dcdde146f3234af134f4d01d51e07cc4a063296d471a4219 \
     --hash=sha256:dde864ca93f531d631b2efc378173bc8d6f2ad9fba30867a135f560fc852e6b3
-    # via data-index
-prefect-github==0.4.2 \
-    --hash=sha256:42273113e3c8bcf855290dfdb19b7d08d0e9616d76c9684dce8486cb73a634b6 \
-    --hash=sha256:d67a741acea0169460e60126d110bc958ed8cbb7d94789738a10416a8f2d87c2
     # via data-index
 prometheus-client==0.25.0 \
     --hash=sha256:5e373b75c31afb3c86f1a52fa1ad470c9aace18082d39ec0d2f918d11cc9ba28 \
@@ -1018,10 +1009,6 @@ semver==3.0.4 \
     --hash=sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746 \
     --hash=sha256:afc7d8c584a5ed0a11033af086e8af226a9c0b206f313e0301f8dd7b6b589602
     # via prefect
-sgqlc==18 \
-    --hash=sha256:7af53b5c1aab4602a98a36d6d32bd641e33f602b9b72468885f2505c59c536af \
-    --hash=sha256:a09f76fb69a2760523144f8d3acbf06a1b3710f63bf87fbac142d3538b1d639b
-    # via prefect-github
 sh==2.2.2 \
     --hash=sha256:653227a7c41a284ec5302173fbc044ee817c7bad5e6e4d8d55741b9aeb9eb65b \
     --hash=sha256:e0b15b4ae8ffcd399bc8ffddcbd770a43c7a70a24b16773fbb34c001ad5d52af
