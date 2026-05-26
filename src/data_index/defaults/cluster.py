@@ -4,7 +4,11 @@ import prefect
 import prefect_dask
 
 import data_index
-from data_index.iceberg_config import S3TablesCatalogConfig, IcebergTableConfig
+from data_index.iceberg_config import (
+    S3TablesCatalogConfig,
+    IcebergTableConfig,
+    IcebergTableScanConfig,
+)
 from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
 from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
@@ -41,8 +45,14 @@ _inventory_table_config = IcebergTableConfig(
     table_name="inventory",
 )
 
-_inventory_source = LiveS3InventorySource(table_config=_inventory_table_config)
+_inventory_table_scan_config = IcebergTableScanConfig(row_filter="key LIKE 'IMOS/%'")
 
+_inventory_source = LiveS3InventorySource(
+    table_config=_inventory_table_config,
+    table_scan_config=_inventory_table_scan_config,
+    path=pathlib.Path(".extract/s3_metadata"),
+    skip_if_exists=True,
+)
 
 # --- Partitioner config ---
 _greedy_partitioner = GreedyBatchPartitioner(
@@ -84,7 +94,7 @@ docker_image = DockerImage(
 )
 
 # --- Fargate Cluster config ---
-fargate_config = PrefectFargateClusterConfig(
+_fargate_cluster_options = PrefectFargateClusterConfig(
     n_workers=4,
     image=docker_image.full_name,
     cpu_architecture="ARM64",
@@ -111,47 +121,22 @@ def run_index_cluster(
     | DiskCachedUnstructuredMetadata
     | None = None,
     transform_max_workers: int | None = None,
-    fargate_cluster_options: PrefectFargateClusterConfig
-    | None = PrefectFargateClusterConfig(
-        n_workers=4,
-        image=docker_image.full_name,
-        cpu_architecture="ARM64",
-        scheduler_cpu=1024,
-        scheduler_mem=2048,
-        worker_cpu=4096,
-        worker_mem=16384,
-    ),
+    fargate_cluster_options: PrefectFargateClusterConfig = _fargate_cluster_options,
 ):
 
     # Run with cluster options
-    if isinstance(fargate_cluster_options, PrefectFargateClusterConfig):
-        (
-            data_index.orchestrate.with_options(
-                task_runner=prefect_dask.DaskTaskRunner(
-                    cluster_class="dask_cloudprovider.aws.FargateCluster",
-                    cluster_kwargs=fargate_config.model_dump(exclude_none=True),
-                ),
-            )(
-                inventory_source,
-                partitioner,
-                fetcher,
-                extractor,
-                structured_sink,
-                unstructured_sink,
-                metadata_factory,
-                transform_max_workers,
-            )
-        )
-
-    # Run without cluster options
-    else:
-        data_index.orchestrate(
-            inventory_source,
-            partitioner,
-            fetcher,
-            extractor,
-            structured_sink,
-            unstructured_sink,
-            metadata_factory,
-            transform_max_workers,
-        )
+    data_index.orchestrate.with_options(
+        task_runner=prefect_dask.DaskTaskRunner(
+            cluster_class="dask_cloudprovider.aws.FargateCluster",
+            cluster_kwargs=fargate_cluster_options.model_dump(exclude_none=True),
+        ),
+    )(
+        inventory_source,
+        partitioner,
+        fetcher,
+        extractor,
+        structured_sink,
+        unstructured_sink,
+        metadata_factory,
+        transform_max_workers,
+    )
