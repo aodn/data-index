@@ -3,9 +3,10 @@ from __future__ import annotations
 import typing
 
 import polars
+import pydantic
 
 
-class GreedyBatchPartitioner:
+class GreedyBatchPartitioner(pydantic.BaseModel):
     """Splits an inventory DataFrame into Batches using greedy bin-packing.
 
     Each Batch satisfies both max_files (file count) and max_bytes (total size)
@@ -13,9 +14,8 @@ class GreedyBatchPartitioner:
     then a new batch is started.
     """
 
-    def __init__(self, max_files: int, max_bytes: int) -> None:
-        self.max_files = max_files
-        self.max_bytes = max_bytes
+    max_files: int
+    max_bytes: int
 
     def partition(
         self, inventory: polars.DataFrame

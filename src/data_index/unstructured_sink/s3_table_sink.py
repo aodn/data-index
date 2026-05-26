@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import random
 import time
-
 import pyarrow as pa
 from pyiceberg.catalog import Catalog
+from pyiceberg.table import Table
+
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from pyiceberg.exceptions import (
     CommitFailedException,
     NamespaceAlreadyExistsError,
@@ -16,6 +18,8 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import NestedField, StringType
 
 from data_index._collection import derive_collection
+import pydantic
+
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
@@ -29,7 +33,7 @@ _ARROW_SCHEMA = pa.schema(
 )
 
 
-class UnstructuredS3TableSink:
+class UnstructuredS3TableSink(pydantic.BaseModel):
     """UnstructuredSink implementation that appends Unstructured Metadata to a pre-provisioned
     Iceberg table with schema (s3_uri, collection, metadata).
 
@@ -39,31 +43,47 @@ class UnstructuredS3TableSink:
     OCC conflicts are retried with exponential backoff.
     """
 
-    ICEBERG_SCHEMA = Schema(
-        NestedField(field_id=1, name="s3_uri", field_type=StringType(), required=True),
-        NestedField(
-            field_id=2, name="collection", field_type=StringType(), required=False
-        ),
-        NestedField(
-            field_id=3, name="metadata", field_type=StringType(), required=False
-        ),
+    _ICEBERG_SCHEMA: Schema = pydantic.PrivateAttr(
+        default_factory=lambda: Schema(
+            NestedField(
+                field_id=1, name="s3_uri", field_type=StringType(), required=True
+            ),
+            NestedField(
+                field_id=2, name="collection", field_type=StringType(), required=False
+            ),
+            NestedField(
+                field_id=3, name="metadata", field_type=StringType(), required=False
+            ),
+        )
     )
 
-    def __init__(self, catalog: Catalog, namespace: str, table_name: str) -> None:
-        self._catalog = catalog
-        self._namespace = namespace
-        self._table_name = table_name
+    iceberg_table_config: IcebergTableConfig
+    _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
+
+    @property
+    def catalog(self) -> Catalog:
+        return self.instances.get(
+            "catalog",
+            self.iceberg_table_config.catalog_config.build(),
+        )
+
+    @property
+    def table(self) -> Table:
+        return self.instances.get(
+            "table",
+            self.iceberg_table_config.load(),
+        )
 
     def provision(self, partition_spec: PartitionSpec | None = None) -> None:
         """Create the namespace and table if they don't already exist."""
         try:
-            self._catalog.create_namespace(self._namespace)
+            self.catalog.create_namespace(self._namespace)
         except NamespaceAlreadyExistsError:
             pass
         try:
-            self._catalog.create_table(
+            self.catalog.create_table(
                 identifier=(self._namespace, self._table_name),
-                schema=self.ICEBERG_SCHEMA,
+                schema=self._ICEBERG_SCHEMA,
                 partition_spec=partition_spec or PartitionSpec(),
             )
         except TableAlreadyExistsError:
@@ -72,16 +92,15 @@ class UnstructuredS3TableSink:
     def write(self, data: dict[str, dict]) -> None:
         if not data:
             return
-        table = self._catalog.load_table((self._namespace, self._table_name))
         arrow_table = self._to_arrow(data)
         for attempt in range(_MAX_RETRIES):
             try:
-                table.append(arrow_table)
+                self.table.append(arrow_table)
                 return
             except CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise
-                table.refresh()
+                self.table.refresh()
                 time.sleep(
                     random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
                 )

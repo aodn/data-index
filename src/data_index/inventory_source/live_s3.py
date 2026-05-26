@@ -9,11 +9,13 @@ from data_index.s3_metadata.extract import TableScanConfig, extract
 from data_index.s3_metadata.load import load
 from data_index.s3_metadata.transform import transform
 
+import pydantic
+
 _DEFAULT_PATH = pathlib.Path(".extract/s3_metadata")
 _INVENTORY_PARQUET = pathlib.Path("imos-data.inventory.parquet")
 
 
-class LiveS3InventorySource:
+class LiveS3InventorySource(pydantic.BaseModel):
     """InventorySource that runs the s3_metadata ETL to materialise the live S3 inventory
     table to disk, then reads it back as a DataFrame with `s3_uri` and `size` columns.
 
@@ -21,25 +23,20 @@ class LiveS3InventorySource:
     the ETL is skipped and the existing data is returned directly.
     """
 
-    def __init__(
-        self,
-        table_config: IcebergTableConfig,
-        table_scan_config: TableScanConfig = TableScanConfig(),
-        path: pathlib.Path = _DEFAULT_PATH,
-        skip_if_exists: bool = True,
-    ) -> None:
-        self._table_config = table_config
-        self._table_scan_config = table_scan_config
-        self._path = path
-        self._skip_if_exists = skip_if_exists
+    table_config: IcebergTableConfig
+    table_scan_config: TableScanConfig
+    path: pathlib.Path = pydantic.Field(
+        default_factory=lambda: pathlib.Path(_DEFAULT_PATH)
+    )
+    skip_if_exists: bool = pydantic.Field(default=True)
 
     def _has_data(self) -> bool:
         return self._path.exists() and any(self._path.rglob("*.parquet"))
 
     def _run_etl(self) -> None:
         inventory_lf = extract(
-            table_config=self._table_config,
-            table_scan_config=self._table_scan_config,
+            table_config=self.table_config,
+            table_scan_config=self.table_scan_config,
             inventory_parquet_path=_INVENTORY_PARQUET,
         )
         live_lf = transform(inventory_lf)
