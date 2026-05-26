@@ -1,3 +1,2 @@
 prefect==3.6.28
 prefect-aws==0.7.7
-prefect-redis==0.2.10
