@@ -663,6 +663,7 @@ dependencies = [
     { name = "prefect" },
     { name = "prefect-aws" },
     { name = "prefect-dask" },
+    { name = "prefect-github" },
     { name = "pyarrow" },
     { name = "pyiceberg" },
     { name = "s3fs" },
@@ -682,6 +683,7 @@ analysis = [
 dev = [
     { name = "aiosqlite" },
     { name = "pre-commit" },
+    { name = "prefect-docker" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "sqlalchemy" },
@@ -702,6 +704,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.6.28" },
     { name = "prefect-aws", specifier = ">=0.7.7" },
     { name = "prefect-dask", specifier = ">=0.3.6" },
+    { name = "prefect-github", specifier = ">=0.4.2" },
     { name = "pyarrow", specifier = ">=24.0.0" },
     { name = "pyiceberg", specifier = ">=0.11.1" },
     { name = "s3fs", specifier = ">=2026.4.0" },
@@ -721,6 +724,7 @@ analysis = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "prefect-docker", specifier = ">=0.7.1" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "ruff", specifier = ">=0.11.0" },
     { name = "sqlalchemy", specifier = ">=2.0.49" },
@@ -944,6 +948,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d5/8d/1c51c094345df128ca4a990d633fe1a0ff28726c9e6b3c41ba65087bba1d/fsspec-2026.4.0.tar.gz", hash = "sha256:301d8ac70ae90ef3ad05dcf94d6c3754a097f9b5fe4667d2787aa359ec7df7e4", size = 312760, upload-time = "2026-04-29T20:42:38.635Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d5/0c/043d5e551459da400957a1395e0febbf771446ff34291afcbe3d8be2a279/fsspec-2026.4.0-py3-none-any.whl", hash = "sha256:11ef7bb35dab8a394fde6e608221d5cf3e8499401c249bebaeaad760a1a8dec2", size = 203402, upload-time = "2026-04-29T20:42:36.842Z" },
+]
+
+[[package]]
+name = "graphql-core"
+version = "3.2.8"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/68/c5/36aa96205c3ecbb3d34c7c24189e4553c7ca2ebc7e1dd07432339b980272/graphql_core-3.2.8.tar.gz", hash = "sha256:015457da5d996c924ddf57a43f4e959b0b94fb695b85ed4c29446e508ed65cf3", size = 513181, upload-time = "2026-03-05T19:55:37.332Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/41/cb887d9afc5dabd78feefe6ccbaf83ff423c206a7a1b7aeeac05120b2125/graphql_core-3.2.8-py3-none-any.whl", hash = "sha256:cbee07bee1b3ed5e531723685369039f32ff815ef60166686e0162f540f1520c", size = 207349, upload-time = "2026-03-05T19:55:35.911Z" },
 ]
 
 [[package]]
@@ -2111,6 +2124,33 @@ wheels = [
 ]
 
 [[package]]
+name = "prefect-docker"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docker" },
+    { name = "exceptiongroup" },
+    { name = "prefect" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/76/477cb000395452edbd641734aa1d2b41680b35e9172c11ace685a74b2e54/prefect_docker-0.7.1.tar.gz", hash = "sha256:7d5053bcc049d56b5498ca4629c9b08b31d96f5387e1eb34f510ec322d5aad89", size = 41684, upload-time = "2026-01-15T22:53:06.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/5c/20f573c6f800ad784603c7bd5787770ef648758289af2970d12c39072534/prefect_docker-0.7.1-py3-none-any.whl", hash = "sha256:b4fe1760c12206d3eaec2826d63acb1235bd41756921eb0c6b5feeb20b157e37", size = 28254, upload-time = "2026-01-15T22:53:04.998Z" },
+]
+
+[[package]]
+name = "prefect-github"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "prefect" },
+    { name = "sgqlc" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/1b/6f2560ee39082842158c7e450e51e49fea8fcd2c40265e110a2842d2669a/prefect_github-0.4.2.tar.gz", hash = "sha256:d67a741acea0169460e60126d110bc958ed8cbb7d94789738a10416a8f2d87c2", size = 337529, upload-time = "2026-02-12T22:04:25.078Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/21/4d1416d0436ba0550b65005c0dd4ae2feec0ddf61628a61c34e4187a65b7/prefect_github-0.4.2-py3-none-any.whl", hash = "sha256:42273113e3c8bcf855290dfdb19b7d08d0e9616d76c9684dce8486cb73a634b6", size = 366399, upload-time = "2026-02-12T22:04:23.882Z" },
+]
+
+[[package]]
 name = "prometheus-client"
 version = "0.25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2828,6 +2868,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d1c111714410d2fbb77ac5a616db26775db562c8fab2/setuptools-82.0.1.tar.gz", hash = "sha256:7d872682c5d01cfde07da7bccc7b65469d3dca203318515ada1de5eda35efbf9", size = 1152316, upload-time = "2026-03-09T12:47:17.221Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
+]
+
+[[package]]
+name = "sgqlc"
+version = "18"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "graphql-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/13/60/3b8c93b3d5df873bd13bc8fe0a4021d5f7442ca7ee6b98c5152dd55e18c7/sgqlc-18.tar.gz", hash = "sha256:a09f76fb69a2760523144f8d3acbf06a1b3710f63bf87fbac142d3538b1d639b", size = 245818, upload-time = "2026-02-06T19:56:23.957Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/96/8a5b972de8ede610aa088360927411b05c50ebcd669e52b0a3bfd1ed3ed9/sgqlc-18-py3-none-any.whl", hash = "sha256:7af53b5c1aab4602a98a36d6d32bd641e33f602b9b72468885f2505c59c536af", size = 86121, upload-time = "2026-02-06T19:56:22.07Z" },
 ]
 
 [[package]]
