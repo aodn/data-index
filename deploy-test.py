@@ -1,5 +1,4 @@
 import prefect
-import prefect_github
 
 from data_index.cluster.docker_image import DockerImage
 from data_index.cluster.fargate_cluster_config import PrefectFargateClusterConfig
@@ -49,15 +48,3 @@ def data_index_blank_implementation(
         # unstructured_sink=unstructured_sink,
         # metadata_factory=InMemoryUnstructuredMetadata,
     )
-
-
-github_repo = prefect_github.GitHubRepository.load("data-index")
-prefect.flow.from_source(
-    source=github_repo, entrypoint="deploy-test.py:data_index_blank_implementation"
-).deploy(
-    name="implementation_deployment",
-    work_pool_name="docker",
-    image=deployment_docker_image.PrefectDockerImage,
-    push=False,
-    build=False,
-)
