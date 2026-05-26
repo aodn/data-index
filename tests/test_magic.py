@@ -1,6 +1,6 @@
 import pytest
 
-from data_index.xarray_handle._magic import MAGIC_NUMBERS, format_from_magic
+from data_index.xarray_handle._magic import format_from_magic, MAGIC_NUMBERS
 
 
 @pytest.mark.parametrize(

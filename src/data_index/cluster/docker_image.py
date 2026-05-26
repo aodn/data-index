@@ -1,8 +1,7 @@
 import pathlib
-import typing
-
 import prefect.docker
 import pydantic
+import typing
 
 
 class DockerImage(pydantic.BaseModel):

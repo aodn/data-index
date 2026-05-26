@@ -5,7 +5,7 @@ import prefect
 import prefect.artifacts
 import prefect.cache_policies
 
-from data_index.protocols import BatchEntry, FileFetcher, XarrayHandle
+from data_index.protocols import FileFetcher, XarrayHandle, BatchEntry
 
 
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)

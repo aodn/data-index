@@ -11,10 +11,10 @@ import prefect.cache_policies
 
 from data_index.protocols import (
     ExtractionResult,
+    XarrayHandle,
     MetadataExtractor,
     StructuredMetadata,
     UnstructuredMetadata,
-    XarrayHandle,
 )
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 

@@ -1,6 +1,5 @@
-import pathlib
-
 import polars
+import pathlib
 import prefect
 
 

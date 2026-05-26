@@ -1,11 +1,11 @@
-from unittest.mock import patch
-
 import pytest
+from unittest.mock import patch
 
 from data_index.file_fetcher.threshold_fetcher import ThresholdFileFetcher
 from data_index.protocols import BatchEntry
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
+
 
 # --- Stubs ---
 

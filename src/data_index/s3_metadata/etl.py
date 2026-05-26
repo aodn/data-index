@@ -1,8 +1,8 @@
-import prefect
-
-from .extract import IcebergTableConfig, TableScanConfig, extract
-from .load import load
+from .extract import extract, TableScanConfig, IcebergTableConfig
 from .transform import transform
+from .load import load
+
+import prefect
 
 
 @prefect.flow

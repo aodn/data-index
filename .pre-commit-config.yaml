@@ -6,11 +6,6 @@ repos:
         language: system
         entry: uvx ruff check --fix
         types: [python]
-      - id: ruff
-        name: ruff
-        language: system
-        entry: uvx ruff check --select I --fix
-        types: [python]
       - id: ruff-format
         name: ruff-format
         language: system

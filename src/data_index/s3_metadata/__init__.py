@@ -1,4 +1,4 @@
-from .extract import TableScanConfig, extract
+from .extract import extract, TableScanConfig
 from .transform import transform
 
 __all__ = [

@@ -1,8 +1,8 @@
 import cloudpathlib
-import pydantic
 
 from data_index.protocols import BatchEntry, XarrayHandle
 from data_index.xarray_handle import S3XarrayHandle
+import pydantic
 
 
 class S3Fetcher(pydantic.BaseModel):

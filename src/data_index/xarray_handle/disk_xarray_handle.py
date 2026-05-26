@@ -1,7 +1,6 @@
-import pathlib
-
 import pydantic
 import xarray
+import pathlib
 
 from data_index.xarray_handle._magic import format_from_magic
 

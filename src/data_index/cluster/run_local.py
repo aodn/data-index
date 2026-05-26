@@ -16,9 +16,9 @@ import pathlib
 import prefect.task_runners
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
+from data_index.iceberg_config import S3TablesCatalogConfig, SqliteCatalogConfig
 from data_index.cluster.orchestrate import orchestrate
 from data_index.file_fetcher import S5CMDFetcher
-from data_index.iceberg_config import S3TablesCatalogConfig, SqliteCatalogConfig
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.inventory_source.live_s3 import LiveS3InventorySource
 from data_index.metadata_extractor import UnstructuedNetCDFExtractor

@@ -5,8 +5,8 @@ from pathlib import Path
 import boto3
 import pystac
 import requests
-from csv_to_stac import csv_to_item
 from nc_to_stac import nc_to_item
+from csv_to_stac import csv_to_item
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

@@ -5,8 +5,11 @@ import random
 import time
 
 import pyarrow as pa
-import pydantic
 from pyiceberg.catalog import Catalog
+from pyiceberg.table import Table
+
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
+
 from pyiceberg.exceptions import (
     CommitFailedException,
     NamespaceAlreadyExistsError,
@@ -14,11 +17,11 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table
 from pyiceberg.types import DoubleType, NestedField, StringType
 
-from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.protocols import StructuredMetadata
+
+import pydantic
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
