@@ -1,5 +1,4 @@
 import prefect
-import prefect_github
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
 from data_index.cluster.docker_image import DockerImage
@@ -58,13 +57,13 @@ def data_index_blank_implementation(
     )
 
 
-github_repo = prefect_github.GitHubRepository.load("data-index")
-prefect.flow.from_source(
-    source=github_repo, entrypoint="deploy-test.py:orchestrate"
-).deploy(
-    name="implementation_deployment",
-    work_pool_name="docker",
-    image=deployment_docker_image.PrefectDockerImage,
-    push=False,
-    build=False,
-)
+# github_repo = prefect_github.GitHubRepository.load("data-index")
+# prefect.flow.from_source(
+#     source=github_repo, entrypoint="deploy-test.py:orchestrate"
+# ).deploy(
+#     name="implementation_deployment",
+#     work_pool_name="docker",
+#     image=deployment_docker_image.PrefectDockerImage,
+#     push=False,
+#     build=False,
+# )
