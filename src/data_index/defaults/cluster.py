@@ -4,26 +4,25 @@ import prefect
 import prefect_dask
 
 import data_index
+from data_index.batch_partitioner import GreedyBatchPartitioner
+from data_index.cluster import DockerImage, PrefectFargateClusterConfig
+from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
-    S3TablesCatalogConfig,
     IcebergTableConfig,
     IcebergTableScanConfig,
+    S3TablesCatalogConfig,
 )
 from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
-from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
+from data_index.unstructured_metadata import (
+    DiskCachedUnstructuredMetadata,
+    InMemoryUnstructuredMetadata,
+)
 from data_index.unstructured_sink import (
     UnstructuredParquetSink,
     UnstructuredS3TableSink,
 )
-from data_index.unstructured_metadata import (
-    InMemoryUnstructuredMetadata,
-    DiskCachedUnstructuredMetadata,
-)
-from data_index.cluster import PrefectFargateClusterConfig, DockerImage
-
 
 # --- General config ---
 ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"

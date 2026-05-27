@@ -3,11 +3,10 @@ from __future__ import annotations
 import json
 import random
 import time
-import pyarrow as pa
-from pyiceberg.catalog import Catalog
-from pyiceberg.table import Table
 
-from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
+import pyarrow as pa
+import pydantic
+from pyiceberg.catalog import Catalog
 from pyiceberg.exceptions import (
     CommitFailedException,
     NamespaceAlreadyExistsError,
@@ -15,11 +14,11 @@ from pyiceberg.exceptions import (
 )
 from pyiceberg.partitioning import PartitionSpec
 from pyiceberg.schema import Schema
+from pyiceberg.table import Table
 from pyiceberg.types import NestedField, StringType
 
 from data_index._collection import derive_collection
-import pydantic
-
+from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5

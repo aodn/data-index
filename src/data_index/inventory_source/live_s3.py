@@ -3,13 +3,12 @@ from __future__ import annotations
 import pathlib
 
 import polars
+import pydantic
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.s3_metadata.extract import TableScanConfig, extract
 from data_index.s3_metadata.load import load
 from data_index.s3_metadata.transform import transform
-
-import pydantic
 
 _DEFAULT_PATH = pathlib.Path(".extract/s3_metadata")
 _INVENTORY_PARQUET = pathlib.Path("imos-data.inventory.parquet")

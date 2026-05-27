@@ -4,19 +4,19 @@ import typing
 
 import polars
 import prefect
-import prefect.task_runners
 import prefect.cache_policies
+import prefect.task_runners
 
+from data_index.extract import extract
+from data_index.load import load
 from data_index.protocols import (
     FileFetcher,
     MetadataExtractor,
     StructuredSink,
-    UnstructuredSink,
     UnstructuredMetadata,
+    UnstructuredSink,
 )
-from data_index.extract import extract
 from data_index.transform import transform
-from data_index.load import load
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 

@@ -48,6 +48,9 @@ filterwarnings = ["ignore:Logger 'prefect.*' attempted to send logs"]
 [tool.ruff]
 exclude = ["analysis/"]
 
+[tool.ruff.lint]
+extend-select = ["I"]
+
 [tool.prefect]
 home = ".prefect"
 

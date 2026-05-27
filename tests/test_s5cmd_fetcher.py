@@ -6,7 +6,6 @@ import pytest
 from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
 from data_index.protocols import BatchEntry
 
-
 # --- Protocol conformance ---
 
 

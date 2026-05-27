@@ -1,16 +1,15 @@
 import pathlib
-
-import pytest
-import pydantic
 from unittest.mock import patch
 
-from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
+import pydantic
+import pytest
+
 from data_index.file_fetcher.s3_fetcher import S3Fetcher
+from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
 from data_index.file_fetcher.threshold_fetcher import ThresholdFileFetcher
 from data_index.protocols import BatchEntry
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
-
 
 # --- Stubs ---
 
