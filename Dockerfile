@@ -19,15 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS app
 WORKDIR /app
 
-# Install dependencies from the pinned lock file, capture constraints in constraints.txt
-COPY requirements.txt constraints.txt ./
-RUN uv pip install --system --build-constraints constraints.txt --requirements requirements.txt
-    
-# Copy the package source and install data-index itself
-ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
-COPY src/ ./src/
-COPY pyproject.toml README.md ./
-RUN uv pip install --system --no-deps .
+# Copy everything needed for the application install at once
+COPY requirements.txt constraints.txt dist/*.whl ./
+
+# Install app
+RUN uv pip install --system -c constraints.txt -r requirements.txt *.whl
 
 # --------------------------------------------------------------------
 # --- Test Target ---
@@ -36,8 +32,10 @@ FROM app AS test
 
 # Copy over the test folder and structural files needed to export
 COPY tests/ ./tests/
+COPY pyproject.toml README.md ./
 
 # 1. Export the dev group packages from the lockfile into a temporary text file
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
 RUN uv export --group dev --no-emit-project --format requirements-txt --output-file dev-reqs.txt
 
 # 2. Install them into the system space alongside your existing application

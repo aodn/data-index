@@ -41,8 +41,6 @@ jobs:
       - name: Build python wheel/sdist
         run: uv build
 
-      # 5. Build the Docker container up to the 'test' target
-      # This acts as your integration test block. If pytest fails inside the Dockerfile, this step fails.
       - name: Build and test Docker image
         uses: docker/build-push-action@v6
         with:
@@ -50,9 +48,8 @@ jobs:
           target: test
           push: false
           build-args: |
-            VERSION=${{ env.TAG }}
+            VERSION=$TAG
 
-      # 6. Draft/Create the actual GitHub Release
       - name: Create GitHub Release
         run: |
           gh release create "$TAG" \
