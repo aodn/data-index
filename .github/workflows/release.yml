@@ -16,38 +16,30 @@ jobs:
     permissions:
       contents: write
       packages: write
+      
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # hatch-vcs reads the full tag history to derive the version
 
+      - name: Resolve tag
+        id: vars
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: uv sync --group dev
+          enable-cache: true
 
       - name: Lint
         run: |
           uv run ruff check
           uv run ruff format --check
 
-      - name: Test
-        run: uv run pytest tests/ -v
-
-      - name: Build
+      - name: Build python wheel/sdist
         run: uv build
-
-      - name: Resolve tag
-        run: echo "TAG=${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}" >> $GITHUB_ENV
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
 
       - name: Build and test Docker image
         uses: docker/build-push-action@v6
@@ -55,16 +47,8 @@ jobs:
           context: .
           target: test
           push: false
-          build-args: VERSION=${{ env.TAG }}
-
-      # - name: Build and push Docker image
-      #   uses: docker/build-push-action@v6
-      #   with:
-      #     context: .
-      #     target: production
-      #     push: true
-      #     tags: ghcr.io/${{ github.repository }}:${{ env.TAG }}
-      #     build-args: VERSION=${{ env.TAG }}
+          build-args: |
+            VERSION=$TAG
 
       - name: Create GitHub Release
         run: |

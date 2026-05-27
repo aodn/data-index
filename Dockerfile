@@ -1,4 +1,7 @@
-FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28
+# --------------------------------------------------------------------
+# --- Base Target ---
+# --------------------------------------------------------------------
+FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28 AS base
 
 # Install uv for fast dependency installation
 COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /usr/local/bin/
@@ -10,15 +13,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# -- Build app --
+# --------------------------------------------------------------------
+# --- App Target ---
+# --------------------------------------------------------------------
+FROM base AS app
 WORKDIR /app
 
-# Install dependencies from the pinned lock file, capture constraints in constraints.txt
-COPY requirements.txt ./
-COPY constraints.txt ./
-RUN uv pip install --system --build-constraints constraints.txt --requirements requirements.txt
-    
-# Copy the package source and install data-index itself
-COPY src/ ./src/
+# Copy everything needed for the application install at once
+COPY requirements.txt constraints.txt dist/*.whl ./
+
+# Install app
+RUN uv pip install --system -c constraints.txt -r requirements.txt *.whl
+
+# --------------------------------------------------------------------
+# --- Test Target ---
+# --------------------------------------------------------------------
+FROM app AS test
+
+# Copy over the test folder and structural files needed to export
+COPY tests/ ./tests/
 COPY pyproject.toml README.md ./
-RUN uv pip install --system --no-deps .
+
+# 1. Export the dev group packages from the lockfile into a temporary text file
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
+RUN uv export --group dev --no-emit-project --format requirements-txt --output-file dev-reqs.txt
+
+# 2. Install them into the system space alongside your existing application
+RUN uv pip install --system -r dev-reqs.txt
+
+# 3. Clean up the file and execute tests
+RUN pytest tests/ -v
