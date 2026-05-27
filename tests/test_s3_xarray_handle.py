@@ -1,5 +1,6 @@
-import cloudpathlib
 from unittest.mock import MagicMock, patch
+
+import cloudpathlib
 
 from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
 

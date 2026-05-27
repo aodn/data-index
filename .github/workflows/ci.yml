@@ -19,7 +19,7 @@ jobs:
 
       - name: Lint
         run: |
-          uv run ruff check
+          uv run ruff check --extend-select I
           uv run ruff format --check
 
       - name: Test
