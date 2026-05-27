@@ -57,14 +57,14 @@ jobs:
           push: false
           build-args: VERSION=${{ env.TAG }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: production
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ env.TAG }}
-          build-args: VERSION=${{ env.TAG }}
+      # - name: Build and push Docker image
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: .
+      #     target: production
+      #     push: true
+      #     tags: ghcr.io/${{ github.repository }}:${{ env.TAG }}
+      #     build-args: VERSION=${{ env.TAG }}
 
       - name: Create GitHub Release
         run: |
