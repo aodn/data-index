@@ -1,10 +1,7 @@
-FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28 AS base
+FROM prefecthq/prefect-aws:0.7.7-python3.12-prefect3.6.28
 
-# Building version requirements
-ARG VERSION=0.0.0
-ENV SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION}
-ENV HATCH_BUILD_VERSION=${VERSION}
-ENV UV_SYSTEM_PYTHON=1
+# Install uv for fast dependency installation
+COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /usr/local/bin/
 
 # System libraries required by netcdf4, h5py, scipy
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,28 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+# -- Build app --
 WORKDIR /app
 
-# Copy dependency manifests first — layer cache stays valid until these change
-COPY pyproject.toml uv.lock README.md ./
-
-# Explicitly install your build backend globally first
-RUN uv pip install hatchling
-
-# Install all dependencies from the lock file (no project install yet)
-RUN uv sync --frozen --no-install-project
-
-# Copy the package source
+# Install dependencies from the pinned lock file, capture constraints in constraints.txt
+COPY requirements.txt ./
+COPY constraints.txt ./
+RUN uv pip install --system --build-constraints constraints.txt --requirements requirements.txt
+    
+# Copy the package source and install data-index itself
 COPY src/ ./src/
-
-# Install the data-index package itself (still using frozen lock)
-RUN uv sync --frozen --no-build-isolation
-
-# Install and run tests
-FROM base AS test
-COPY tests/ ./tests/
-RUN uv sync --frozen --group dev --no-build-isolation
-RUN uv run pytest tests/ -v
-
-# Expose only base
-FROM base AS production
+COPY pyproject.toml README.md ./
+RUN uv pip install --system --no-deps .
