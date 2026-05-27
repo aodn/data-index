@@ -34,6 +34,12 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         """
         Dummy class that
         """
+        # TODO: Add the CF mapping from global attributes
+        # TODO: Get Marty/core team to check over first pass structured metadata
+        # TODO: Also include:
+        # `Conventions`
+        # `Site`, `Platform` and `Deployment`
+        # `keywords`
         return StructuredMetadata(
             s3_uri=s3_uri,
             file_format=file_format,
