@@ -1,5 +1,9 @@
 # Define all abstract commands here
-.PHONY: test-image init
+.PHONY: test test-image init 
+
+# Rune tests
+test:
+	uv run pytest tests/ -v
 
 # Initialise pre-commit
 init:
