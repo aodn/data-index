@@ -31,16 +31,11 @@ jobs:
           file: "pyproject.toml"
           field: "project.name"
 
-      - name: Resolve tag <- workflow_dispatch || commit tag
+      - name: Resolve tag
         id: vars
         run: |
           TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           echo "TAG=$TAG" >> $GITHUB_ENV
-
-      - name: Inject tag -> pyproject.toml
-        run: |
-          CLEAN_VERSION=$(echo "${{ env.TAG }}" | sed 's/^v//')
-          uvx toml-cli set pyproject.toml project.version "$CLEAN_VERSION"
 
       - uses: astral-sh/setup-uv@v5
         with:
