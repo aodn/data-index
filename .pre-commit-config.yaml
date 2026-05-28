@@ -26,4 +26,5 @@ repos:
         language: system
         entry: make test
         pass_filenames: false
+        files: ^(.*\.(py|toml|yaml|yml|json|md)|uv\.lock|Dockerfile|tests/.*)$
         stages: [pre-push]
