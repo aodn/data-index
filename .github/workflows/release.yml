@@ -18,17 +18,18 @@ jobs:
       packages: write
 
     steps:
-      - name: Read Project Name
-        id: pyproject_name
-        uses: sravinet/toml-select@v1
-        with:
-          file: "pyproject.toml"
-          field: "project.name"
 
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
           fetch-depth: 0 
+      
+      - name: Read Project Name
+        id: pyproject_name
+        uses: sravinet/toml-select@v1.0.1
+        with:
+          file: "pyproject.toml"
+          field: "project.name"
 
       - name: Resolve tag
         id: vars

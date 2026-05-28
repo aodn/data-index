@@ -30,16 +30,13 @@ RUN uv pip install --system --compile-bytecode -c constraints.txt -r requirement
 # --------------------------------------------------------------------
 FROM app AS test
 
-# Copy over the test folder and structural files needed to export
+# Copy over the test folder and structural files needed to install dev dependencies
 COPY tests/ ./tests/
 COPY pyproject.toml README.md ./
 
-# 1. Export the dev group packages from the lockfile into a temporary text file
+# Install dev dependencies
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
-RUN uv export --group dev --no-emit-project --format requirements-txt --output-file dev-reqs.txt
+RUN uv pip install --system --group dev -c constraints.txt
 
-# 2. Install them into the system space alongside your existing application
-RUN uv pip install --system -r dev-reqs.txt
-
-# 3. Clean up the file and execute tests
+# Run tests
 RUN pytest tests/ -v
