@@ -16,11 +16,12 @@ jobs:
     permissions:
       contents: write
       packages: write
-      
+
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # hatch-vcs reads the full tag history to derive the version
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0 
 
       - name: Resolve tag
         id: vars
