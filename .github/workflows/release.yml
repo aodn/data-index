@@ -18,6 +18,13 @@ jobs:
       packages: write
 
     steps:
+      - name: Read Project Name
+        id: pyproject_name
+        uses: sravinet/toml-select@v1
+        with:
+          file: "pyproject.toml"
+          field: "project.name"
+
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
@@ -48,10 +55,10 @@ jobs:
           context: .
           target: test
           push: false
+          tags: ${{ steps.pyproject_name.outputs.value }}:latest,${{ steps.pyproject_name.outputs.value }}:${{ env.TAG }}
           outputs: type=cacheonly
           build-args: |
             VERSION=$TAG
-            BUILDKIT_NO_CLIENT_EXPORT=1
 
       - name: Create GitHub Release
         run: |
