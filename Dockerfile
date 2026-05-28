@@ -23,7 +23,7 @@ WORKDIR /app
 COPY requirements.txt constraints.txt dist/*.whl ./
 
 # Install app
-RUN uv pip install --system -c constraints.txt -r requirements.txt *.whl
+RUN uv pip install --system --compile-bytecode -c constraints.txt -r requirements.txt *.whl
 
 # --------------------------------------------------------------------
 # --- Test Target ---
