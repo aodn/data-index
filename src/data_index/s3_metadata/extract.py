@@ -3,44 +3,17 @@ import pathlib
 import polars
 import prefect
 import pyarrow.parquet
-import pydantic
 import pyiceberg.expressions
 import pyiceberg.table
 
 from data_index.iceberg_config import S3TablesCatalogConfig
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
+from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
 
 from ._schema import INVENTORY_TABLE_SCHEMA
 
-
-class TableScanConfig(pydantic.BaseModel):
-    """Configuration for an Iceberg table scan."""
-
-    row_filter: str | None = pydantic.Field(
-        default=None, description="Filter expression for rows to include in the scan."
-    )
-    selected_fields: tuple[str, ...] = pydantic.Field(
-        default=(
-            "bucket",
-            "key",
-            "version_id",
-            "size",
-            "sequence_number",
-            "is_delete_marker",
-        ),
-        description="List of columns to project.",
-    )
-    case_sensitive: bool = pydantic.Field(
-        default=True,
-        description="Whether column name lookups should be case sensitive.",
-    )
-    snapshot_id: int | None = pydantic.Field(
-        default=None,
-        description="The ID of the snapshot to read for time-travel queries.",
-    )
-    limit: int | None = pydantic.Field(
-        default=None, description="Maximum number of rows to return."
-    )
+# Alias for backward compatibility
+TableScanConfig = IcebergTableScanConfig
 
 
 @prefect.task
