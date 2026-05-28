@@ -21,9 +21,9 @@ repos:
         files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
-      - id: docker-test
-        name: run docker test image
+      - id: test
+        name: run tests
         language: system
-        entry: make test-image
+        entry: make test
         pass_filenames: false
         stages: [pre-push]

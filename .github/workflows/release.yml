@@ -48,8 +48,10 @@ jobs:
           context: .
           target: test
           push: false
+          outputs: type=cacheonly
           build-args: |
             VERSION=$TAG
+            BUILDKIT_NO_CLIENT_EXPORT=1
 
       - name: Create GitHub Release
         run: |
