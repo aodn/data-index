@@ -139,3 +139,7 @@ def run_index_cluster(
         metadata_factory,
         transform_max_workers,
     )
+
+
+if __name__ == "__main__":
+    run_index_cluster()
