@@ -52,29 +52,26 @@ def sink_table(
     tasks = list(scan.plan_files())
     logger.info(f"Files to scan: {len(tasks)}")
 
-    arrow_table = scan.to_arrow()
-    logger.info(f"Scanned {len(arrow_table)} rows")
-
-    with constrained_arrow_threads():
-        with table.scan(
-            **table_scan_config.model_dump(exclude_none=True)
-        ).to_arrow_batch_reader() as batches:
-            with pyarrow.parquet.ParquetWriter(
-                where=inventory_parquet_path,
-                schema=pyarrow.schema(
-                    [
-                        field
-                        for field in INVENTORY_TABLE_SCHEMA
-                        if field.name in table_scan_config.selected_fields
-                    ]
-                ),
-                compression="zstd",
-            ) as writer:
-                for batch in batches:
-                    writer.write_batch(batch=batch)
-                    logger.info(
-                        f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes..."
-                    )
+    with table.scan(
+        **table_scan_config.model_dump(exclude_none=True)
+    ).to_arrow_batch_reader() as batches:
+        with pyarrow.parquet.ParquetWriter(
+            where=inventory_parquet_path,
+            schema=pyarrow.schema(
+                [
+                    field
+                    for field in INVENTORY_TABLE_SCHEMA
+                    if field.name in table_scan_config.selected_fields
+                ]
+            ),
+            compression="zstd",
+        ) as writer:
+            for batch in batches:
+                logger.info(f"Attempting to write batch: {len(batch)} rows")
+                writer.write_batch(batch=batch)
+                logger.info(
+                    f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes..."
+                )
 
 
 _DEFAULT_TABLE_CONFIG = IcebergTableConfig(
