@@ -44,7 +44,10 @@ _inventory_table_config = IcebergTableConfig(
     table_name="inventory",
 )
 
-_inventory_table_scan_config = IcebergTableScanConfig(row_filter="key LIKE 'IMOS/%'")
+_inventory_table_scan_config = IcebergTableScanConfig(
+    limit=1_000_000,
+    row_filter="key LIKE 'IMOS/%'",
+)
 
 _live_inventory_source = LiveS3InventorySource(
     table_config=_inventory_table_config,
