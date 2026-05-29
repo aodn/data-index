@@ -2,9 +2,11 @@ import pathlib
 
 import polars
 import prefect
+import pyarrow
 import pyarrow.parquet
 import pyiceberg.expressions
 import pyiceberg.table
+from pyiceberg.expressions import AlwaysTrue
 
 from data_index.iceberg_config import S3TablesCatalogConfig
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
@@ -14,6 +16,8 @@ from ._schema import INVENTORY_TABLE_SCHEMA
 
 # Alias for backward compatibility
 TableScanConfig = IcebergTableScanConfig
+
+_SELECTED_SCHEMA_NAMES = {field.name for field in INVENTORY_TABLE_SCHEMA}
 
 
 @prefect.task
@@ -28,25 +32,49 @@ def sink_table(
 
     logger.info(f"Table scan config:\n{table_scan_config.model_dump_json(indent=4)}")
     scan = table.scan(**table_scan_config.model_dump(exclude_none=True))
-    files = scan.plan_files()
-    logger.info(f"Files to scan: {len(files)}")
-    for file in files:
-        logger.info(str(file))
+    tasks = list(scan.plan_files())
+    logger.info(f"Files to scan: {len(tasks)}")
 
-    arrow_table = scan.to_arrow()
-    logger.info(f"Scanned {len(arrow_table)} rows")
-
-    pyarrow.parquet.write_table(
-        table=arrow_table.select(
-            [
-                field.name
-                for field in INVENTORY_TABLE_SCHEMA
-                if field.name in table_scan_config.selected_fields
-            ]
-        ),
-        where=inventory_parquet_path,
-        compression="zstd",
+    output_columns = [
+        field.name
+        for field in INVENTORY_TABLE_SCHEMA
+        if field.name in table_scan_config.selected_fields
+    ]
+    output_schema = pyarrow.schema(
+        [
+            f
+            for f in INVENTORY_TABLE_SCHEMA
+            if f.name in table_scan_config.selected_fields
+        ]
     )
+
+    with pyarrow.parquet.ParquetWriter(
+        where=inventory_parquet_path,
+        schema=output_schema,
+        compression="zstd",
+    ) as writer:
+        for i, task in enumerate(tasks):
+            if task.delete_files or task.residual != AlwaysTrue():
+                # Fall back to PyIceberg's own reader for tasks with deletes or
+                # residual filters — direct reads would miss deleted/filtered rows.
+                logger.warning(
+                    f"Task {i} has delete files or residual filter — using PyIceberg reader"
+                )
+                batch = table.scan(
+                    **table_scan_config.model_dump(exclude_none=True)
+                ).to_arrow()
+                writer.write_table(batch.select(output_columns))
+                continue
+
+            batch = pyarrow.parquet.read_table(
+                source=task.file.file_path,
+                columns=output_columns,
+            )
+            writer.write_table(batch)
+            logger.info(
+                f"[{i + 1}/{len(tasks)}] {task.file.file_path} "
+                f"— {len(batch):,} rows, {task.file.file_size_in_bytes / 2**20:.1f} MB"
+            )
 
 
 _DEFAULT_TABLE_CONFIG = IcebergTableConfig(
