@@ -45,7 +45,7 @@ _inventory_table_config = IcebergTableConfig(
 )
 
 _inventory_table_scan_config = IcebergTableScanConfig(
-    limit=1_000_000,
+    limit=10_000,
     row_filter="key LIKE 'IMOS/%'",
 )
 
