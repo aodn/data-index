@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 
 import pydantic
-from pyiceberg.catalog import Catalog
+from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.catalog.sql import SqlCatalog
 
 
@@ -24,9 +24,8 @@ class S3TablesCatalogConfig(pydantic.BaseModel):
         return f"https://s3tables.{self.region}.amazonaws.com/iceberg"
 
     def build(self) -> Catalog:
-        import pyiceberg.catalog
 
-        return pyiceberg.catalog.load_catalog(
+        return load_catalog(
             "s3tables_catalog",
             **{
                 "type": "rest",
