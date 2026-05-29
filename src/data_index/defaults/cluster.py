@@ -32,7 +32,7 @@ OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
 THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 
-# --- Inventory Source config
+# --- Live Inventory Source config
 _s3_metadata_catalog_config = S3TablesCatalogConfig(
     region=REGION,
     arn="arn:aws:s3tables:ap-southeast-2:104044260116:bucket/aws-s3",
@@ -46,18 +46,30 @@ _inventory_table_config = IcebergTableConfig(
 
 _inventory_table_scan_config = IcebergTableScanConfig(row_filter="key LIKE 'IMOS/%'")
 
-_inventory_source = LiveS3InventorySource(
+_live_inventory_source = LiveS3InventorySource(
     table_config=_inventory_table_config,
     table_scan_config=_inventory_table_scan_config,
     path=pathlib.Path(".extract/s3_metadata"),
     skip_if_exists=True,
 )
 
+# --- Static Inventory Source config ---
+_static_inventory_source = ParquetInventorySource(
+    path="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
+)
+
+
 # --- Partitioner config ---
 _greedy_partitioner = GreedyBatchPartitioner(
     max_files=BATCH_SIZE,
     max_bytes=50 * 1024**3,
 )
+
+# --- File fetcher ---
+_file_fetcher = S5CMDFetcher(anon=True)
+
+# --- Metadata extractor ---
+_unstructured_netcdf_extractor = UnstructuedNetCDFExtractor()
 
 # --- Sink config ---
 _data_index_catalog_config = S3TablesCatalogConfig(
@@ -107,11 +119,11 @@ _fargate_cluster_options = PrefectFargateClusterConfig(
 @prefect.flow
 def run_index_cluster(
     inventory_source: LiveS3InventorySource
-    | ParquetInventorySource = _inventory_source,
+    | ParquetInventorySource = _live_inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = S5CMDFetcher(anon=True),
+    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
     extractor: NetCDFExtractor
-    | UnstructuedNetCDFExtractor = UnstructuedNetCDFExtractor(),
+    | UnstructuedNetCDFExtractor = _unstructured_netcdf_extractor,
     structured_sink: StructuredParquetSink
     | StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredParquetSink

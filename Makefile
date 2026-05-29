@@ -22,4 +22,5 @@ test-image:
 	@echo "Building and testing image on docker"
 	docker build --target test \
 	--no-cache-filter test --no-cache-filter app \
+	--progress=plain \
 	-o type=cacheonly .
