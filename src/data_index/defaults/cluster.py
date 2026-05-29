@@ -55,7 +55,7 @@ _live_inventory_source = LiveS3InventorySource(
 
 # --- Static Inventory Source config ---
 _static_inventory_source = ParquetInventorySource(
-    path="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
+    source="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
 )
 
 
