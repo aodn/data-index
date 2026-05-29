@@ -10,7 +10,9 @@ import prefect.task_runners
 from data_index.extract import extract
 from data_index.load import load
 from data_index.protocols import (
+    BatchPartitioner,
     FileFetcher,
+    InventorySource,
     MetadataExtractor,
     StructuredSink,
     UnstructuredMetadata,
@@ -49,12 +51,12 @@ def _process_batch(
 
 @prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner())
 def orchestrate(
-    inventory_source,
-    partitioner,
-    fetcher,
-    extractor,
-    structured_sink,
-    unstructured_sink,
+    inventory_source: InventorySource,
+    partitioner: BatchPartitioner,
+    fetcher: FileFetcher,
+    extractor: MetadataExtractor,
+    structured_sink: StructuredSink,
+    unstructured_sink: UnstructuredSink,
     metadata_factory=None,
     transform_max_workers: int | None = None,
 ) -> None:
@@ -85,10 +87,9 @@ def orchestrate(
 
     logger.info(f"Provisioning inventory: `{inventory_source}`")
     inventory = inventory_source.inventory()
-    batches = list(partitioner.partition(inventory))
 
     logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
-    logger.info(f"Dispatching {len(batches)} batches ({len(inventory)} files total)")
+    logger.info(f"Dispatching ({len(inventory)} files total)")
     futures = [
         _process_batch.submit(
             batch_df=batch,
@@ -99,7 +100,7 @@ def orchestrate(
             metadata_factory=metadata_factory,
             transform_max_workers=transform_max_workers,
         )
-        for batch in batches
+        for batch in partitioner.partition(inventory)
     ]
 
     for future in futures:

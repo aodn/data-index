@@ -6,7 +6,8 @@ import polars
 import pydantic
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
-from data_index.s3_metadata.extract import TableScanConfig, extract
+from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
+from data_index.s3_metadata.extract import extract
 from data_index.s3_metadata.load import load
 from data_index.s3_metadata.transform import transform
 
@@ -23,7 +24,7 @@ class LiveS3InventorySource(pydantic.BaseModel):
     """
 
     table_config: IcebergTableConfig
-    table_scan_config: TableScanConfig
+    table_scan_config: IcebergTableScanConfig
     path: pathlib.Path = pydantic.Field(
         default_factory=lambda: pathlib.Path(_DEFAULT_PATH)
     )

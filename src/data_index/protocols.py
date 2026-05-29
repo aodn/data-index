@@ -42,6 +42,7 @@ class StructuredMetadata:
     )
 
 
+@typing.runtime_checkable
 class UnstructuredMetadata(typing.Protocol):
     def load(self) -> dict:
         """Return the full unstructured metadata dict."""
@@ -72,6 +73,7 @@ class ExtractionResult:
     error: str | None = None
 
 
+@typing.runtime_checkable
 class XarrayHandle(typing.Protocol):
     s3_uri: str
     file_format: str | None
@@ -86,18 +88,21 @@ class XarrayHandle(typing.Protocol):
         ...
 
 
+@typing.runtime_checkable
 class FileFetcher(typing.Protocol):
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
         ...
 
 
+@typing.runtime_checkable
 class MetadataExtractor(typing.Protocol):
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
         """Extract structured and unstructured metadata from an XarrayHandle."""
         ...
 
 
+@typing.runtime_checkable
 class StructuredSink(typing.Protocol):
     def provision(self) -> None:
         """Prepare the target store before any writes (e.g. create directories or tables)."""
@@ -108,6 +113,7 @@ class StructuredSink(typing.Protocol):
         ...
 
 
+@typing.runtime_checkable
 class UnstructuredSink(typing.Protocol):
     def provision(self) -> None:
         """Prepare the target store before any writes (e.g. create directories or tables)."""
@@ -118,12 +124,14 @@ class UnstructuredSink(typing.Protocol):
         ...
 
 
+@typing.runtime_checkable
 class InventorySource(typing.Protocol):
     def inventory(self) -> polars.DataFrame:
         """Return the full corpus inventory as a DataFrame with `s3_uri` and `size` columns."""
         ...
 
 
+@typing.runtime_checkable
 class BatchPartitioner(typing.Protocol):
     def partition(
         self, inventory: polars.DataFrame

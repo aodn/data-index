@@ -26,6 +26,7 @@ repos:
         language: system
         entry: make test
         pass_filenames: false
+        verbose: true
         files: ^(.*\.(py|toml|yaml|yml|json|md)|uv\.lock|Dockerfile|tests/.*)$
         exclude: ^\.github/workflows/
         stages: [pre-push]

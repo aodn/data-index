@@ -1,11 +1,9 @@
 import pathlib
 
 import prefect
-import prefect_dask
 
 import data_index
 from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.cluster import DockerImage, PrefectFargateClusterConfig
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
@@ -25,7 +23,6 @@ from data_index.unstructured_sink import (
 )
 
 # --- General config ---
-ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
 REGION = "ap-southeast-2"
 BATCH_SIZE = 1_000
 OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
@@ -45,7 +42,6 @@ _inventory_table_config = IcebergTableConfig(
 )
 
 _inventory_table_scan_config = IcebergTableScanConfig(
-    limit=10_000,
     row_filter="key LIKE 'IMOS/%'",
 )
 
@@ -54,11 +50,6 @@ _live_inventory_source = LiveS3InventorySource(
     table_scan_config=_inventory_table_scan_config,
     path=pathlib.Path(".extract/s3_metadata"),
     skip_if_exists=True,
-)
-
-# --- Static Inventory Source config ---
-_static_inventory_source = ParquetInventorySource(
-    source="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
 )
 
 # --- Partitioner config ---
@@ -99,27 +90,9 @@ _unstructured_s3_table_sink = UnstructuredS3TableSink(
     iceberg_table_config=_unstructured_metadata_table_config,
 )
 
-# --- Docker image config ---
-docker_image = DockerImage(
-    name=f"{ECR_REGISTRY}/prefect",
-    tag="prefect-dask",
-    dockerfile=pathlib.Path("src/data_index/cluster/Dockerfile"),
-)
-
-# --- Fargate Cluster config ---
-_fargate_cluster_options = PrefectFargateClusterConfig(
-    n_workers=4,
-    image=docker_image.full_name,
-    cpu_architecture="ARM64",
-    scheduler_cpu=1024,
-    scheduler_mem=2048,
-    worker_cpu=4096,
-    worker_mem=16384,
-)
-
 
 @prefect.flow
-def run_index_cluster(
+def run_index_local(
     inventory_source: LiveS3InventorySource
     | ParquetInventorySource = _live_inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
@@ -134,16 +107,9 @@ def run_index_cluster(
     | DiskCachedUnstructuredMetadata
     | None = None,
     transform_max_workers: int | None = None,
-    fargate_cluster_options: PrefectFargateClusterConfig = _fargate_cluster_options,
 ):
 
-    # Run with cluster options
-    data_index.orchestrate.with_options(
-        task_runner=prefect_dask.DaskTaskRunner(
-            cluster_class="dask_cloudprovider.aws.FargateCluster",
-            cluster_kwargs=fargate_cluster_options.model_dump(exclude_none=True),
-        ),
-    )(
+    data_index.orchestrate(
         inventory_source,
         partitioner,
         fetcher,
@@ -156,4 +122,4 @@ def run_index_cluster(
 
 
 if __name__ == "__main__":
-    run_index_cluster()
+    run_index_local(transform_max_workers=32)

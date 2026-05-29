@@ -1,46 +1,40 @@
+import contextlib
 import pathlib
 
 import polars
 import prefect
+import pyarrow
 import pyarrow.parquet
-import pydantic
-import pyiceberg.expressions
 import pyiceberg.table
 
 from data_index.iceberg_config import S3TablesCatalogConfig
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
+from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
 
 from ._schema import INVENTORY_TABLE_SCHEMA
 
+# Alias for backward compatibility
+TableScanConfig = IcebergTableScanConfig
 
-class TableScanConfig(pydantic.BaseModel):
-    """Configuration for an Iceberg table scan."""
 
-    row_filter: str | None = pydantic.Field(
-        default=None, description="Filter expression for rows to include in the scan."
-    )
-    selected_fields: tuple[str, ...] = pydantic.Field(
-        default=(
-            "bucket",
-            "key",
-            "version_id",
-            "size",
-            "sequence_number",
-            "is_delete_marker",
-        ),
-        description="List of columns to project.",
-    )
-    case_sensitive: bool = pydantic.Field(
-        default=True,
-        description="Whether column name lookups should be case sensitive.",
-    )
-    snapshot_id: int | None = pydantic.Field(
-        default=None,
-        description="The ID of the snapshot to read for time-travel queries.",
-    )
-    limit: int | None = pydantic.Field(
-        default=None, description="Maximum number of rows to return."
-    )
+@contextlib.contextmanager
+def constrained_arrow_threads(
+    target_cpu_count: int = 1,
+    target_io_thread_count: int = 1,
+):
+    """
+    Thread and locking resource contention issues make attempting
+    an serial thread pool approach necessary
+    """
+    original_cpu_count = pyarrow.cpu_count()
+    original_io_thread_count = pyarrow.io_thread_count()
+    try:
+        pyarrow.set_cpu_count(target_cpu_count)
+        pyarrow.set_io_thread_count(target_io_thread_count)
+        yield
+    finally:
+        pyarrow.set_cpu_count(original_cpu_count)
+        pyarrow.set_io_thread_count(original_io_thread_count)
 
 
 @prefect.task
@@ -54,6 +48,9 @@ def sink_table(
     inventory_parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Table scan config:\n{table_scan_config.model_dump_json(indent=4)}")
+    scan = table.scan(**table_scan_config.model_dump(exclude_none=True))
+    tasks = list(scan.plan_files())
+    logger.info(f"Files to scan: {len(tasks)}")
 
     with table.scan(
         **table_scan_config.model_dump(exclude_none=True)
@@ -70,6 +67,7 @@ def sink_table(
             compression="zstd",
         ) as writer:
             for batch in batches:
+                logger.info(f"Attempting to write batch: {len(batch)} rows")
                 writer.write_batch(batch=batch)
                 logger.info(
                     f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes..."
