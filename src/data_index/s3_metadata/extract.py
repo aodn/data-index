@@ -70,7 +70,7 @@ def sink_table(
                 source=task.file.file_path,
                 columns=output_columns,
             )
-            writer.write_table(batch)
+            writer.write_table(batch.cast(output_schema))
             logger.info(
                 f"[{i + 1}/{len(tasks)}] {task.file.file_path} "
                 f"— {len(batch):,} rows, {task.file.file_size_in_bytes / 2**20:.1f} MB"
