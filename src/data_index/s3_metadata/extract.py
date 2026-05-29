@@ -1,10 +1,10 @@
+import contextlib
 import pathlib
 
 import polars
 import prefect
 import pyarrow
 import pyarrow.parquet
-import pyiceberg.expressions
 import pyiceberg.table
 
 from data_index.iceberg_config import S3TablesCatalogConfig
@@ -16,7 +16,25 @@ from ._schema import INVENTORY_TABLE_SCHEMA
 # Alias for backward compatibility
 TableScanConfig = IcebergTableScanConfig
 
-_SELECTED_SCHEMA_NAMES = {field.name for field in INVENTORY_TABLE_SCHEMA}
+
+@contextlib.contextmanager
+def constrained_arrow_threads(
+    target_cpu_count: int = 1,
+    target_io_thread_count: int = 1,
+):
+    """
+    Thread and locking resource contention issues make attempting
+    an serial thread pool approach necessary
+    """
+    original_cpu_count = pyarrow.cpu_count()
+    original_io_thread_count = pyarrow.io_thread_count()
+    try:
+        pyarrow.set_cpu_count(target_cpu_count)
+        pyarrow.set_io_thread_count(target_io_thread_count)
+        yield
+    finally:
+        pyarrow.set_cpu_count(original_cpu_count)
+        pyarrow.set_io_thread_count(original_io_thread_count)
 
 
 @prefect.task
@@ -37,17 +55,26 @@ def sink_table(
     arrow_table = scan.to_arrow()
     logger.info(f"Scanned {len(arrow_table)} rows")
 
-    pyarrow.parquet.write_table(
-        table=arrow_table.select(
-            [
-                field.name
-                for field in INVENTORY_TABLE_SCHEMA
-                if field.name in table_scan_config.selected_fields
-            ]
-        ),
-        where=inventory_parquet_path,
-        compression="zstd",
-    )
+    with constrained_arrow_threads():
+        with table.scan(
+            **table_scan_config.model_dump(exclude_none=True)
+        ).to_arrow_batch_reader() as batches:
+            with pyarrow.parquet.ParquetWriter(
+                where=inventory_parquet_path,
+                schema=pyarrow.schema(
+                    [
+                        field
+                        for field in INVENTORY_TABLE_SCHEMA
+                        if field.name in table_scan_config.selected_fields
+                    ]
+                ),
+                compression="zstd",
+            ) as writer:
+                for batch in batches:
+                    writer.write_batch(batch=batch)
+                    logger.info(
+                        f"Wrote batch of in memory size {batch.get_total_buffer_size()} bytes..."
+                    )
 
 
 _DEFAULT_TABLE_CONFIG = IcebergTableConfig(
