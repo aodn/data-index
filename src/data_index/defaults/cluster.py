@@ -79,7 +79,7 @@ _data_index_catalog_config = S3TablesCatalogConfig(
 _structured_metadata_table_config = IcebergTableConfig(
     catalog_config=_data_index_catalog_config,
     namespace="data_index",
-    table_name="structured-metadata",
+    table_name="structured_metadata",
 )
 
 _structured_s3_table_sink = StructuredS3TableSink(
@@ -89,7 +89,7 @@ _structured_s3_table_sink = StructuredS3TableSink(
 _unstructured_metadata_table_config = IcebergTableConfig(
     catalog_config=_data_index_catalog_config,
     namespace="data_index",
-    table_name="unstructured-metadata",
+    table_name="unstructured_metadata",
 )
 
 _unstructured_s3_table_sink = UnstructuredS3TableSink(
