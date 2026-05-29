@@ -2,6 +2,7 @@ import pathlib
 
 import polars
 import prefect
+import pyarrow
 import pyarrow.parquet
 import pyiceberg.expressions
 import pyiceberg.table
@@ -14,6 +15,8 @@ from ._schema import INVENTORY_TABLE_SCHEMA
 
 # Alias for backward compatibility
 TableScanConfig = IcebergTableScanConfig
+
+_SELECTED_SCHEMA_NAMES = {field.name for field in INVENTORY_TABLE_SCHEMA}
 
 
 @prefect.task
@@ -28,10 +31,8 @@ def sink_table(
 
     logger.info(f"Table scan config:\n{table_scan_config.model_dump_json(indent=4)}")
     scan = table.scan(**table_scan_config.model_dump(exclude_none=True))
-    files = scan.plan_files()
-    logger.info(f"Files to scan: {len(files)}")
-    for file in files:
-        logger.info(str(file))
+    tasks = list(scan.plan_files())
+    logger.info(f"Files to scan: {len(tasks)}")
 
     arrow_table = scan.to_arrow()
     logger.info(f"Scanned {len(arrow_table)} rows")
