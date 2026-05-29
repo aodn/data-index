@@ -58,7 +58,6 @@ _static_inventory_source = ParquetInventorySource(
     source="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
 )
 
-
 # --- Partitioner config ---
 _greedy_partitioner = GreedyBatchPartitioner(
     max_files=BATCH_SIZE,
@@ -74,7 +73,7 @@ _unstructured_netcdf_extractor = UnstructuedNetCDFExtractor()
 # --- Sink config ---
 _data_index_catalog_config = S3TablesCatalogConfig(
     region=REGION,
-    arn="arn:aws:s3tables:ap-southeast-2:104044260116:bucket/data-index",
+    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
 )
 
 _structured_metadata_table_config = IcebergTableConfig(
