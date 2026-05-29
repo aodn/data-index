@@ -49,10 +49,7 @@ def _process_batch(
     )
 
 
-@prefect.flow(
-    task_runner=prefect.task_runners.ThreadPoolTaskRunner(),
-    validate_parameters=False,
-)
+@prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner())
 def orchestrate(
     inventory_source: InventorySource,
     partitioner: BatchPartitioner,
