@@ -27,6 +27,11 @@ def sink_table(
     inventory_parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Table scan config:\n{table_scan_config.model_dump_json(indent=4)}")
+    scan = table.scan(**table_scan_config.model_dump(exclude_none=True))
+    files = scan.plan_files()
+    logger.info(f"Files to scan: {len(files)}")
+    for file in files:
+        logger.info(str(file))
 
     with table.scan(
         **table_scan_config.model_dump(exclude_none=True)
