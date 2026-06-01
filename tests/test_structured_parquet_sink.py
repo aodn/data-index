@@ -1,7 +1,7 @@
 import polars
 import pytest
 
-from data_index.protocols import StructuredMetadata
+from data_index.structured_metadata import StructuredMetadata
 from data_index.structured_sink.parquet_sink import ParquetSink
 
 
@@ -41,7 +41,7 @@ def test_writes_rows_with_correct_schema_and_values(tmp_path):
     sink.write(rows)
 
     df = polars.read_parquet(path)
-    assert df.schema == StructuredMetadata.polars_schema
+    assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 2
     assert df["s3_uri"].to_list() == ["s3://bucket/a.nc", "s3://bucket/b.nc"]
     assert df["lat_min"].to_list() == pytest.approx([-1.0, -2.0])
@@ -54,7 +54,7 @@ def test_writes_empty_parquet_with_correct_schema_for_empty_input(tmp_path):
     sink.write([])
 
     df = polars.read_parquet(path)
-    assert df.schema == StructuredMetadata.polars_schema
+    assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 0
 
 

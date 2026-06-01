@@ -4,6 +4,8 @@ import typing
 
 import polars
 import pyarrow
+import pyiceberg.schema
+import pyiceberg.types
 
 
 @dataclasses.dataclass
@@ -111,5 +113,25 @@ class StructuredMetadata:
                     nullable=field["nullable"],
                 )
                 for field in cls._unpack_fields()
+            ]
+        )
+
+    @classmethod
+    def as_pyiceberg_schema(cls) -> pyiceberg.schema.Schema:
+        _PYICEBERG_TYPE_MAP = {
+            str: pyiceberg.types.StringType(),
+            float: pyiceberg.types.DoubleType(),
+            int: pyiceberg.types.LongType(),
+            bool: pyiceberg.types.BooleanType(),
+        }
+        return pyiceberg.schema.Schema(
+            *[
+                pyiceberg.types.NestedField(
+                    field_id=index,
+                    name=field["name"],
+                    field_type=_PYICEBERG_TYPE_MAP[field["type"]],
+                    required=not field["nullable"],
+                )
+                for index, field in enumerate(cls._unpack_fields(), start=1)
             ]
         )

@@ -13,12 +13,10 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError,
 )
 from pyiceberg.partitioning import PartitionSpec
-from pyiceberg.schema import Schema
 from pyiceberg.table import Table
-from pyiceberg.types import DoubleType, NestedField, StringType
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
-from data_index.protocols import StructuredMetadata
+from data_index.structured_metadata import StructuredMetadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
@@ -32,40 +30,6 @@ class StructuredS3TableSink(pydantic.BaseModel):
     exponential backoff.
     """
 
-    _ICEBERG_SCHEMA: Schema = pydantic.PrivateAttr(
-        default_factory=lambda: Schema(
-            NestedField(
-                field_id=1, name="s3_uri", field_type=StringType(), required=True
-            ),
-            NestedField(
-                field_id=2, name="lat_min", field_type=DoubleType(), required=False
-            ),
-            NestedField(
-                field_id=3, name="lat_max", field_type=DoubleType(), required=False
-            ),
-            NestedField(
-                field_id=4, name="lon_min", field_type=DoubleType(), required=False
-            ),
-            NestedField(
-                field_id=5, name="lon_max", field_type=DoubleType(), required=False
-            ),
-            NestedField(
-                field_id=6, name="time_min", field_type=StringType(), required=False
-            ),
-            NestedField(
-                field_id=7, name="time_max", field_type=StringType(), required=False
-            ),
-            NestedField(
-                field_id=8, name="crs", field_type=StringType(), required=False
-            ),
-            NestedField(
-                field_id=9, name="file_format", field_type=StringType(), required=False
-            ),
-            NestedField(
-                field_id=10, name="collection", field_type=StringType(), required=False
-            ),
-        ),
-    )
     _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
 
     iceberg_table_config: IcebergTableConfig
@@ -100,11 +64,12 @@ class StructuredS3TableSink(pydantic.BaseModel):
                     self.iceberg_table_config.namespace,
                     self.iceberg_table_config.table_name,
                 ),
-                schema=self._ICEBERG_SCHEMA,
+                schema=StructuredMetadata.as_pyiceberg_schema(),
                 partition_spec=partition_spec or PartitionSpec(),
             )
         except TableAlreadyExistsError:
             pass
+        self._evolve_schema()
 
     def write(self, data: list[StructuredMetadata]) -> None:
         if not data:
@@ -122,39 +87,23 @@ class StructuredS3TableSink(pydantic.BaseModel):
                     random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
                 )
 
+    def _evolve_schema(self) -> None:
+        desired_schema = StructuredMetadata.as_pyiceberg_schema()
+        for attempt in range(_MAX_RETRIES):
+            try:
+                self.table.update_schema().union_by_name(desired_schema).commit()
+                return
+            except CommitFailedException:
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                self.table.refresh()
+                time.sleep(
+                    random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
+                )
+
     @staticmethod
     def _to_arrow(data: list[StructuredMetadata]) -> pa.Table:
-        rows = [dataclasses.asdict(row) for row in data]
-        schema = pa.schema(
-            [
-                pa.field("s3_uri", pa.string(), nullable=False),
-                pa.field("lat_min", pa.float64(), nullable=True),
-                pa.field("lat_max", pa.float64(), nullable=True),
-                pa.field("lon_min", pa.float64(), nullable=True),
-                pa.field("lon_max", pa.float64(), nullable=True),
-                pa.field("time_min", pa.string(), nullable=True),
-                pa.field("time_max", pa.string(), nullable=True),
-                pa.field("crs", pa.string(), nullable=True),
-                pa.field("file_format", pa.string(), nullable=True),
-                pa.field("collection", pa.string(), nullable=True),
-            ]
-        )
-        return pa.table(
-            {
-                "s3_uri": pa.array([r["s3_uri"] for r in rows], type=pa.string()),
-                "lat_min": pa.array([r["lat_min"] for r in rows], type=pa.float64()),
-                "lat_max": pa.array([r["lat_max"] for r in rows], type=pa.float64()),
-                "lon_min": pa.array([r["lon_min"] for r in rows], type=pa.float64()),
-                "lon_max": pa.array([r["lon_max"] for r in rows], type=pa.float64()),
-                "time_min": pa.array([r["time_min"] for r in rows], type=pa.string()),
-                "time_max": pa.array([r["time_max"] for r in rows], type=pa.string()),
-                "crs": pa.array([r["crs"] for r in rows], type=pa.string()),
-                "file_format": pa.array(
-                    [r["file_format"] for r in rows], type=pa.string()
-                ),
-                "collection": pa.array(
-                    [r["collection"] for r in rows], type=pa.string()
-                ),
-            },
-            schema=schema,
+        return pa.Table.from_pylist(
+            [dataclasses.asdict(row) for row in data],
+            schema=StructuredMetadata.as_pyarrow_schema(),
         )

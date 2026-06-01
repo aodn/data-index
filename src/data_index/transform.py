@@ -132,13 +132,14 @@ def transform(
     ]
 
     _SAMPLE = 5
+    schema = StructuredMetadata.as_polars_schema()
     sample_df = (
         polars.DataFrame(
             data=[vars(s) for s in structured[:_SAMPLE]],
-            schema=StructuredMetadata.polars_schema,
+            schema=schema,
         )
         if structured
-        else polars.DataFrame(schema=StructuredMetadata.polars_schema)
+        else polars.DataFrame(schema=schema)
     )
     prefect.artifacts.create_table_artifact(
         key="structured-metadata-sample",

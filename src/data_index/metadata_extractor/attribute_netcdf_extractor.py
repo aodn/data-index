@@ -8,7 +8,7 @@ from data_index.protocols import RawExtractionResult, XarrayHandle
 from data_index.structured_metadata import StructuredMetadata
 
 
-class UnstructuedNetCDFExtractor(pydantic.BaseModel):
+class AttributeNetCDFExtractor(pydantic.BaseModel):
     """MetadataExtractor implementation for CF-compliant NetCDF files using xarray."""
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
@@ -44,25 +44,47 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         file_format: str | None = None,
     ) -> StructuredMetadata:
         """
-        Dummy class that
+        Structured data extraction from attributes
         """
-        # TODO: Add the CF mapping from global attributes
-        # TODO: Get Marty/core team to check over first pass structured metadata
-        # TODO: Also include:
-        # `Conventions`
-        # `Site`, `Platform` and `Deployment`
-        # `keywords`
-        return StructuredMetadata(
-            s3_uri=s3_uri,
-            file_format=file_format,
-            lat_min=None,
-            lat_max=None,
-            lon_min=None,
-            lon_max=None,
-            time_min=None,
-            time_max=None,
-            crs=None,
-        )
+        metadata_kwargs = {
+            "s3_uri": s3_uri,
+            "file_format": file_format,
+        }
+
+        attributes_map: dict[str, tuple[str, type]] = {
+            # Temporal Spatial
+            "lat_min": ("geospatial_lat_min", float),
+            "lat_max": ("geospatial_lat_max", float),
+            "lon_min": ("geospatial_lon_min", float),
+            "lon_max": ("geospatial_lon_max", float),
+            "time_min": ("time_coverage_start", str),
+            "time_max": ("time_coverage_end", str),
+            # Keywords
+            "keywords": ("keywords", str),
+            "conventions": ("Conventions", str),
+            "file_version": ("file_version", str),
+            "file_version_quality_control": ("file_version_quality_control", str),
+            "metadata_uuid": ("metadata_uuid", str),
+            # Site Platform Deployment
+            "platform_code": ("platform_code", str),
+            "site_code": ("site_code", str),
+            "deployment_code": ("deployment_code", str),
+            # Instrumentation
+            "instrument": ("instrument", str),
+        }
+
+        errors = {}
+
+        # Convert attribute
+        for attribute, (key, _type) in attributes_map.items():
+            val = ds.attrs.get(key)
+            try:
+                metadata_kwargs[attribute] = _type(val) if val is not None else None
+            except (ValueError, TypeError) as e:
+                metadata_kwargs[attribute] = None
+                errors[attribute] = e
+
+        return StructuredMetadata(**metadata_kwargs)
 
     def _extract_unstructured(
         self,

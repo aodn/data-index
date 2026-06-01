@@ -3,7 +3,7 @@ import pathlib
 
 import polars
 
-from data_index.protocols import StructuredMetadata
+from data_index.structured_metadata import StructuredMetadata
 
 
 class ParquetSink:
@@ -20,10 +20,11 @@ class ParquetSink:
 
     def write(self, data: list[StructuredMetadata]) -> None:
         rows = [dataclasses.asdict(row) for row in data]
+        schema = StructuredMetadata.as_polars_schema()
         df = (
-            polars.DataFrame(rows, schema=StructuredMetadata.polars_schema)
+            polars.DataFrame(rows, schema=schema)
             if rows
-            else polars.DataFrame(schema=StructuredMetadata.polars_schema)
+            else polars.DataFrame(schema=schema)
         )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(self.path)

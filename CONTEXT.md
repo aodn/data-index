@@ -88,6 +88,7 @@ _Avoid_: writer, exporter
 - The caller is responsible for ensuring no `s3_uri` appears more than once across pipeline runs
 - diskcache is keyed by `s3_uri`
 - The `StructuredSink` enforces the Structured Metadata schema on write
+- `StructuredMetadata` dataclass is schema source-of-truth for Polars, PyArrow, and Iceberg representations
 - **File Format** is determined from magic bytes (first 8 bytes of the file), not from xarray internals — avoids coupling to private xarray/netCDF4 attributes
 - NetCDF4/HDF5 files require multiple block fetches to traverse the HDF5 btree even for metadata-only reads; this makes `S3XarrayHandle` slower for large NetCDF4 files than for NetCDF3
 - **Three-layer concurrency model**: peak resource usage is `batch_workers × transform_threads × s5cmd_workers`. On Fargate each worker runs in an isolated container so all three can be maximised independently. For local runs all three layers share the same machine and must be capped together to avoid memory exhaustion and CPU saturation.
