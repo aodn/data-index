@@ -64,6 +64,8 @@ class StructuredMetadata:
     schema generation.
     """
 
+    SCHEMA_VERSION: typing.ClassVar[int] = 1
+
     s3_uri: str
     lat_min: float | None = None
     lat_max: float | None = None

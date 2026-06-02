@@ -2,16 +2,22 @@ import pathlib
 
 import prefect
 
+from data_index.iceberg_config import (
+    IcebergTableConfig,
+    S3TablesCatalogConfig,
+)
 from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
 from data_index.inventory_source.live_s3_facility_subset import (
     LiveS3InventorySourceFacilitySubset,
 )
-from data_index.structured_sink import StructuredParquetSink
-from data_index.unstructured_sink import UnstructuredParquetSink
+from data_index.structured_metadata import StructuredMetadata
+from data_index.structured_sink import StructuredS3TableSink
+from data_index.unstructured_sink import (
+    UnstructuredS3TableSink,
+)
 
 from .local import (
     MAX_WORKERS,
-    OUT_DIR,
     TRANSFORM_WORKERS,
     extractor,
     fetcher,
@@ -29,9 +35,30 @@ live_inventory_source = LiveS3InventorySourceFacilitySubset(
     subset_per_facility=10_000,
 )
 
-structured_sink = StructuredParquetSink(path=OUT_DIR / "structured_metadata.parquet")
-unstructured_sink = UnstructuredParquetSink(
-    path=OUT_DIR / "unstructured_metadata.parquet"
+# --- Sink config ---
+data_index_catalog_config = S3TablesCatalogConfig(
+    region="ap-southeast-2",
+    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
+)
+
+structured_metadata_table_config = IcebergTableConfig(
+    catalog_config=data_index_catalog_config,
+    namespace="data_index",
+    table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
+)
+
+structured_sink = StructuredS3TableSink(
+    iceberg_table_config=structured_metadata_table_config,
+)
+
+unstructured_metadata_table_config = IcebergTableConfig(
+    catalog_config=data_index_catalog_config,
+    namespace="data_index",
+    table_name="unstructured_metadata",
+)
+
+unstructured_sink = UnstructuredS3TableSink(
+    iceberg_table_config=unstructured_metadata_table_config,
 )
 
 

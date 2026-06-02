@@ -76,3 +76,10 @@ def test_structured_metadata_field_contract_updates():
     assert "dimensions" in field_names
     assert "variables" in field_names
     assert "standard_names" in field_names
+
+
+def test_schema_version_is_class_var_and_not_dataclass_field():
+    field_names = [field.name for field in dataclasses.fields(StructuredMetadata)]
+
+    assert StructuredMetadata.SCHEMA_VERSION == 1
+    assert "SCHEMA_VERSION" not in field_names
