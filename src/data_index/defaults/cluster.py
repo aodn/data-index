@@ -70,7 +70,7 @@ _static_inventory_source = ParquetInventorySource(
 # --- Partitioner config ---
 _greedy_partitioner = GreedyBatchPartitioner(
     max_files=BATCH_SIZE,
-    max_bytes=50 * 1024**3,
+    max_bytes=10 * 1024**3,
 )
 
 # --- File fetcher ---
