@@ -12,8 +12,12 @@ _Avoid_: job, dataset, collection
 A single item within a **Batch** — an `s3_uri` paired with an optional `size_bytes`. Passed to `FileFetcher.fetch()` so routing decisions (e.g. size threshold) can be made before any I/O.
 _Avoid_: row, record, file
 
+**Facility**:
+The second path segment of the S3 key under `IMOS/` (for example, `ANMN` from `IMOS/ANMN/NSW/file.nc`). This is the canonical domain term for top-level IMOS grouping.
+_Avoid_: collection (except where required by legacy schema/field names)
+
 **Structured Metadata**:
-A fixed-schema set of fields extracted from a NetCDF file — including spatial extent, temporal range, CRS, file format, `collection`, and `s3_uri`. Stored as a Polars DataFrame and persisted to an S3 Table (Apache Iceberg). `collection` is the second path segment of the S3 key (e.g. `ANMN` from `IMOS/ANMN/NSW/file.nc`), populated by the **MetadataExtractor**. The current extractor derives extent from coordinate arrays; a future v2 extractor will use ACDD global attributes where available (see ADR-0005).
+A fixed-schema set of fields extracted from a NetCDF file — including spatial extent, temporal range, CRS, file format, facility grouping, and `s3_uri`. Stored as a Polars DataFrame and persisted to an S3 Table (Apache Iceberg). Current code still stores facility grouping in legacy field name `collection`, populated by the **MetadataExtractor** from the second path segment. The current extractor derives extent from coordinate arrays; a future v2 extractor will use ACDD global attributes where available (see ADR-0005).
 _Avoid_: metadata (without qualifier)
 
 **Unstructured Metadata**:
@@ -74,11 +78,11 @@ A pluggable component that, given an **XarrayHandle**, extracts both Structured 
 _Avoid_: parser, reader
 
 **StructuredSink**:
-A pluggable component that prepares and persists a Structured Metadata DataFrame to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by `collection` then year (from `time_min`; null `time_min` goes to the null partition bucket); appends on each write and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
+A pluggable component that prepares and persists a Structured Metadata DataFrame to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by legacy field `collection` (domain: **Facility**) then year (from `time_min`; null `time_min` goes to the null partition bucket); appends on each write and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata dicts (keyed by `s3_uri`) to a final destination store. Receives `dict[str, dict]` — callers resolve `UnstructuredMetadata.load()` before passing. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg with schema `(s3_uri STRING, collection STRING, metadata STRING)` where `collection` is derived from the `s3_uri` key at write time and `metadata` is JSON-encoded.
+A pluggable component that prepares and persists Unstructured Metadata dicts (keyed by `s3_uri`) to a final destination store. Receives `dict[str, dict]` — callers resolve `UnstructuredMetadata.load()` before passing. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg with schema `(s3_uri STRING, collection STRING, metadata STRING)` where legacy column `collection` stores **Facility** derived from `s3_uri`, and `metadata` is JSON-encoded.
 _Avoid_: writer, exporter
 
 ## Constraints
@@ -120,4 +124,5 @@ _Avoid_: build pipeline, validation pipeline
 ## Flagged ambiguities
 
 - "metadata" (unqualified) was used to mean both **Structured Metadata** and **Unstructured Metadata** — resolved: always qualify the term.
+- "collection" and "facility" were both used for the second S3 path segment — resolved: canonical domain term is **Facility**; keep `collection` only for backward-compatible field/schema names.
 - "file format" was initially derived from xarray private internals (`_file_obj._ds.file_format`) — resolved: always read from magic bytes via `XarrayHandle.file_format`.
