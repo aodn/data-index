@@ -36,7 +36,7 @@ BATCH_SIZE = 1_000
 MAX_WORKERS = 2  # concurrent batches (limits RAM/CPU pressure)
 S5CMD_WORKERS = 8  # s5cmd defaults to 256 — cap it for local runs
 TRANSFORM_WORKERS = (
-    16  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
+    12  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
 )
 
 # --- Live Inventory Source config

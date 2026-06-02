@@ -2,6 +2,7 @@ import pathlib
 
 import prefect
 
+from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
     S3TablesCatalogConfig,
@@ -18,9 +19,9 @@ from data_index.unstructured_sink import (
 
 from .local import (
     MAX_WORKERS,
+    S5CMD_WORKERS,
     TRANSFORM_WORKERS,
     extractor,
-    fetcher,
     inventory_table_config,
     inventory_table_scan_config,
     partitioner,
@@ -32,7 +33,7 @@ live_inventory_source = LiveS3InventorySourceFacilitySubset(
     table_scan_config=inventory_table_scan_config,
     path=pathlib.Path(".extract/s3_metadata"),
     skip_if_exists=True,
-    subset_per_facility=10_000,
+    subset_per_facility=2_000,
 )
 
 # --- Sink config ---
@@ -59,6 +60,14 @@ unstructured_metadata_table_config = IcebergTableConfig(
 
 unstructured_sink = UnstructuredS3TableSink(
     iceberg_table_config=unstructured_metadata_table_config,
+)
+
+# --- Fetcher ---
+size_threshold_bytes = 1024**2 * 10
+fetcher = ThresholdFileFetcher(
+    size_threshold_bytes=size_threshold_bytes,
+    disk_fetcher=S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True),
+    cloud_fetcher=S3Fetcher(block_size=size_threshold_bytes),
 )
 
 
