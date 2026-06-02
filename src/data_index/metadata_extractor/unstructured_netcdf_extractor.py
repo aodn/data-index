@@ -4,7 +4,8 @@ import xarray
 from data_index.metadata_extractor._sanitize import (
     _serialize_with_orjson,
 )
-from data_index.protocols import RawExtractionResult, StructuredMetadata, XarrayHandle
+from data_index.protocols import RawExtractionResult, XarrayHandle
+from data_index.structured_metadata import StructuredMetadata
 
 
 class UnstructuedNetCDFExtractor(pydantic.BaseModel):
@@ -12,8 +13,15 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
         try:
-            structured = self._extract_structured(handle.ds, handle.s3_uri)
-            unstructured = self._extract_unstructured(handle.ds)
+            structured = self._extract_structured(
+                ds=handle.ds,
+                s3_uri=handle.s3_uri,
+                file_format=handle.file_format,
+            )
+            unstructured = self._extract_unstructured(
+                ds=handle.ds,
+                file_format=handle.file_format,
+            )
             return RawExtractionResult(
                 s3_uri=handle.s3_uri,
                 structured_metadata=structured,
@@ -30,7 +38,10 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
             )
 
     def _extract_structured(
-        self, ds: xarray.Dataset, s3_uri: str, file_format: str | None = None
+        self,
+        ds: xarray.Dataset,
+        s3_uri: str,
+        file_format: str | None = None,
     ) -> StructuredMetadata:
         """
         Dummy class that
@@ -54,7 +65,9 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         )
 
     def _extract_unstructured(
-        self, ds: xarray.Dataset, file_format: str | None = None
+        self,
+        ds: xarray.Dataset,
+        file_format: str | None = None,
     ) -> dict:
         unstructured = {
             "file_format": file_format,

@@ -12,10 +12,10 @@ import prefect.cache_policies
 from data_index.protocols import (
     ExtractionResult,
     MetadataExtractor,
-    StructuredMetadata,
     UnstructuredMetadata,
     XarrayHandle,
 )
+from data_index.structured_metadata import StructuredMetadata
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
@@ -132,13 +132,14 @@ def transform(
     ]
 
     _SAMPLE = 5
+    schema = StructuredMetadata.as_polars_schema()
     sample_df = (
         polars.DataFrame(
-            [vars(s) for s in structured[:_SAMPLE]],
-            schema=StructuredMetadata.polars_schema,
+            data=[vars(s) for s in structured[:_SAMPLE]],
+            schema=schema,
         )
         if structured
-        else polars.DataFrame(schema=StructuredMetadata.polars_schema)
+        else polars.DataFrame(schema=schema)
     )
     prefect.artifacts.create_table_artifact(
         key="structured-metadata-sample",

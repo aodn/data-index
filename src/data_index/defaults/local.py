@@ -11,7 +11,11 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
-from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
+from data_index.metadata_extractor import (
+    AttributeNetCDFExtractor,
+    NetCDFExtractor,
+    UnstructuedNetCDFExtractor,
+)
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
 from data_index.unstructured_metadata import (
     DiskCachedUnstructuredMetadata,
@@ -29,86 +33,86 @@ THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 # --- Local config ---
 BATCH_SIZE = 1_000
-MAX_WORKERS = 8  # concurrent batches (limits RAM/CPU pressure)
+MAX_WORKERS = 2  # concurrent batches (limits RAM/CPU pressure)
 S5CMD_WORKERS = 8  # s5cmd defaults to 256 — cap it for local runs
 TRANSFORM_WORKERS = (
-    4  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
+    12  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
 )
 
 # --- Live Inventory Source config
-_s3_metadata_catalog_config = S3TablesCatalogConfig(
+s3_metadata_catalog_config = S3TablesCatalogConfig(
     region=REGION,
     arn="arn:aws:s3tables:ap-southeast-2:104044260116:bucket/aws-s3",
 )
 
-_inventory_table_config = IcebergTableConfig(
-    catalog_config=_s3_metadata_catalog_config,
+inventory_table_config = IcebergTableConfig(
+    catalog_config=s3_metadata_catalog_config,
     namespace="b_imos-data",
     table_name="inventory",
 )
 
-_inventory_table_scan_config = IcebergTableScanConfig(
+inventory_table_scan_config = IcebergTableScanConfig(
     row_filter="key LIKE 'IMOS/%'",
 )
 
-_live_inventory_source = LiveS3InventorySource(
-    table_config=_inventory_table_config,
-    table_scan_config=_inventory_table_scan_config,
+live_inventory_source = LiveS3InventorySource(
+    table_config=inventory_table_config,
+    table_scan_config=inventory_table_scan_config,
     path=pathlib.Path(".extract/s3_metadata"),
     skip_if_exists=True,
 )
 
 # --- Partitioner config ---
-_greedy_partitioner = GreedyBatchPartitioner(
+partitioner = GreedyBatchPartitioner(
     max_files=BATCH_SIZE,
     max_bytes=50 * 1024**3,
 )
 
 # --- File fetcher ---
-_file_fetcher = S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True)
+fetcher = S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True)
 
 # --- Metadata extractor ---
-_unstructured_netcdf_extractor = UnstructuedNetCDFExtractor()
+extractor = AttributeNetCDFExtractor()
 
 # --- Sink config ---
-_data_index_catalog_config = S3TablesCatalogConfig(
+data_index_catalog_config = S3TablesCatalogConfig(
     region=REGION,
     arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
 )
 
-_structured_metadata_table_config = IcebergTableConfig(
-    catalog_config=_data_index_catalog_config,
+structured_metadata_table_config = IcebergTableConfig(
+    catalog_config=data_index_catalog_config,
     namespace="data_index",
     table_name="structured_metadata",
 )
 
-_structured_s3_table_sink = StructuredS3TableSink(
-    iceberg_table_config=_structured_metadata_table_config,
+structured_sink = StructuredS3TableSink(
+    iceberg_table_config=structured_metadata_table_config,
 )
 
-_unstructured_metadata_table_config = IcebergTableConfig(
-    catalog_config=_data_index_catalog_config,
+unstructured_metadata_table_config = IcebergTableConfig(
+    catalog_config=data_index_catalog_config,
     namespace="data_index",
     table_name="unstructured_metadata",
 )
 
-_unstructured_s3_table_sink = UnstructuredS3TableSink(
-    iceberg_table_config=_unstructured_metadata_table_config,
+unstructured_sink = UnstructuredS3TableSink(
+    iceberg_table_config=unstructured_metadata_table_config,
 )
 
 
 @prefect.flow
 def run_index_local(
     inventory_source: LiveS3InventorySource
-    | ParquetInventorySource = _live_inventory_source,
-    partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
+    | ParquetInventorySource = live_inventory_source,
+    partitioner: GreedyBatchPartitioner = partitioner,
+    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = fetcher,
     extractor: NetCDFExtractor
-    | UnstructuedNetCDFExtractor = _unstructured_netcdf_extractor,
-    structured_sink: StructuredParquetSink
-    | StructuredS3TableSink = _structured_s3_table_sink,
+    | UnstructuedNetCDFExtractor
+    | AttributeNetCDFExtractor = extractor,
+    structured_sink: StructuredParquetSink | StructuredS3TableSink = structured_sink,
     unstructured_sink: UnstructuredParquetSink
-    | UnstructuredS3TableSink = _unstructured_s3_table_sink,
+    | UnstructuredS3TableSink = unstructured_sink,
     metadata_factory: InMemoryUnstructuredMetadata
     | DiskCachedUnstructuredMetadata
     | None = None,

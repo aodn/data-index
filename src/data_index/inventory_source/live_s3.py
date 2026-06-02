@@ -42,6 +42,15 @@ class LiveS3InventorySource(pydantic.BaseModel):
         live_lf = transform(inventory_lf)
         load(live_lf, path=self.path)
 
+    @staticmethod
+    def _s3_uri_column() -> polars.Expr:
+        return polars.concat_str(
+            polars.lit("s3://"),
+            polars.col("bucket"),
+            polars.lit("/"),
+            polars.col("key"),
+        ).alias("s3_uri")
+
     def inventory(self) -> polars.DataFrame:
         if not (self.skip_if_exists and self._has_data()):
             self._run_etl()
@@ -49,12 +58,7 @@ class LiveS3InventorySource(pydantic.BaseModel):
         return (
             polars.scan_parquet(self.path / "**" / "*.parquet")
             .select(
-                polars.concat_str(
-                    polars.lit("s3://"),
-                    polars.col("bucket"),
-                    polars.lit("/"),
-                    polars.col("key"),
-                ).alias("s3_uri"),
+                self._s3_uri_column(),
                 polars.col("size"),
             )
             .collect()

@@ -1,7 +1,7 @@
 import polars
 import pytest
 
-from data_index.protocols import StructuredMetadata
+from data_index.structured_metadata import StructuredMetadata
 from data_index.structured_sink.parquet_sink import ParquetSink
 
 
@@ -41,7 +41,7 @@ def test_writes_rows_with_correct_schema_and_values(tmp_path):
     sink.write(rows)
 
     df = polars.read_parquet(path)
-    assert df.schema == StructuredMetadata.polars_schema
+    assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 2
     assert df["s3_uri"].to_list() == ["s3://bucket/a.nc", "s3://bucket/b.nc"]
     assert df["lat_min"].to_list() == pytest.approx([-1.0, -2.0])
@@ -54,7 +54,7 @@ def test_writes_empty_parquet_with_correct_schema_for_empty_input(tmp_path):
     sink.write([])
 
     df = polars.read_parquet(path)
-    assert df.schema == StructuredMetadata.polars_schema
+    assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 0
 
 
@@ -76,3 +76,15 @@ def test_writes_none_fields_as_null(tmp_path):
     df = polars.read_parquet(path)
     assert df["lat_min"][0] is None
     assert df["crs"][0] is None
+
+
+def test_appends_on_subsequent_writes(tmp_path):
+    path = tmp_path / "out.parquet"
+    sink = ParquetSink(path=path)
+
+    sink.write([make_metadata(s3_uri="s3://bucket/a.nc", lat_min=-1.0)])
+    sink.write([make_metadata(s3_uri="s3://bucket/b.nc", lat_min=-2.0)])
+
+    df = polars.read_parquet(path)
+    assert len(df) == 2
+    assert set(df["s3_uri"].to_list()) == {"s3://bucket/a.nc", "s3://bucket/b.nc"}

@@ -50,3 +50,15 @@ def test_creates_parent_directories_if_needed(tmp_path):
     sink.write({"s3://bucket/x.nc": {"key": "value"}})
 
     assert path.exists()
+
+
+def test_appends_on_subsequent_writes(tmp_path):
+    path = tmp_path / "out.parquet"
+    sink = ParquetSink(path=path)
+
+    sink.write({"s3://bucket/a.nc": {"title": "A"}})
+    sink.write({"s3://bucket/b.nc": {"title": "B"}})
+
+    df = polars.read_parquet(path)
+    assert len(df) == 2
+    assert set(df["s3_uri"].to_list()) == {"s3://bucket/a.nc", "s3://bucket/b.nc"}

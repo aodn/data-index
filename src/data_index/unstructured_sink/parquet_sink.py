@@ -27,4 +27,9 @@ class ParquetSink:
             else polars.DataFrame(schema=schema)
         )
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.path.exists():
+            if not rows:
+                return
+            existing_df = polars.read_parquet(self.path)
+            df = polars.concat([existing_df, df], how="vertical")
         df.write_parquet(self.path)
