@@ -76,3 +76,15 @@ def test_writes_none_fields_as_null(tmp_path):
     df = polars.read_parquet(path)
     assert df["lat_min"][0] is None
     assert df["crs"][0] is None
+
+
+def test_appends_on_subsequent_writes(tmp_path):
+    path = tmp_path / "out.parquet"
+    sink = ParquetSink(path=path)
+
+    sink.write([make_metadata(s3_uri="s3://bucket/a.nc", lat_min=-1.0)])
+    sink.write([make_metadata(s3_uri="s3://bucket/b.nc", lat_min=-2.0)])
+
+    df = polars.read_parquet(path)
+    assert len(df) == 2
+    assert set(df["s3_uri"].to_list()) == {"s3://bucket/a.nc", "s3://bucket/b.nc"}
