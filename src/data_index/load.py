@@ -24,7 +24,9 @@ def load(
     succeeded = [r for r in extraction_results if r.status == "succeeded"]
 
     structured = [
-        r.structured_metadata for r in succeeded if r.structured_metadata is not None
+        result.structured_metadata
+        for result in succeeded
+        if result.structured_metadata is not None
     ]
     structured_sink.write(structured)
     logger.info(f"Wrote {len(structured)} structured metadata rows")

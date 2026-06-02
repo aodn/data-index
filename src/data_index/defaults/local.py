@@ -11,7 +11,11 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
-from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
+from data_index.metadata_extractor import (
+    AttributeNetCDFExtractor,
+    NetCDFExtractor,
+    UnstructuedNetCDFExtractor,
+)
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
 from data_index.unstructured_metadata import (
     DiskCachedUnstructuredMetadata,
@@ -29,10 +33,10 @@ THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 
 # --- Local config ---
 BATCH_SIZE = 1_000
-MAX_WORKERS = 8  # concurrent batches (limits RAM/CPU pressure)
+MAX_WORKERS = 2  # concurrent batches (limits RAM/CPU pressure)
 S5CMD_WORKERS = 8  # s5cmd defaults to 256 — cap it for local runs
 TRANSFORM_WORKERS = (
-    4  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
+    16  # transform threads per batch (total = MAX_WORKERS × TRANSFORM_WORKERS)
 )
 
 # --- Live Inventory Source config
@@ -68,7 +72,7 @@ _greedy_partitioner = GreedyBatchPartitioner(
 _file_fetcher = S5CMDFetcher(num_workers=S5CMD_WORKERS, anon=True)
 
 # --- Metadata extractor ---
-_unstructured_netcdf_extractor = UnstructuedNetCDFExtractor()
+_attribute_netcdf_extractor = AttributeNetCDFExtractor()
 
 # --- Sink config ---
 _data_index_catalog_config = S3TablesCatalogConfig(
@@ -104,7 +108,8 @@ def run_index_local(
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
     extractor: NetCDFExtractor
-    | UnstructuedNetCDFExtractor = _unstructured_netcdf_extractor,
+    | UnstructuedNetCDFExtractor
+    | AttributeNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: StructuredParquetSink
     | StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredParquetSink
