@@ -2,9 +2,14 @@ import dataclasses
 
 import polars
 import pyarrow
-from pyiceberg.types import DoubleType, StringType
+from pyiceberg.types import DoubleType, ListType, StringType
 
 from data_index.structured_metadata import StructuredMetadata
+
+
+@dataclasses.dataclass
+class StructuredMetadataWithList(StructuredMetadata):
+    tags: list[str] | None = None
 
 
 def test_as_polars_schema_maps_required_and_optional_types():
@@ -33,3 +38,26 @@ def test_as_pyiceberg_schema_preserves_nullable_fields():
     assert schema.find_field("lat_min").field_type == DoubleType()
     assert schema.find_field("lat_min").required is False
     assert len(schema.fields) == len(dataclasses.fields(StructuredMetadata))
+
+
+def test_as_polars_schema_maps_optional_list_string():
+    schema = StructuredMetadataWithList.as_polars_schema()
+
+    assert schema["tags"] == polars.List(polars.String)
+
+
+def test_as_pyarrow_schema_maps_optional_list_string():
+    schema = StructuredMetadataWithList.as_pyarrow_schema()
+
+    assert schema.field("tags").type == pyarrow.list_(pyarrow.string())
+    assert schema.field("tags").nullable is True
+
+
+def test_as_pyiceberg_schema_maps_optional_list_string():
+    schema = StructuredMetadataWithList.as_pyiceberg_schema()
+    tags_field_type = schema.find_field("tags").field_type
+
+    assert isinstance(tags_field_type, ListType)
+    assert tags_field_type.element_type == StringType()
+    assert tags_field_type.element_id > 0
+    assert schema.find_field("tags").required is False
