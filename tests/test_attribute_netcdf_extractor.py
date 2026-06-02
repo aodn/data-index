@@ -111,3 +111,14 @@ def test_extract_sets_derived_lists_to_none_when_empty():
     assert result.structured_metadata.dimensions is None
     assert result.structured_metadata.variables is None
     assert result.structured_metadata.standard_names is None
+
+
+def test_extract_succeeds_with_surrogate_string_in_global_attrs():
+    extractor = AttributeNetCDFExtractor()
+    ds = xarray.Dataset(attrs={"title": f"{chr(0xDCFF)}bad"})
+
+    result = extractor.extract(StubHandle(ds))
+
+    assert result.status == "succeeded"
+    assert result.unstructured_metadata is not None
+    assert result.unstructured_metadata["global_attrs"]["title"] == "\\udcffbad"

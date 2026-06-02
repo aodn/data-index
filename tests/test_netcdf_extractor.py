@@ -190,6 +190,18 @@ def test_unstructured_metadata_with_numpy_bool_attribute_is_json_serialisable(
     assert data["global_attrs"]["is_calibrated"] is True
 
 
+def test_unstructured_metadata_with_surrogate_string_attribute_is_sanitized(extractor):
+    ds = make_dataset(
+        lat=[-5.0, 5.0],
+        global_attrs={"title": f"{chr(0xDCFF)}bad"},
+    )
+    result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
+
+    assert result.status == "succeeded"
+    assert result.unstructured_metadata["global_attrs"]["title"] == "\\udcffbad"
+    json.dumps(result.unstructured_metadata)
+
+
 def test_extracts_collection_as_second_path_segment(extractor):
     ds = xarray.Dataset()
     result = extractor.extract(
