@@ -75,12 +75,16 @@ class StructuredMetadata:
     keywords: str | None = None
     conventions: str | None = None
     file_version: str | None = None
-    file_version_quality_control: str | None = None
     metadata_uuid: str | None = None
     platform_code: str | None = None
     site_code: str | None = None
     deployment_code: str | None = None
     instrument: str | None = None
+    feature_type: str | None = None
+    instrument_serial_number: str | None = None
+    dimensions: list[str] | None = None
+    variables: list[str] | None = None
+    standard_names: list[str] | None = None
     file_format: str | None = None
     collection: str | None = None
 
@@ -185,7 +189,13 @@ class StructuredMetadata:
             return scalar_map[type_spec.scalar_type]
         if type_spec.item_type is None:
             raise ValueError("List type missing element type")
-        return pyarrow.list_(cls._to_pyarrow_type(type_spec.item_type))
+        return pyarrow.list_(
+            pyarrow.field(
+                "item",
+                cls._to_pyarrow_type(type_spec.item_type),
+                nullable=False,
+            )
+        )
 
     @classmethod
     def _to_pyiceberg_type(

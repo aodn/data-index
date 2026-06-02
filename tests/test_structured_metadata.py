@@ -48,8 +48,12 @@ def test_as_polars_schema_maps_optional_list_string():
 
 def test_as_pyarrow_schema_maps_optional_list_string():
     schema = StructuredMetadataWithList.as_pyarrow_schema()
+    tags_type = schema.field("tags").type
 
-    assert schema.field("tags").type == pyarrow.list_(pyarrow.string())
+    assert tags_type == pyarrow.list_(
+        pyarrow.field("item", pyarrow.string(), nullable=False)
+    )
+    assert tags_type.value_field.nullable is False
     assert schema.field("tags").nullable is True
 
 
@@ -61,3 +65,14 @@ def test_as_pyiceberg_schema_maps_optional_list_string():
     assert tags_field_type.element_type == StringType()
     assert tags_field_type.element_id > 0
     assert schema.find_field("tags").required is False
+
+
+def test_structured_metadata_field_contract_updates():
+    field_names = [field.name for field in dataclasses.fields(StructuredMetadata)]
+
+    assert "file_version_quality_control" not in field_names
+    assert "feature_type" in field_names
+    assert "instrument_serial_number" in field_names
+    assert "dimensions" in field_names
+    assert "variables" in field_names
+    assert "standard_names" in field_names
