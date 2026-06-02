@@ -5,6 +5,7 @@ import typing
 import polars
 import prefect
 import prefect.cache_policies
+import prefect.futures
 import prefect.task_runners
 
 from data_index.extract import extract
@@ -103,7 +104,7 @@ def orchestrate(
         for batch in partitioner.partition(inventory)
     ]
 
-    for future in futures:
-        future.result()
+    # Block until all batches completed
+    prefect.futures.wait(futures)
 
     logger.info("All batches complete")
