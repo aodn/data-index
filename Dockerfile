@@ -23,7 +23,7 @@ WORKDIR /app
 COPY requirements.txt constraints.txt dist/*.whl ./
 
 # Install app
-RUN uv pip install --system --compile-bytecode -c constraints.txt -r requirements.txt *.whl
+RUN uv pip install --system --compile-bytecode -r requirements.txt *.whl
 
 # --------------------------------------------------------------------
 # --- Test Target ---
@@ -36,7 +36,7 @@ COPY pyproject.toml README.md ./
 
 # Install dev dependencies
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
-RUN uv pip install --system --group dev -c constraints.txt
+RUN uv pip install --system --group dev
 
 # Run tests
 RUN pytest tests/ -v
