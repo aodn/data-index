@@ -8,6 +8,12 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+build-constraints = [
+    { name = "prefect", specifier = "==3.6.28" },
+    { name = "prefect-aws", specifier = "==0.7.7" },
+]
+
 [[package]]
 name = "aiobotocore"
 version = "3.7.0"

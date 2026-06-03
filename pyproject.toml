@@ -1,7 +1,7 @@
 [project]
 name = "data-index"
 dynamic = ["version"]
-description = "Add your description here"
+description = "AODN Data Indexer for the `imos-data` public bucket."
 readme = "README.md"
 authors = [
     { name = "Tom Galindo", email = "98626996+thommodin@users.noreply.github.com" }
@@ -28,6 +28,12 @@ dependencies = [
     "sh>=2.2.2",
     "vl-convert-python>=1.9.0.post1",
     "xarray>=2026.4.0",
+]
+
+[tool.uv]
+build-constraint-dependencies = [
+    "prefect==3.6.28",
+    "prefect-aws==0.7.7",
 ]
 
 [build-system]
