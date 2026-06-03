@@ -9,7 +9,7 @@ resolution-markers = [
 ]
 
 [manifest]
-build-constraints = [
+constraints = [
     { name = "prefect", specifier = "==3.6.28" },
     { name = "prefect-aws", specifier = "==0.7.7" },
 ]

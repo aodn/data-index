@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [tool.uv]
-build-constraint-dependencies = [
+constraint-dependencies = [
     "prefect==3.6.28",
     "prefect-aws==0.7.7",
 ]
