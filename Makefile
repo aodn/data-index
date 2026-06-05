@@ -1,7 +1,11 @@
 # Define all abstract commands here
-.PHONY: test test-image init 
+.PHONY: test test-image init lint
 
-# Rune tests
+# Lint
+lint:
+	uvx ruff check --fix && uvx ruff format
+
+# Run tests
 test:
 	uv run pytest tests/ -v
 

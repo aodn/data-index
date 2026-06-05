@@ -9,12 +9,12 @@ from data_index.cluster import DockerImage, PrefectFargateClusterConfig
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
-    IcebergTableScanConfig,
     S3TablesCatalogConfig,
 )
-from data_index.inventory_source import LiveS3InventorySource, ParquetInventorySource
-from data_index.inventory_source.live_s3_facility_subset import (
-    LiveS3InventorySourceFacilitySubset,
+from data_index.inventory_source import (
+    LiveS3InventorySource,
+    ParquetInventorySource,
+    S3TableInventorySource,
 )
 from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
 from data_index.structured_metadata import StructuredMetadata
@@ -41,30 +41,18 @@ TRANSFORM_MAX_WORKERS = 32
 # --- Live Inventory Source config
 _s3_metadata_catalog_config = S3TablesCatalogConfig(
     region=REGION,
-    arn="arn:aws:s3tables:ap-southeast-2:104044260116:bucket/aws-s3",
+    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/imos-data-inventory",
 )
 
 _inventory_table_config = IcebergTableConfig(
     catalog_config=_s3_metadata_catalog_config,
-    namespace="b_imos-data",
-    table_name="inventory",
+    namespace="inventory",
+    table_name="live",
 )
 
-_inventory_table_scan_config = IcebergTableScanConfig(
-    row_filter="key LIKE 'IMOS/%'",
-)
-
-_live_inventory_source = LiveS3InventorySourceFacilitySubset(
+_live_inventory_source = S3TableInventorySource(
     table_config=_inventory_table_config,
-    table_scan_config=_inventory_table_scan_config,
-    path=pathlib.Path(".extract/s3_metadata"),
-    skip_if_exists=True,
-    subset_per_facility=2_000,
-)
-
-# --- Static Inventory Source config ---
-_static_inventory_source = ParquetInventorySource(
-    source="s3://aodn-dataflow-dev/thomas.galindo/processing/stored/s3_metadata/"
+    subset_per_facility=10_000,
 )
 
 # --- Partitioner config ---
