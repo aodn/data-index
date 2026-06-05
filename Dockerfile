@@ -20,7 +20,7 @@ FROM base AS app
 WORKDIR /app
 
 # Copy everything needed for the application install at once
-COPY requirements.txt constraints.txt dist/*.whl ./
+COPY requirements.txt dist/*.whl ./
 
 # Install app
 RUN uv pip install --system --compile-bytecode -r requirements.txt *.whl
