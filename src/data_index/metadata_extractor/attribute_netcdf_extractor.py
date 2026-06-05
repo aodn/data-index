@@ -57,6 +57,9 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         :returns: Structured metadata row.
         """
 
+        # TODO:
+        # For dimensions, capture the sizes of the dimensions not just the names
+
         metadata_kwargs = {
             "s3_uri": s3_uri,
             "file_format": file_format,
