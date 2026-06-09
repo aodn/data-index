@@ -82,12 +82,12 @@ def orchestrate(
     if metadata_factory is None:
         metadata_factory = DiskCachedUnstructuredMetadata
 
+    logger.info(f"Provisioning inventory: `{inventory_source}`")
+    inventory = inventory_source.inventory()
+
     logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
     structured_sink.provision()
     unstructured_sink.provision()
-
-    logger.info(f"Provisioning inventory: `{inventory_source}`")
-    inventory = inventory_source.inventory()
 
     logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
     logger.info(f"Dispatching ({len(inventory)} files total)")
