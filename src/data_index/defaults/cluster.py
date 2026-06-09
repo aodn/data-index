@@ -16,7 +16,11 @@ from data_index.inventory_source import (
     ParquetInventorySource,
     S3TableInventorySource,
 )
-from data_index.metadata_extractor import NetCDFExtractor, UnstructuedNetCDFExtractor
+from data_index.metadata_extractor import (
+    AttributeNetCDFExtractor,
+    NetCDFExtractor,
+    UnstructuedNetCDFExtractor,
+)
 from data_index.structured_metadata import StructuredMetadata
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
 from data_index.unstructured_metadata import (
@@ -69,7 +73,7 @@ _file_fetcher = ThresholdFileFetcher(
 )
 
 # --- Metadata extractor ---
-_unstructured_netcdf_extractor = UnstructuedNetCDFExtractor()
+_attribute_netcdf_extractor = AttributeNetCDFExtractor()
 
 # --- Sink config ---
 _data_index_catalog_config = S3TablesCatalogConfig(
@@ -101,7 +105,7 @@ _unstructured_s3_table_sink = UnstructuredS3TableSink(
 docker_image = DockerImage(
     name=f"{ECR_REGISTRY}/prefect",
     tag="prefect-dask",
-    dockerfile=pathlib.Path("src/data_index/cluster/Dockerfile"),
+    dockerfile=pathlib.Path("Dockerfile"),
 )
 
 # --- Fargate Cluster config ---
@@ -119,11 +123,13 @@ _fargate_cluster_options = PrefectFargateClusterConfig(
 @prefect.flow
 def run_index_cluster(
     inventory_source: LiveS3InventorySource
-    | ParquetInventorySource = _live_inventory_source,
+    | ParquetInventorySource
+    | S3TableInventorySource = _live_inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
-    extractor: NetCDFExtractor
-    | UnstructuedNetCDFExtractor = _unstructured_netcdf_extractor,
+    extractor: AttributeNetCDFExtractor
+    | NetCDFExtractor
+    | UnstructuedNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: StructuredParquetSink
     | StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredParquetSink
@@ -148,23 +154,33 @@ def run_index_cluster(
                 f"{unstructured_sink.iceberg_table_config.table_name}_{flow_run_id}"
             )
 
-    # Run with cluster options
-    data_index.orchestrate.with_options(
-        task_runner=prefect_dask.DaskTaskRunner(
-            cluster_class="dask_cloudprovider.aws.FargateCluster",
-            cluster_kwargs=fargate_cluster_options.model_dump(exclude_none=True),
-        ),
-    )(
-        inventory_source,
-        partitioner,
-        fetcher,
-        extractor,
-        structured_sink,
-        unstructured_sink,
-        metadata_factory,
-        transform_max_workers,
-    )
+    # Run in try finally block to ensure cluster de-provision
+    try:
+        # Run with cluster options
+        data_index.orchestrate.with_options(
+            task_runner=prefect_dask.DaskTaskRunner(
+                cluster_class="dask_cloudprovider.aws.FargateCluster",
+                cluster_kwargs=fargate_cluster_options.model_dump(exclude_none=True),
+            ),
+        )(
+            inventory_source,
+            partitioner,
+            fetcher,
+            extractor,
+            structured_sink,
+            unstructured_sink,
+            metadata_factory,
+            transform_max_workers,
+        )
+    finally:
+        ...
 
 
 if __name__ == "__main__":
-    run_index_cluster()
+    # # Upload the task image
+    # prefect_docker_image = docker_image.PrefectDockerImage
+    # prefect_docker_image.build()
+    # prefect_docker_image.push()
+    run_index_cluster.serve(
+        name="run-index-cluster",
+    )
