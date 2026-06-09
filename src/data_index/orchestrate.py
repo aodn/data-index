@@ -105,6 +105,8 @@ def orchestrate(
     ]
 
     # Block until all batches completed
-    prefect.futures.wait(futures)
-
+    futures = prefect.futures.wait(futures)
+    for future in futures.done:
+        logger.info(future.state)
+        logger.info(future.result(raise_on_failure=False))
     logger.info("All batches complete")
