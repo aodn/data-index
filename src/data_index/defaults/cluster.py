@@ -117,6 +117,8 @@ _fargate_cluster_options = PrefectFargateClusterConfig(
     scheduler_mem=16384,
     worker_cpu=4096,
     worker_mem=16384,
+    execution_role_arn="arn:aws:iam::704910415367:role/prefect-dask-execution",
+    task_role_arn="arn:aws:iam::704910415367:role/prefect-dask-task",
 )
 
 
