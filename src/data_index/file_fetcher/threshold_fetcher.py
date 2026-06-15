@@ -1,3 +1,5 @@
+import typing
+
 import prefect.artifacts
 import pydantic
 
@@ -12,6 +14,10 @@ class ThresholdFileFetcher(pydantic.BaseModel):
     Entries with size_bytes >= size_threshold_bytes, or with size_bytes=None, are routed to
     cloud_fetcher (byte-range reads via fsspec — no up front download required).
     """
+
+    type: typing.Literal["threshold_fetcher"] = pydantic.Field(
+        default="threshold_fetcher"
+    )
 
     size_threshold_bytes: int
     disk_fetcher: S5CMDFetcher

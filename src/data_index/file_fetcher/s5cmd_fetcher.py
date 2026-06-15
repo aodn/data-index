@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import re
+import typing
 
 import cloudpathlib
 import pydantic
@@ -14,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 class S5CMDFetcher(pydantic.BaseModel):
     """FileFetcher implementation that downloads files from S3 using S5CMD."""
+
+    type: typing.Literal["s5cmd_fetcher"] = pydantic.Field(default="s5cmd_fetcher")
 
     extract_path: pathlib.Path = pydantic.Field(
         default_factory=lambda: pathlib.Path("/tmp")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import typing
 
 import cloudpathlib
 import polars
@@ -12,6 +13,8 @@ class ParquetInventorySource(pydantic.BaseModel):
 
     The Parquet file must have `s3_uri` (String) and `size` (Int64) columns.
     """
+
+    type: typing.Literal["parquet"] = pydantic.Field(default="parquet")
 
     source: pathlib.Path | cloudpathlib.S3Path | str
 

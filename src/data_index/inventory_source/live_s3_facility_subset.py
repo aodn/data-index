@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import typing
 
 import polars
 import pydantic
@@ -18,6 +19,10 @@ class LiveS3InventorySourceFacilitySubset(LiveS3InventorySource):
     If skip_if_exists=True (default) and the target path already contains parquet files,
     the ETL is skipped and the existing data is returned directly.
     """
+
+    type: typing.Literal["live_s3_facility_subset"] = pydantic.Field(
+        default="live_s3_facility_subset"
+    )
 
     subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
 
