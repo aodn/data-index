@@ -1,3 +1,5 @@
+import typing
+
 import cloudpathlib
 import pydantic
 
@@ -13,6 +15,8 @@ class S3Fetcher(pydantic.BaseModel):
 
     It passes back handles that intelligently query header information from NetCDF files in Cloud.
     """
+
+    type: typing.Literal["s3_fetcher"] = pydantic.Field(default="s3_fetcher")
 
     block_size: int = pydantic.Field(default=1024**2)
 

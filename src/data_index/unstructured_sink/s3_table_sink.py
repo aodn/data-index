@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import random
 import time
+import typing
 
 import pyarrow as pa
 import pydantic
@@ -41,6 +42,8 @@ class UnstructuredS3TableSink(pydantic.BaseModel):
     Metadata is JSON-encoded. Concurrent appends from multiple workers are safe —
     OCC conflicts are retried with exponential backoff.
     """
+
+    type: typing.Literal["s3_table_sink"] = pydantic.Field(default="s3_table_sink")
 
     _ICEBERG_SCHEMA: Schema = pydantic.PrivateAttr(
         default_factory=lambda: Schema(

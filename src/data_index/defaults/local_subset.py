@@ -1,6 +1,7 @@
 import pathlib
 
 import prefect
+import prefect_dask
 
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
@@ -18,7 +19,6 @@ from data_index.unstructured_sink import (
 )
 
 from .local import (
-    MAX_WORKERS,
     S5CMD_WORKERS,
     TRANSFORM_WORKERS,
     extractor,
@@ -83,9 +83,7 @@ def run_index_local_subset(
     metadata_factory=None,
     transform_max_workers: int | None = TRANSFORM_WORKERS,
 ):
-    run_index_local.with_options(
-        task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=MAX_WORKERS)
-    )(
+    run_index_local.with_options(task_runner=prefect_dask.DaskTaskRunner())(
         inventory_source=inventory_source,
         partitioner=partitioner,
         fetcher=fetcher,

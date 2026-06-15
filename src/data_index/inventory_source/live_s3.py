@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+import typing
 
 import polars
 import pydantic
@@ -22,6 +23,8 @@ class LiveS3InventorySource(pydantic.BaseModel):
     If skip_if_exists=True (default) and the target path already contains parquet files,
     the ETL is skipped and the existing data is returned directly.
     """
+
+    type: typing.Literal["live_s3"] = pydantic.Field(default="live_s3")
 
     table_config: IcebergTableConfig
     table_scan_config: IcebergTableScanConfig

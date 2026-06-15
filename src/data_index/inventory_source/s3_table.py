@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import typing
+
 import polars
 import pydantic
 
@@ -10,6 +12,8 @@ from data_index.inventory_source import LiveS3InventorySource
 
 class S3TableInventorySource(LiveS3InventorySource):
     """InventorySource that runs on a pre-live-evaluated S3 Metadata Table."""
+
+    type: typing.Literal["s3_table"] = pydantic.Field(default="s3_table")
 
     subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
     table_config: IcebergTableConfig

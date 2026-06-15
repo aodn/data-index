@@ -23,6 +23,13 @@ from data_index.transform import transform
 from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
+@prefect.task
+def _warm_task_runner():
+    logger = prefect.get_run_logger()
+    runner = prefect.context.FlowRunContext.get().task_runner
+    logger.info(f"Warming up task runner ({type(runner)})...")
+
+
 @prefect.task(retries=2, cache_policy=prefect.cache_policies.NO_CACHE)
 def _process_batch(
     batch_df: polars.DataFrame,
@@ -78,7 +85,14 @@ def orchestrate(
         metadata_factory: callable(s3_uri, data) → UnstructuredMetadata
         transform_max_workers: max threads per batch in the transform step; None uses Python's default
     """
+
     logger = prefect.get_run_logger()
+
+    # Warm up the task runner
+    future = [_warm_task_runner.submit()]
+    prefect.futures.wait(future)
+    logger.info("Cluster is warm. Dispatching ETL batch workers...")
+
     if metadata_factory is None:
         metadata_factory = DiskCachedUnstructuredMetadata
 
@@ -91,6 +105,8 @@ def orchestrate(
 
     logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
     logger.info(f"Dispatching ({len(inventory)} files total)")
+
+    # Submit batches
     futures = [
         _process_batch.submit(
             batch_df=batch,
@@ -104,9 +120,10 @@ def orchestrate(
         for batch in partitioner.partition(inventory)
     ]
 
-    # Block until all batches completed
-    futures = prefect.futures.wait(futures)
-    for future in futures.done:
+    # Stream results
+    logger.info(f"All {len(futures)} batches dispatched. Streaming results...")
+    for future in prefect.futures.as_completed(futures=futures):
         logger.info(future.state)
         logger.info(future.result(raise_on_failure=False))
+
     logger.info("All batches complete")

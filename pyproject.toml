@@ -22,6 +22,7 @@ dependencies = [
     "prefect-aws>=0.7.7",
     "prefect-dask>=0.3.6",
     "pyarrow>=24.0.0",
+    "pydantic>=2.13.4",
     "pyiceberg>=0.11.1",
     "s3fs>=2026.4.0",
     "scipy>=1.17.1",

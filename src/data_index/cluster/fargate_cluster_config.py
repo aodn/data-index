@@ -83,6 +83,10 @@ class PrefectFargateClusterConfig(pydantic.BaseModel):
     tags: dict[str, str] = pydantic.Field(
         default_factory=dict, description="AWS Tags applied to all resources."
     )
+    skip_cleanup: bool = pydantic.Field(
+        default=False,
+        description="Skip cleaning up of stale resources. Useful if you have lots of resources and this operation takes awhile.",
+    )
 
     # TODO: Needs re-work against actual fargate constraints; these are hallucinated nonsense
     # @pydantic.model_validator(mode="after")

@@ -1,3 +1,5 @@
+import typing
+
 import pydantic
 import xarray
 
@@ -10,6 +12,10 @@ from data_index.structured_metadata import StructuredMetadata
 
 class AttributeNetCDFExtractor(pydantic.BaseModel):
     """Metadata extractor for CF-compliant NetCDF datasets via xarray."""
+
+    type: typing.Literal["attribute_netcdf_extractor"] = pydantic.Field(
+        default="attribute_netcdf_extractor"
+    )
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
         """Extract structured and unstructured metadata for one handle.

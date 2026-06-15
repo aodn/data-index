@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import random
 import time
+import typing
 
 import pyarrow as pa
 import pydantic
@@ -29,6 +30,8 @@ class StructuredS3TableSink(pydantic.BaseModel):
     hook. Concurrent appends from multiple workers are safe — OCC conflicts are retried with
     exponential backoff.
     """
+
+    type: typing.Literal["s3_table_sink"] = pydantic.Field(default="s3_table_sink")
 
     _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
 
