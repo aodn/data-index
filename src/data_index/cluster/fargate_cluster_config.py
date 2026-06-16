@@ -49,6 +49,7 @@ class PrefectFargateClusterConfig(pydantic.BaseModel):
 
     worker_cpu: int = pydantic.Field(default=4096)
     worker_mem: int = pydantic.Field(default=16384)
+    worker_nthreads: int = pydantic.Field(default=1)
     n_workers: int | None = pydantic.Field(
         default=None, gt=0, description="Initial worker count."
     )
