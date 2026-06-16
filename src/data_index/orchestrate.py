@@ -25,6 +25,10 @@ from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 @prefect.task
 def _warm_task_runner():
+    """
+    Essentially does nothing, but allows a dask cluster to provision
+    in the background if necesssary.
+    """
     logger = prefect.get_run_logger()
     runner = prefect.context.FlowRunContext.get().task_runner
     logger.info(f"Warming up task runner ({type(runner)})...")
@@ -90,23 +94,32 @@ def orchestrate(
 
     # Warm up the task runner
     future = [_warm_task_runner.submit()]
-    prefect.futures.wait(future)
-    logger.info("Cluster is warm. Dispatching ETL batch workers...")
 
+    # Set the unstructured metadata factory
+    # This is in place to allow switching from
+    # in memory json to on disk json...
+    # Unstructured metadata can be quite large
     if metadata_factory is None:
         metadata_factory = DiskCachedUnstructuredMetadata
 
+    # Provision the inventory (files to index)
     logger.info(f"Provisioning inventory: `{inventory_source}`")
     inventory = inventory_source.inventory()
 
+    # Provision the sinks
     logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
     structured_sink.provision()
     unstructured_sink.provision()
 
-    logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
-    logger.info(f"Dispatching ({len(inventory)} files total)")
+    # Wait for task runner
+    prefect.futures.wait(future)
+    logger.info("Cluster is warm. Dispatching ETL batch workers...")
 
-    # Submit batches
+    # Dispatch
+    # Note: Scheduler has to be able to hold all the dispatch
+    # data; that includes all s3 keys.
+    logger.info(f"Dispatching ({len(inventory)} files total)")
+    logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
     futures = [
         _process_batch.submit(
             batch_df=batch,
@@ -125,5 +138,4 @@ def orchestrate(
     for future in prefect.futures.as_completed(futures=futures):
         logger.info(future.state)
         logger.info(future.result(raise_on_failure=False))
-
     logger.info("All batches complete")
