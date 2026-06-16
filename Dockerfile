@@ -11,7 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         libnetcdf-dev \
         libgomp1 \
+        curl \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy and execute the s5cmd installation script
+COPY install_s5cmd.sh /tmp/install_s5cmd.sh
+RUN chmod +x /tmp/install_s5cmd.sh && \
+    /tmp/install_s5cmd.sh && \
+    rm /tmp/install_s5cmd.sh
 
 # --------------------------------------------------------------------
 # --- App Target ---
