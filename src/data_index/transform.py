@@ -36,7 +36,7 @@ def _transform_single(
                 status="failed",
                 error=raw.error,
             )
-        # logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
+        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
         return ExtractionResult(
             s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
@@ -82,12 +82,19 @@ def transform(
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
     logger = prefect.get_run_logger()
+
+    # Create progress artifact
+    logger.info("Creating progress artifact")
     total = len(xarray_handles)
     progress_artifact_id = prefect.artifacts.create_progress_artifact(
         progress=0.0,
         description=f"Transforming {total} files",
     )
+
+    # Setting up work pool
+    logger.info("Construct thread pool executor")
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+        logger.info("Submitting files for extraction...")
         futures = {
             pool.submit(
                 _transform_single,
@@ -98,7 +105,10 @@ def transform(
             )
             for xarray_handle in xarray_handles
         }
+        logger.info("Files submitted for extraction!")
         results = []
+
+        logger.info("Parsing extraction futures...")
         for done_count, future in enumerate(
             concurrent.futures.as_completed(futures), start=1
         ):
@@ -107,11 +117,15 @@ def transform(
                 artifact_id=progress_artifact_id,
                 progress=done_count / total * 100 if total else 100.0,
             )
+        logger.info("Parsed extraction futures!")
 
     # Release handle resources (e.g. delete local files for DiskXarrayHandle)
+    logger.info("Cleaning up xarray handles...")
     for xarray_handle in xarray_handles:
         xarray_handle.cleanup()
+    logger.info("Cleaned up xarray handles!")
 
+    logger.info("Summarising failed and succeeded metadata extractions...")
     failed = [r for r in results if r.status == "failed"]
     succeeded = [r for r in results if r.status == "succeeded"]
 
@@ -127,6 +141,7 @@ def transform(
         description=f"{len(failed)}/{len(results)} files failed",
     )
 
+    logger.info("Collating structured sample...")
     structured = [
         r.structured_metadata for r in succeeded if r.structured_metadata is not None
     ]
@@ -147,6 +162,7 @@ def transform(
         description=f"First {min(_SAMPLE, len(structured))} rows of structured metadata ({len(structured)} total)",
     )
 
+    logger.info("Collating unstructured sample...")
     if succeeded:
         sample_result = succeeded[0]
         if sample_result.unstructured_metadata is not None:
@@ -163,4 +179,5 @@ def transform(
                 description=f"Unstructured metadata sample from {sample_result.s3_uri}",
             )
 
+    logger.info("Transform complete!")
     return results
