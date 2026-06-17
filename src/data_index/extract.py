@@ -29,9 +29,12 @@ def extract(
 
     logger = prefect.get_run_logger()
 
-    if batch_df.schema != batch_schema:
+    # Check schema, ignoring order
+    if dict(batch_df.schema) != dict(batch_schema):
         raise ValueError(
-            f"Batch schema mismatch: expected {batch_schema}, got {batch_df.schema}"
+            f"Batch schema mismatch (ignoring order):\n"
+            f"Expected: {dict(batch_schema)}\n"
+            f"Got:      {dict(batch_df.schema)}"
         )
 
     if batch_df["s3_uri"].null_count() > 0:
