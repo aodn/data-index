@@ -36,7 +36,7 @@ def _transform_single(
                 status="failed",
                 error=raw.error,
             )
-        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
+        # logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
         return ExtractionResult(
             s3_uri=xarray_handle.s3_uri,
             structured_metadata=raw.structured_metadata,
