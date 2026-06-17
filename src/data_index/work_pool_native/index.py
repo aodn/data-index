@@ -35,7 +35,7 @@ BATCH_SIZE = 1_000
 OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
 THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
 S5CMD_WORKERS = 8
-TRANSFORM_MAX_WORKERS = 32
+TRANSFORM_MAX_WORKERS = 4
 
 
 # --- Live Inventory Source config
@@ -106,6 +106,7 @@ def index_batch(
     extractor,
     structured_sink,
     unstructured_sink,
+    transform_max_workers: int,
 ):
     flow_run = prefect.deployments.run_deployment(
         name=f"{index_batch_flow_name}/{index_batch_deployment_name}",
@@ -116,6 +117,7 @@ def index_batch(
             "extractor": extractor,
             "structured_sink": structured_sink,
             "unstructured_sink": unstructured_sink,
+            "transform_max_workers": transform_max_workers,
         },
     )
 
@@ -140,6 +142,7 @@ def run_index_work_pool(
     | UnstructuredS3TableSink = _unstructured_s3_table_sink,
     index_batch_flow_name="index-batch",
     index_batch_deployment_name="index-batch",
+    transform_max_workers: int = TRANSFORM_MAX_WORKERS,
 ):
 
     logger = prefect.get_run_logger()
@@ -169,6 +172,7 @@ def run_index_work_pool(
             extractor=extractor,
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
+            transform_max_workers=transform_max_workers,
         )
         for i, batch_df in enumerate(
             iterable=partitioner.partition(inventory=inventory),

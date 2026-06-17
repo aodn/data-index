@@ -24,7 +24,7 @@ def index_batch(
     extractor: AttributeNetCDFExtractor | NetCDFExtractor | UnstructuedNetCDFExtractor,
     structured_sink: StructuredParquetSink | StructuredS3TableSink,
     unstructured_sink: UnstructuredParquetSink | UnstructuredS3TableSink,
-    transform_max_workers: int | None = None,
+    transform_max_workers: int,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
