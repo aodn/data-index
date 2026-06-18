@@ -24,10 +24,11 @@ _BASE_BACKOFF = 0.5
 
 
 class StructuredS3TableSink(pydantic.BaseModel):
-    """StructuredSink implementation that appends Structured Metadata to a pre-provisioned Iceberg table.
+    """StructuredSink implementation that upserts Structured Metadata to a pre-provisioned Iceberg table.
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
-    hook. Concurrent appends from multiple workers are safe — OCC conflicts are retried with
+    hook. Writes upsert on `s3_uri` (latest row wins within a batch and across writes).
+    Concurrent upserts from multiple workers are safe — OCC conflicts are retried with
     exponential backoff.
     """
 
@@ -77,10 +78,10 @@ class StructuredS3TableSink(pydantic.BaseModel):
     def write(self, data: list[StructuredMetadata]) -> None:
         if not data:
             return
-        arrow_table = self._to_arrow(data)
+        arrow_table = self._to_arrow(self._dedupe_by_s3_uri(data))
         for attempt in range(_MAX_RETRIES):
             try:
-                self.table.append(arrow_table)
+                self.table.upsert(arrow_table, join_cols=["s3_uri"])
                 return
             except CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
@@ -110,3 +111,10 @@ class StructuredS3TableSink(pydantic.BaseModel):
             [dataclasses.asdict(row) for row in data],
             schema=StructuredMetadata.as_pyarrow_schema(),
         )
+
+    @staticmethod
+    def _dedupe_by_s3_uri(data: list[StructuredMetadata]) -> list[StructuredMetadata]:
+        deduped: dict[str, StructuredMetadata] = {}
+        for row in data:
+            deduped[row.s3_uri] = row
+        return list(deduped.values())

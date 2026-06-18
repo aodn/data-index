@@ -78,18 +78,18 @@ A pluggable component that, given an **XarrayHandle**, extracts both Structured 
 _Avoid_: parser, reader
 
 **StructuredSink**:
-A pluggable component that prepares and persists a Structured Metadata DataFrame to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by legacy field `collection` (domain: **Facility**) then year (from `time_min`; null `time_min` goes to the null partition bucket); appends on each write and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
+A pluggable component that prepares and persists a Structured Metadata DataFrame to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by legacy field `collection` (domain: **Facility**) then year (from `time_min`; null `time_min` goes to the null partition bucket); upserts on `s3_uri` (latest write wins) and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata dicts (keyed by `s3_uri`) to a final destination store. Receives `dict[str, dict]` — callers resolve `UnstructuredMetadata.load()` before passing. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg with schema `(s3_uri STRING, collection STRING, metadata STRING)` where legacy column `collection` stores **Facility** derived from `s3_uri`, and `metadata` is JSON-encoded.
+A pluggable component that prepares and persists Unstructured Metadata dicts (keyed by `s3_uri`) to a final destination store. Receives `dict[str, dict]` — callers resolve `UnstructuredMetadata.load()` before passing. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg with schema `(s3_uri STRING, collection STRING, metadata STRING)` where legacy column `collection` stores **Facility** derived from `s3_uri`, `metadata` is JSON-encoded, and rows are upserted on `s3_uri` (latest write wins).
 _Avoid_: writer, exporter
 
 ## Constraints
 
 - `XarrayHandle.cleanup()` is called after `transform` completes; implementations decide what cleanup means (e.g. `DiskXarrayHandle` deletes the local file, `S3XarrayHandle` is a no-op)
 - `sink.provision()` must be called before any `sink.write()` calls — the **Orchestrator**'s `pre_run` hook is the canonical place to do this
-- The caller is responsible for ensuring no `s3_uri` appears more than once across pipeline runs
+- S3-table sinks own idempotency for `s3_uri` by upserting (latest write wins); this applies forward from the upsert change and does not retroactively deduplicate historical append-era duplicates
 - diskcache is keyed by `s3_uri`
 - The `StructuredSink` enforces the Structured Metadata schema on write
 - `StructuredMetadata` dataclass is schema source-of-truth for Polars, PyArrow, and Iceberg representations
@@ -110,7 +110,7 @@ _Avoid_: build pipeline, validation pipeline
 ## Example dialogue
 
 > **Dev:** "Should we re-index a file if we've already seen it?"
-> **Domain expert:** "The upstream process controls the **Batch** — it shouldn't send us the same `s3_uri` twice. We trust it to handle that."
+> **Domain expert:** "Yes. Re-indexing the same `s3_uri` is safe — the S3-table sinks upsert by `s3_uri`, so the latest write replaces earlier values."
 
 > **Dev:** "Why do we store **Unstructured Metadata** in diskcache instead of just a JSON file?"
 > **Domain expert:** "The schema varies wildly across datasets. We need concurrent writes from Prefect tasks and a format we can query later. Diskcache gives us that before we decide on a permanent store like DynamoDB."
