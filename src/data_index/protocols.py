@@ -53,7 +53,7 @@ class XarrayHandle(typing.Protocol):
 
     @property
     def ds(self) -> xarray.Dataset:
-        """Return an xarray dataset"""
+        """Return a handle-local singleton xarray dataset."""
         ...
 
     def cleanup(self) -> None:

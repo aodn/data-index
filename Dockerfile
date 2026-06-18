@@ -34,6 +34,15 @@ COPY requirements.txt dist/*.whl ./
 RUN uv pip install --system --compile-bytecode -r requirements.txt *.whl
 
 # --------------------------------------------------------------------
+# --- Local Dev App Target ---
+# --------------------------------------------------------------------
+FROM app AS app-local-dev
+
+# Local-only AWS credentials for Docker debugging.
+# Populate .docker/local-aws/credentials and optionally .docker/local-aws/config.
+COPY .docker/local-aws/ /root/.aws/
+
+# --------------------------------------------------------------------
 # --- Test Target ---
 # --------------------------------------------------------------------
 FROM app AS test

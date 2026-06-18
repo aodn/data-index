@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import concurrent.futures
 import logging
 import typing
 
@@ -70,14 +69,13 @@ def transform(
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
-    Runs one _transform_single call per file in parallel via a thread pool. Each call
-    immediately persists unstructured metadata via metadata_factory(s3_uri, data).
-    Releases handle resources after all threads complete.
+    Runs _transform_single sequentially for each file. Each call immediately
+    persists unstructured metadata via metadata_factory(s3_uri, data). Releases
+    handle resources after all files are processed.
 
     Args:
-        max_workers: Maximum threads for the internal pool. None uses Python's default
-            (min(32, cpu_count + 4)). Set explicitly when multiple batches run
-            concurrently to avoid thread explosion across workers.
+        max_workers: Retained for API compatibility and ignored. Extraction runs
+            sequentially.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
@@ -91,33 +89,24 @@ def transform(
         description=f"Transforming {total} files",
     )
 
-    # Setting up work pool
-    logger.info("Construct thread pool executor")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        logger.info("Submitting files for extraction...")
-        futures = {
-            pool.submit(
-                _transform_single,
+    _ = max_workers  # Retained for backward compatibility.
+
+    logger.info("Running extraction sequentially...")
+    results = []
+    for done_count, xarray_handle in enumerate(xarray_handles, start=1):
+        results.append(
+            _transform_single(
                 xarray_handle=xarray_handle,
                 extractor=extractor,
                 unstructured_metadata_factory=metadata_factory,
                 logger=logger,
             )
-            for xarray_handle in xarray_handles
-        }
-        logger.info("Files submitted for extraction!")
-        results = []
-
-        logger.info("Parsing extraction futures...")
-        for done_count, future in enumerate(
-            concurrent.futures.as_completed(futures), start=1
-        ):
-            results.append(future.result())
-            prefect.artifacts.update_progress_artifact(
-                artifact_id=progress_artifact_id,
-                progress=done_count / total * 100 if total else 100.0,
-            )
-        logger.info("Parsed extraction futures!")
+        )
+        prefect.artifacts.update_progress_artifact(
+            artifact_id=progress_artifact_id,
+            progress=done_count / total * 100 if total else 100.0,
+        )
+    logger.info("Sequential extraction complete!")
 
     # Release handle resources (e.g. delete local files for DiskXarrayHandle)
     logger.info("Cleaning up xarray handles...")

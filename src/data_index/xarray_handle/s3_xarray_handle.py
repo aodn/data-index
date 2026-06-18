@@ -15,6 +15,7 @@ class S3XarrayHandle(pydantic.BaseModel):
     path: cloudpathlib.S3Path
     cache_type: str = "blockcache"
     block_size: int = 1024**2
+    _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
 
     @property
     def s3_uri(self) -> str:
@@ -28,13 +29,15 @@ class S3XarrayHandle(pydantic.BaseModel):
 
     @property
     def ds(self) -> xarray.Dataset:
-        s3fs = fsspec.filesystem(protocol="s3", anon=True)
-        file = s3fs.open(
-            path=f"{self.path.bucket}/{self.path.key}",
-            cache_type=self.cache_type,
-            block_size=self.block_size,
-        )
-        return xarray.open_dataset(filename_or_obj=file)
+        if self._dataset is None:
+            s3fs = fsspec.filesystem(protocol="s3", anon=True)
+            file = s3fs.open(
+                path=f"{self.path.bucket}/{self.path.key}",
+                cache_type=self.cache_type,
+                block_size=self.block_size,
+            )
+            self._dataset = xarray.open_dataset(filename_or_obj=file)
+        return self._dataset
 
     def cleanup(self) -> None:
         pass
