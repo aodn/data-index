@@ -14,6 +14,7 @@ from data_index.iceberg_config import (
 from data_index.inventory_source import (
     LiveS3InventorySource,
     ParquetInventorySource,
+    S3TableFacilitySubsetInventorySource,
     S3TableInventorySource,
 )
 from data_index.metadata_extractor import (
@@ -54,7 +55,7 @@ _inventory_table_config = IcebergTableConfig(
     table_name="live",
 )
 
-_live_inventory_source = S3TableInventorySource(
+_live_inventory_source = S3TableFacilitySubsetInventorySource(
     table_config=_inventory_table_config,
     subset_per_facility=10_000,
 )

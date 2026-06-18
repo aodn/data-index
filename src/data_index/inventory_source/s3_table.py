@@ -7,7 +7,7 @@ import pydantic
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
-from data_index.inventory_source import LiveS3InventorySource
+from data_index.inventory_source.live_s3 import LiveS3InventorySource
 
 
 class S3TableInventorySource(LiveS3InventorySource):
@@ -15,14 +15,10 @@ class S3TableInventorySource(LiveS3InventorySource):
 
     type: typing.Literal["s3_table"] = pydantic.Field(default="s3_table")
 
-    subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
     table_config: IcebergTableConfig
     table_scan_config: IcebergTableScanConfig = pydantic.Field(
-        default_factory=lambda: IcebergTableScanConfig(
-            selected_fields=("bucket", "key", "size", "facility"),
-        )
+        default_factory=IcebergTableScanConfig
     )
-    subset_per_facility: int | None = pydantic.Field(default=None)
 
     @staticmethod
     def _s3_uri_column() -> polars.Expr:
@@ -33,55 +29,52 @@ class S3TableInventorySource(LiveS3InventorySource):
             polars.col("key"),
         ).alias("s3_uri")
 
-    def _full_inventory(self) -> polars.DataFrame:
+    @staticmethod
+    def _empty_inventory() -> polars.DataFrame:
+        return polars.DataFrame(schema={"s3_uri": polars.String, "size": polars.Int64})
+
+    def _scan(self, selected_fields: tuple[str, ...]) -> polars.DataFrame:
+        scan_kwargs = self.table_scan_config.model_dump(exclude_none=True)
+        scan_kwargs["selected_fields"] = selected_fields
+
         table = self.table_config.load()
-        df = table.scan(selected_fields=("bucket", "key", "size")).to_polars()
+        return table.scan(**scan_kwargs).to_polars()
+
+    def inventory(self) -> polars.DataFrame:
+        df = self._scan(selected_fields=("bucket", "key", "size"))
+        if df.is_empty():
+            return self._empty_inventory()
+
         return df.select(
             self._s3_uri_column(),
             polars.col("size"),
         )
 
-    def _subset_per_facility(self) -> polars.DataFrame:
-        table = self.table_config.load()
 
-        facilities_df = table.scan(selected_fields=("facility",)).to_polars()
+class S3TableFacilitySubsetInventorySource(S3TableInventorySource):
+    """S3 table inventory source with per-facility random sampling."""
 
-        # Find facilities, defined as second part of path
-        facilities = facilities_df["facility"].drop_nulls().unique()
+    type: typing.Literal["s3_table_facility_subset"] = pydantic.Field(
+        default="s3_table_facility_subset"
+    )
+    subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
 
-        # Takes samples of size `subset_per_facility` per facility
+    def inventory(self) -> polars.DataFrame:
+        df = self._scan(selected_fields=("bucket", "key", "size", "facility"))
+        if df.is_empty():
+            return self._empty_inventory()
+
         sampled_slices: list[polars.DataFrame] = []
-        for facility in facilities:
-            df = table.scan(
-                selected_fields=("bucket", "key", "size"),
-                row_filter=f"facility = '{facility}'",
-            ).to_polars()
-            if df.is_empty():
-                continue
-
-            sample_n = min(self.subset_per_facility, df.height)
+        for facility_slice in df.drop_nulls("facility").partition_by("facility"):
+            sample_n = min(self.subset_per_facility, facility_slice.height)
             sampled_slices.append(
-                df.sample(n=sample_n, with_replacement=False, shuffle=True)
+                facility_slice.sample(n=sample_n, with_replacement=False, shuffle=True)
             )
 
-        # No samples case
         if not sampled_slices:
-            return polars.DataFrame(
-                schema={"s3_uri": polars.String, "size": polars.Int64}
-            )
+            return self._empty_inventory()
 
-        # Concat and adjust to s3_uri
         return polars.concat(sampled_slices).select(
             self._s3_uri_column(),
             polars.col("size"),
         )
-
-    def inventory(self) -> polars.DataFrame:
-        """
-        Return a subset from each facility
-        """
-
-        if self.subset_per_facility:
-            return self._subset_per_facility()
-        else:
-            return self._full_inventory()
