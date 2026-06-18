@@ -54,3 +54,34 @@ def test_file_format_returns_none_for_unknown():
         return_value=_mock_fsspec_open(b"\x00\x01\x02\x03\x04\x05\x06\x07"),
     ):
         assert handle.file_format is None
+
+
+def test_ds_returns_singleton_dataset():
+    handle = make_handle()
+    mock_fs = MagicMock()
+    mock_file = MagicMock()
+    mock_fs.open.return_value = mock_file
+    dataset = MagicMock()
+
+    with (
+        patch(
+            "data_index.xarray_handle.s3_xarray_handle.fsspec.filesystem",
+            return_value=mock_fs,
+        ) as filesystem,
+        patch(
+            "data_index.xarray_handle.s3_xarray_handle.xarray.open_dataset",
+            return_value=dataset,
+        ) as open_dataset,
+    ):
+        first = handle.ds
+        second = handle.ds
+
+    assert first is dataset
+    assert second is dataset
+    filesystem.assert_called_once_with(protocol="s3", anon=True)
+    mock_fs.open.assert_called_once_with(
+        path="bucket/path/to/file.nc",
+        cache_type=handle.cache_type,
+        block_size=handle.block_size,
+    )
+    open_dataset.assert_called_once_with(filename_or_obj=mock_file)

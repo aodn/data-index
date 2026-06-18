@@ -691,6 +691,7 @@ analysis = [
 dev = [
     { name = "aiosqlite" },
     { name = "pre-commit" },
+    { name = "prefect-docker" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "sqlalchemy" },
@@ -733,6 +734,7 @@ analysis = [
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "prefect-docker", specifier = ">=0.7.1" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "ruff", specifier = ">=0.11.0" },
     { name = "sqlalchemy", specifier = ">=2.0.49" },
@@ -2138,6 +2140,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/49/cd/17cbe5460b50b14f9df37fa300ef290fab7b2b1c717d3ce9d183aea62ede/prefect_dask-0.3.6.tar.gz", hash = "sha256:776151f6865dfca7dcdde146f3234af134f4d01d51e07cc4a063296d471a4219", size = 20107, upload-time = "2025-06-27T15:15:41.895Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/a1/d4b936e871af1b4b1c2c5feea32f38b08dfb413a23b5cf845f21cc287b81/prefect_dask-0.3.6-py3-none-any.whl", hash = "sha256:dde864ca93f531d631b2efc378173bc8d6f2ad9fba30867a135f560fc852e6b3", size = 14477, upload-time = "2025-06-27T15:15:40.21Z" },
+]
+
+[[package]]
+name = "prefect-docker"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docker" },
+    { name = "exceptiongroup" },
+    { name = "prefect" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/76/477cb000395452edbd641734aa1d2b41680b35e9172c11ace685a74b2e54/prefect_docker-0.7.1.tar.gz", hash = "sha256:7d5053bcc049d56b5498ca4629c9b08b31d96f5387e1eb34f510ec322d5aad89", size = 41684, upload-time = "2026-01-15T22:53:06.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/5c/20f573c6f800ad784603c7bd5787770ef648758289af2970d12c39072534/prefect_docker-0.7.1-py3-none-any.whl", hash = "sha256:b4fe1760c12206d3eaec2826d63acb1235bd41756921eb0c6b5feeb20b157e37", size = 28254, upload-time = "2026-01-15T22:53:04.998Z" },
 ]
 
 [[package]]
