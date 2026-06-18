@@ -9,11 +9,13 @@ from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
+    IcebergTableScanConfig,
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import (
     LiveS3InventorySource,
     ParquetInventorySource,
+    S3TableFacilitySubsetInventorySource,
     S3TableInventorySource,
 )
 from data_index.metadata_extractor import (
@@ -50,9 +52,21 @@ _inventory_table_config = IcebergTableConfig(
     table_name="live",
 )
 
-_live_inventory_source = S3TableInventorySource(
+_inventory_source = S3TableInventorySource(
     table_config=_inventory_table_config,
-    subset_per_facility=20,
+    table_scan_config=IcebergTableScanConfig(
+        row_filter="""
+        (
+            key LIKE 'IMOS/ANMN/AM/%'
+            OR key LIKE 'IMOS/ANMN/NRS/%'
+            OR key LIKE 'IMOS/ANMN/NSW/%'
+            OR key LIKE 'IMOS/ANMN/QLD/%'
+            OR key LIKE 'IMOS/ANMN/SA/%'
+            OR key LIKE 'IMOS/ANMN/WA/%'
+        )
+        AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'
+        """
+    ),
 )
 
 # --- Partitioner config ---
@@ -130,7 +144,8 @@ def index_batch(
 def run_index_work_pool(
     inventory_source: LiveS3InventorySource
     | ParquetInventorySource
-    | S3TableInventorySource = _live_inventory_source,
+    | S3TableInventorySource
+    | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor

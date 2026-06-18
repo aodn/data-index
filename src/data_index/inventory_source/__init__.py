@@ -1,5 +1,10 @@
 from .live_s3 import LiveS3InventorySource
 from .parquet import ParquetInventorySource
-from .s3_table import S3TableInventorySource
+from .s3_table import S3TableFacilitySubsetInventorySource, S3TableInventorySource
 
-__all__ = ["LiveS3InventorySource", "ParquetInventorySource", "S3TableInventorySource"]
+__all__ = [
+    "LiveS3InventorySource",
+    "ParquetInventorySource",
+    "S3TableInventorySource",
+    "S3TableFacilitySubsetInventorySource",
+]
