@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import concurrent.futures
-import functools
 import logging
 import typing
 
 import prefect
-import prefect.artifacts
 import prefect.cache_policies
 
 from data_index.protocols import (
@@ -77,28 +74,29 @@ def transform(
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
-    Runs _transform_single using a standard thread pool. Each call immediately
-    persists unstructured metadata via metadata_factory(s3_uri, data). Releases
-    handle resources after all files are processed.
+    Runs _transform_single sequentially. Each call immediately persists
+    unstructured metadata via metadata_factory(s3_uri, data). Releases handle
+    resources after all files are processed.
 
     Args:
-        max_workers: Number of worker threads used by ThreadPoolExecutor.
-            None uses the executor default.
+        max_workers: Retained for API compatibility. No effect when running
+            sequentially.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
     logger = prefect.get_run_logger()
 
-    logger.info("Running extraction with thread pool...")
-    transform_single = functools.partial(
-        _transform_single,
-        extractor=extractor,
-        unstructured_metadata_factory=metadata_factory,
-        logger=logger,
-    )
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(transform_single, xarray_handles))
-    logger.info("Thread pool extraction complete!")
+    logger.info("Running extraction sequentially...")
+    results = [
+        _transform_single(
+            xarray_handle=xarray_handle,
+            extractor=extractor,
+            unstructured_metadata_factory=metadata_factory,
+            logger=logger,
+        )
+        for xarray_handle in xarray_handles
+    ]
+    logger.info("Sequential extraction complete!")
 
     logger.info("Transform complete!")
     return results
