@@ -75,14 +75,33 @@ def test_null_collection_for_single_segment_key(table_config):
     assert df["collection"].isna().all()
 
 
-def test_appends_on_subsequent_writes(table_config):
+def test_upserts_on_subsequent_writes(table_config):
     sink = UnstructuredS3TableSink(iceberg_table_config=table_config)
+    uri = "s3://imos-data/IMOS/ANMN/a.nc"
 
-    sink.write({"s3://imos-data/IMOS/ANMN/a.nc": {"x": 1}})
-    sink.write({"s3://imos-data/IMOS/ANMN/b.nc": {"x": 2}})
+    sink.write({uri: {"x": 1}})
+    sink.write({uri: {"x": 2}})
 
     df = table_config.load().scan().to_pandas()
+    assert len(df) == 1
+    assert json.loads(df["metadata"].iloc[0]) == {"x": 2}
+
+
+def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
+    sink = UnstructuredS3TableSink(iceberg_table_config=table_config)
+    uri_a = "s3://imos-data/IMOS/ANMN/a.nc"
+    uri_b = "s3://imos-data/IMOS/ANMN/b.nc"
+
+    sink.write({uri_a: {"x": 1}})
+    sink.write({uri_a: {"x": 2}, uri_b: {"x": 3}})
+
+    df = table_config.load().scan().to_pandas()
+    metadata_by_uri = {
+        row["s3_uri"]: json.loads(row["metadata"]) for _, row in df.iterrows()
+    }
     assert len(df) == 2
+    assert metadata_by_uri[uri_a] == {"x": 2}
+    assert metadata_by_uri[uri_b] == {"x": 3}
 
 
 def test_empty_write_is_noop(table_config):

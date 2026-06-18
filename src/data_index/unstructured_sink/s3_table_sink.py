@@ -34,12 +34,13 @@ _ARROW_SCHEMA = pa.schema(
 
 
 class UnstructuredS3TableSink(pydantic.BaseModel):
-    """UnstructuredSink implementation that appends Unstructured Metadata to a pre-provisioned
+    """UnstructuredSink implementation that upserts Unstructured Metadata to a pre-provisioned
     Iceberg table with schema (s3_uri, collection, metadata).
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
     hook. Collection is derived from the s3_uri key at write time (second path segment).
-    Metadata is JSON-encoded. Concurrent appends from multiple workers are safe —
+    Metadata is JSON-encoded. Writes upsert on `s3_uri`.
+    Concurrent upserts from multiple workers are safe —
     OCC conflicts are retried with exponential backoff.
     """
 
@@ -100,7 +101,7 @@ class UnstructuredS3TableSink(pydantic.BaseModel):
         arrow_table = self._to_arrow(data)
         for attempt in range(_MAX_RETRIES):
             try:
-                self.table.append(arrow_table)
+                self.table.upsert(arrow_table, join_cols=["s3_uri"])
                 return
             except CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
