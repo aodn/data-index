@@ -13,8 +13,6 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import (
-    LiveS3InventorySource,
-    ParquetInventorySource,
     S3TableFacilitySubsetInventorySource,
     S3TableInventorySource,
 )
@@ -142,9 +140,7 @@ def index_batch(
 
 @prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=8))
 def run_index_work_pool(
-    inventory_source: LiveS3InventorySource
-    | ParquetInventorySource
-    | S3TableInventorySource
+    inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,

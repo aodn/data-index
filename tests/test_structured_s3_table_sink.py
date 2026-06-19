@@ -50,6 +50,12 @@ def test_provision_is_idempotent(table_config):
     ).provision()  # table already exists — must not raise
 
 
+def test_provision_sets_schema_version_table_property(table_config):
+    table = table_config.load()
+
+    assert table.properties["schema_version"] == str(StructuredMetadata.SCHEMA_VERSION)
+
+
 def test_writes_rows_with_correct_values(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
     rows = [
@@ -65,6 +71,7 @@ def test_writes_rows_with_correct_values(table_config):
         "s3://imos-data/IMOS/ANMN/a.nc",
         "s3://imos-data/IMOS/ANMN/b.nc",
     }
+    assert set(df["schema_version"]) == {StructuredMetadata.SCHEMA_VERSION}
 
 
 def test_upserts_on_subsequent_writes(table_config):

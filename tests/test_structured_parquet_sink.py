@@ -52,6 +52,10 @@ def test_writes_rows_with_correct_schema_and_values(tmp_path):
     assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 2
     assert df["s3_uri"].to_list() == ["s3://bucket/a.nc", "s3://bucket/b.nc"]
+    assert df["schema_version"].to_list() == [
+        StructuredMetadata.SCHEMA_VERSION,
+        StructuredMetadata.SCHEMA_VERSION,
+    ]
     assert df["geospatial_lat_min"].to_list() == pytest.approx([-1.0, -2.0])
 
 

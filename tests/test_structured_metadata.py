@@ -16,6 +16,7 @@ def test_as_polars_schema_maps_required_and_optional_types():
     schema = StructuredMetadata.as_polars_schema()
 
     assert schema["s3_uri"] == polars.String
+    assert schema["schema_version"] == polars.Int64
     assert schema["geospatial_lat_min"] == polars.Float64
     assert schema["time_coverage_start"] == polars.String
     assert len(schema) == len(dataclasses.fields(StructuredMetadata))
@@ -26,6 +27,8 @@ def test_as_pyarrow_schema_preserves_nullable_fields():
 
     assert schema.field("s3_uri").type == pyarrow.string()
     assert schema.field("s3_uri").nullable is False
+    assert schema.field("schema_version").type == pyarrow.int64()
+    assert schema.field("schema_version").nullable is True
     assert schema.field("geospatial_lat_min").type == pyarrow.float64()
     assert schema.field("geospatial_lat_min").nullable is True
 
@@ -35,6 +38,7 @@ def test_as_pyiceberg_schema_preserves_nullable_fields():
 
     assert schema.find_field("s3_uri").field_type == StringType()
     assert schema.find_field("s3_uri").required is True
+    assert schema.find_field("schema_version").required is False
     assert schema.find_field("geospatial_lat_min").field_type == DoubleType()
     assert schema.find_field("geospatial_lat_min").required is False
     assert len(schema.fields) == len(dataclasses.fields(StructuredMetadata))
@@ -83,3 +87,9 @@ def test_schema_version_is_class_var_and_not_dataclass_field():
 
     assert StructuredMetadata.SCHEMA_VERSION == 1
     assert "SCHEMA_VERSION" not in field_names
+
+
+def test_schema_version_field_defaults_to_class_var_value():
+    row = StructuredMetadata(s3_uri="s3://bucket/file.nc")
+
+    assert row.schema_version == StructuredMetadata.SCHEMA_VERSION

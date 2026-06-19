@@ -67,6 +67,7 @@ class StructuredMetadata:
     SCHEMA_VERSION: typing.ClassVar[int] = 1
 
     s3_uri: str
+    schema_version: int | None = SCHEMA_VERSION
     geospatial_lat_min: float | None = None
     geospatial_lat_max: float | None = None
     geospatial_lon_min: float | None = None
