@@ -73,12 +73,16 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
 
         attributes_map: dict[str, tuple[list[str], type]] = {
             # Temporal Spatial
-            "lat_min": (["geospatial_lat_min"], float),
-            "lat_max": (["geospatial_lat_max"], float),
-            "lon_min": (["geospatial_lon_min"], float),
-            "lon_max": (["geospatial_lon_max"], float),
-            "time_min": (["time_coverage_start"], str),
-            "time_max": (["time_coverage_end"], str),
+            "geospatial_lat_min": (["geospatial_lat_min"], float),
+            "geospatial_lat_max": (["geospatial_lat_max"], float),
+            "geospatial_lon_min": (["geospatial_lon_min"], float),
+            "geospatial_lon_max": (["geospatial_lon_max"], float),
+            "geospatial_vertical_min": (["geospatial_vertical_min"], float),
+            "geospatial_vertical_max": (["geospatial_vertical_max"], float),
+            "geospatial_vertical_positive": (["geospatial_vertical_positive"], str),
+            "time_coverage_start": (["time_coverage_start"], str),
+            "time_coverage_end": (["time_coverage_end"], str),
+            "date_created": (["date_created"], str),
             # Keywords
             "keywords": (["keywords"], str),
             "conventions": (["Conventions", "conventions"], str),
@@ -90,6 +94,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             "deployment_code": (["deployment_code"], str),
             # Instrumentation
             "instrument": (["instrument"], str),
+            "instrument_nominal_depth": (["instrument_nominal_depth"], float),
             "feature_type": (["featureType", "feature_type"], str),
             "instrument_serial_number": (
                 ["instrument_serial_number", "instrumentSerialNumber"],

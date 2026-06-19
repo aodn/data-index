@@ -78,14 +78,14 @@ def test_extracts_lat_lon_time_ranges(extractor):
 
     assert result.status == "succeeded"
     sm = result.structured_metadata
-    assert sm.lat_min == pytest.approx(-10.0)
-    assert sm.lat_max == pytest.approx(10.0)
-    assert sm.lon_min == pytest.approx(100.0)
-    assert sm.lon_max == pytest.approx(110.0)
-    assert sm.time_min is not None
-    assert sm.time_max is not None
-    assert "2020-01-01" in sm.time_min
-    assert "2020-06-01" in sm.time_max
+    assert sm.geospatial_lat_min == pytest.approx(-10.0)
+    assert sm.geospatial_lat_max == pytest.approx(10.0)
+    assert sm.geospatial_lon_min == pytest.approx(100.0)
+    assert sm.geospatial_lon_max == pytest.approx(110.0)
+    assert sm.time_coverage_start is not None
+    assert sm.time_coverage_end is not None
+    assert "2020-01-01" in sm.time_coverage_start
+    assert "2020-06-01" in sm.time_coverage_end
     assert sm.s3_uri == "s3://bucket/file.nc"
 
 
@@ -95,12 +95,12 @@ def test_returns_none_fields_for_missing_coordinates(extractor):
 
     assert result.status == "succeeded"
     sm = result.structured_metadata
-    assert sm.lat_min is None
-    assert sm.lat_max is None
-    assert sm.lon_min is None
-    assert sm.lon_max is None
-    assert sm.time_min is None
-    assert sm.time_max is None
+    assert sm.geospatial_lat_min is None
+    assert sm.geospatial_lat_max is None
+    assert sm.geospatial_lon_min is None
+    assert sm.geospatial_lon_max is None
+    assert sm.time_coverage_start is None
+    assert sm.time_coverage_end is None
 
 
 def test_extracts_crs_from_crs_wkt_attribute(extractor):
