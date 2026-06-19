@@ -28,8 +28,9 @@ def load(
         for result in succeeded
         if result.structured_metadata is not None
     ]
+    logger.info("Sinking structued metadata rows...")
     structured_sink.write(structured)
-    logger.info(f"Wrote {len(structured)} structured metadata rows")
+    logger.info(f"Sunk {len(structured)} structured metadata rows!")
 
     # Re-Hydrate unstructured metadata
     # TODO: May need to occur in batches to not overflow
@@ -39,5 +40,6 @@ def load(
         if r.unstructured_metadata is not None
     }
     if unstructured:
+        logger.info("Sinking unstructued metadata rows...")
         unstructured_sink.write(unstructured)
-        logger.info(f"Wrote {len(unstructured)} unstructured metadata entries")
+        logger.info(f"Sunk {len(unstructured)} unstructured metadata rows!")
