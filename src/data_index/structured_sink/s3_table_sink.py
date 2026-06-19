@@ -21,6 +21,7 @@ from data_index.structured_metadata import StructuredMetadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
+_SCHEMA_VERSION_PROPERTY = "schema_version"
 
 
 class StructuredS3TableSink(pydantic.BaseModel):
@@ -70,10 +71,14 @@ class StructuredS3TableSink(pydantic.BaseModel):
                 ),
                 schema=StructuredMetadata.as_pyiceberg_schema(),
                 partition_spec=partition_spec or PartitionSpec(),
+                properties={
+                    _SCHEMA_VERSION_PROPERTY: str(StructuredMetadata.SCHEMA_VERSION)
+                },
             )
         except TableAlreadyExistsError:
             pass
         self._evolve_schema()
+        self._ensure_schema_version_property()
 
     def write(self, data: list[StructuredMetadata]) -> None:
         if not data:
@@ -96,6 +101,24 @@ class StructuredS3TableSink(pydantic.BaseModel):
         for attempt in range(_MAX_RETRIES):
             try:
                 self.table.update_schema().union_by_name(desired_schema).commit()
+                return
+            except CommitFailedException:
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                self.table.refresh()
+                time.sleep(
+                    random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
+                )
+
+    def _ensure_schema_version_property(self) -> None:
+        expected = str(StructuredMetadata.SCHEMA_VERSION)
+        for attempt in range(_MAX_RETRIES):
+            if self.table.properties.get(_SCHEMA_VERSION_PROPERTY) == expected:
+                return
+            try:
+                self.table.transaction().set_properties(
+                    **{_SCHEMA_VERSION_PROPERTY: expected}
+                ).commit_transaction()
                 return
             except CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:

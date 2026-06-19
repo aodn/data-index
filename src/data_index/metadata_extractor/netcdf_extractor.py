@@ -78,12 +78,12 @@ class NetCDFExtractor(pydantic.BaseModel):
 
         return StructuredMetadata(
             s3_uri=s3_uri,
-            lat_min=lat_min,
-            lat_max=lat_max,
-            lon_min=lon_min,
-            lon_max=lon_max,
-            time_min=time_min,
-            time_max=time_max,
+            geospatial_lat_min=lat_min,
+            geospatial_lat_max=lat_max,
+            geospatial_lon_min=lon_min,
+            geospatial_lon_max=lon_max,
+            time_coverage_start=time_min,
+            time_coverage_end=time_max,
             crs=crs,
             file_format=file_format,
             collection=derive_collection(s3_uri),

@@ -61,12 +61,12 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         return StructuredMetadata(
             s3_uri=s3_uri,
             file_format=file_format,
-            lat_min=None,
-            lat_max=None,
-            lon_min=None,
-            lon_max=None,
-            time_min=None,
-            time_max=None,
+            geospatial_lat_min=None,
+            geospatial_lat_max=None,
+            geospatial_lon_min=None,
+            geospatial_lon_max=None,
+            time_coverage_start=None,
+            time_coverage_end=None,
             crs=None,
         )
 

@@ -16,6 +16,7 @@ from data_index.metadata_extractor import (
     NetCDFExtractor,
     UnstructuedNetCDFExtractor,
 )
+from data_index.structured_metadata import StructuredMetadata
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
 from data_index.unstructured_metadata import (
     DiskCachedUnstructuredMetadata,
@@ -83,7 +84,7 @@ data_index_catalog_config = S3TablesCatalogConfig(
 structured_metadata_table_config = IcebergTableConfig(
     catalog_config=data_index_catalog_config,
     namespace="data_index",
-    table_name="structured_metadata",
+    table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
 )
 
 structured_sink = StructuredS3TableSink(
