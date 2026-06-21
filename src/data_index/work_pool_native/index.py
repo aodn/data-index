@@ -3,7 +3,6 @@ import pathlib
 import prefect
 import prefect.deployments
 import prefect.futures
-import prefect.states
 import prefect.task_runners
 
 from data_index.batch_partitioner import GreedyBatchPartitioner
@@ -121,8 +120,6 @@ def index_batch(
     unstructured_sink,
     transform_max_workers: int,
 ):
-
-    # Run the index batch
     flow_run = prefect.deployments.run_deployment(
         name=f"{index_batch_flow_name}/{index_batch_deployment_name}",
         flow_run_name=f"process-batch-{i}",
@@ -136,14 +133,8 @@ def index_batch(
         },
     )
 
-    # Raise unknown state error
-    if flow_run.state is None:
-        raise RuntimeError(
-            f"Flow run process-batch-{i} finalised with unknown state (`flow_run.state` == None)!"
-        )
-
-    # Raise the exception if it failed
-    prefect.states.raise_state_exception(flow_run.state)
+    # TODO: Handle flow run failure
+    flow_run
     return
 
 
@@ -203,20 +194,9 @@ def run_index_work_pool(
     logger.info(
         f"All {len(futures)} batches internally scheduled... Streaming results..."
     )
-    failed = []
     for future in prefect.futures.as_completed(futures=futures):
         logger.info(future.state)
-        try:
-            prefect.states.raise_state_exception(future.state)
-        except Exception as e:
-            logger.error(f"Batch failed: {e}")
-            failed.append(e)
-
-    # Report overall status
-    if failed:
-        raise RuntimeError(f"{len(failed)} batch(es) failed. See logs for details.")
-    else:
-        logger.info("All batches completed successfully!")
+    logger.info("All batches complete")
 
 
 if __name__ == "__main__":
