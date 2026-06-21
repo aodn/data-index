@@ -1,0 +1,3 @@
+# Object-version identity for upserts and handoffs
+
+We are replacing `s3_uri` as the pipeline identity with a canonical object-version identity: (`bucket`, `key`, `version_id`), carried between stages as a lightweight `ObjectReference` named tuple. Structured and unstructured paths align on this key for dedupe and upsert behavior, fetch operations must read the exact requested `version_id`, and identity fields are required/non-null at active pipeline boundaries. We are also removing `collection` in favor of `facility` (with `UNKNOWN` sentinel when derivation fails), partitioning structured data by `facility` + year and unstructured data by `facility`, and using an explicit opt-in reset mode in sink `provision()` for schema-breaking transitions in development.
