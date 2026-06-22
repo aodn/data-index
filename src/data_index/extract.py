@@ -5,7 +5,7 @@ import prefect
 import prefect.artifacts
 import prefect.cache_policies
 
-from data_index.protocols import BatchEntry, FileFetcher, XarrayHandle
+from data_index.protocols import BatchEntry, FileFetcher, ObjectReference, XarrayHandle
 
 
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
@@ -14,7 +14,9 @@ def extract(
     fetcher: FileFetcher,
     batch_schema: polars.Schema = polars.Schema(
         schema={
-            "s3_uri": polars.String,
+            "bucket": polars.String,
+            "key": polars.String,
+            "version_id": polars.String,
             "size": polars.Int64(),
         }
     ),
@@ -23,25 +25,50 @@ def extract(
     """
     Sync a batch of S3 NetCDF files to local disk.
 
-    Validates: schema, unique s3_uris, total size within limit.
-    Returns a list of XarrayHandle with s3_uri and absolute_path per file.
+    Validates: required schema columns, unique object versions, total size within limit.
+    Returns a list of XarrayHandle per file.
     """
 
     logger = prefect.get_run_logger()
 
-    # Check schema, ignoring order
-    if dict(batch_df.schema) != dict(batch_schema):
+    # Check required schema columns, allowing extras
+    expected_schema = dict(batch_schema)
+    missing_columns = [
+        column for column in expected_schema if column not in batch_df.columns
+    ]
+    if missing_columns:
         raise ValueError(
-            f"Batch schema mismatch (ignoring order):\n"
-            f"Expected: {dict(batch_schema)}\n"
+            f"Batch schema missing required columns: {missing_columns}\n"
+            f"Expected at least: {expected_schema}\n"
             f"Got:      {dict(batch_df.schema)}"
         )
 
-    if batch_df["s3_uri"].null_count() > 0:
-        raise ValueError("Null s3_uris in batch")
+    wrong_types = {
+        column: (expected_schema[column], batch_df.schema[column])
+        for column in expected_schema
+        if batch_df.schema[column] != expected_schema[column]
+    }
+    if wrong_types:
+        raise ValueError(
+            f"Batch schema type mismatch for required columns:\n"
+            f"Expected/Got: {wrong_types}"
+        )
 
-    if batch_df["s3_uri"].n_unique() != len(batch_df):
-        raise ValueError("Duplicate s3_uris in batch")
+    for column in ("bucket", "key", "version_id"):
+        if batch_df[column].null_count() > 0:
+            raise ValueError(f"Null `{column}` values in batch")
+        empty_identity_values = batch_df.filter(
+            polars.col(column).str.strip_chars() == ""
+        )
+        if len(empty_identity_values) > 0:
+            raise ValueError(f"Empty `{column}` values in batch")
+
+    if batch_df["size"].null_count() > 0:
+        raise ValueError("Null `size` values in batch")
+
+    identity_columns = ["bucket", "key", "version_id"]
+    if batch_df.n_unique(subset=identity_columns) != len(batch_df):
+        raise ValueError("Duplicate (`bucket`, `key`, `version_id`) values in batch")
 
     total_size = batch_df["size"].sum()
     if total_size > batch_size_limit:
@@ -54,7 +81,14 @@ def extract(
         )
     # Fetch
     entries = [
-        BatchEntry(uri=row["s3_uri"], size_bytes=row["size"])
+        BatchEntry(
+            object_ref=ObjectReference(
+                bucket=row["bucket"],
+                key=row["key"],
+                version_id=row["version_id"],
+            ),
+            size_bytes=row["size"],
+        )
         for row in batch_df.iter_rows(named=True)
     ]
     manifest = fetcher.fetch(entries)

@@ -11,7 +11,9 @@ from data_index.inventory_source.parquet import ParquetInventorySource
 def parquet_file(tmp_path: pathlib.Path) -> pathlib.Path:
     df = polars.DataFrame(
         {
-            "s3_uri": ["s3://bucket/a.nc", "s3://bucket/b.nc"],
+            "bucket": ["bucket", "bucket"],
+            "key": ["a.nc", "b.nc"],
+            "version_id": ["v1", "v2"],
             "size": [100, 200],
         }
     )
@@ -25,7 +27,7 @@ def test_parquet_inventory_source_returns_dataframe(parquet_file):
     df = source.inventory()
 
     assert isinstance(df, polars.DataFrame)
-    assert list(df.columns) == ["s3_uri", "size"]
+    assert list(df.columns) == ["bucket", "key", "version_id", "size"]
     assert len(df) == 2
 
 
@@ -33,7 +35,9 @@ def test_parquet_inventory_source_returns_correct_values(parquet_file):
     source = ParquetInventorySource(source=parquet_file)
     df = source.inventory()
 
-    assert df["s3_uri"].to_list() == ["s3://bucket/a.nc", "s3://bucket/b.nc"]
+    assert df["bucket"].to_list() == ["bucket", "bucket"]
+    assert df["key"].to_list() == ["a.nc", "b.nc"]
+    assert df["version_id"].to_list() == ["v1", "v2"]
     assert df["size"].to_list() == [100, 200]
 
 

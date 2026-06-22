@@ -3,6 +3,7 @@ import xarray
 from data_index.metadata_extractor.attribute_netcdf_extractor import (
     AttributeNetCDFExtractor,
 )
+from data_index.protocols import ObjectReference
 
 
 class StubHandle:
@@ -13,12 +14,17 @@ class StubHandle:
         file_format: str | None = None,
     ):
         self._ds = ds
-        self.s3_uri = s3_uri
+        bucket, key = s3_uri.removeprefix("s3://").split("/", 1)
+        self.object_ref = ObjectReference(bucket=bucket, key=key, version_id="v1")
         self.file_format = file_format
 
     @property
     def ds(self) -> xarray.Dataset:
         return self._ds
+
+    @property
+    def s3_uri(self) -> str:
+        return self.object_ref.as_uri()
 
     def cleanup(self) -> None:
         pass

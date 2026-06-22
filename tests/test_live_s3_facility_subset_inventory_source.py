@@ -17,13 +17,48 @@ def test_inventory_subsets_per_facility(tmp_path: pathlib.Path):
     _write_inventory(
         path,
         [
-            {"bucket": "imos-data", "key": "IMOS/ACORN/a1.nc", "size": 1},
-            {"bucket": "imos-data", "key": "IMOS/ACORN/a2.nc", "size": 2},
-            {"bucket": "imos-data", "key": "IMOS/ACORN/a3.nc", "size": 3},
-            {"bucket": "imos-data", "key": "IMOS/ANMN/b1.nc", "size": 4},
-            {"bucket": "imos-data", "key": "IMOS/ANMN/b2.nc", "size": 5},
-            {"bucket": "imos-data", "key": "IMOS/ANMN/b3.nc", "size": 6},
-            {"bucket": "imos-data", "key": "misc/other.nc", "size": 7},
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ACORN/a1.nc",
+                "version_id": "v1",
+                "size": 1,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ACORN/a2.nc",
+                "version_id": "v2",
+                "size": 2,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ACORN/a3.nc",
+                "version_id": "v3",
+                "size": 3,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ANMN/b1.nc",
+                "version_id": "v4",
+                "size": 4,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ANMN/b2.nc",
+                "version_id": "v5",
+                "size": 5,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ANMN/b3.nc",
+                "version_id": "v6",
+                "size": 6,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "misc/other.nc",
+                "version_id": "v7",
+                "size": 7,
+            },
         ],
     )
 
@@ -37,10 +72,10 @@ def test_inventory_subsets_per_facility(tmp_path: pathlib.Path):
 
     df = source.inventory()
 
-    assert set(df.columns) == {"s3_uri", "size"}
-    assert len(df.filter(polars.col("s3_uri").str.contains("/IMOS/ACORN/"))) == 2
-    assert len(df.filter(polars.col("s3_uri").str.contains("/IMOS/ANMN/"))) == 2
-    assert not df["s3_uri"].str.contains("/misc/").any()
+    assert set(df.columns) == {"bucket", "key", "version_id", "size"}
+    assert len(df.filter(polars.col("key").str.contains("^IMOS/ACORN/"))) == 2
+    assert len(df.filter(polars.col("key").str.contains("^IMOS/ANMN/"))) == 2
+    assert not df["key"].str.contains("^misc/").any()
 
 
 def test_inventory_subset_excludes_non_facility_paths(tmp_path: pathlib.Path):
@@ -48,8 +83,18 @@ def test_inventory_subset_excludes_non_facility_paths(tmp_path: pathlib.Path):
     _write_inventory(
         path,
         [
-            {"bucket": "imos-data", "key": "IMOS/ACORN/a1.nc", "size": 1},
-            {"bucket": "imos-data", "key": "misc/other.nc", "size": 2},
+            {
+                "bucket": "imos-data",
+                "key": "IMOS/ACORN/a1.nc",
+                "version_id": "v1",
+                "size": 1,
+            },
+            {
+                "bucket": "imos-data",
+                "key": "misc/other.nc",
+                "version_id": "v2",
+                "size": 2,
+            },
         ],
     )
 
@@ -64,4 +109,4 @@ def test_inventory_subset_excludes_non_facility_paths(tmp_path: pathlib.Path):
     df = source.inventory()
 
     assert len(df) == 1
-    assert df["s3_uri"].to_list() == ["s3://imos-data/IMOS/ACORN/a1.nc"]
+    assert df["key"].to_list() == ["IMOS/ACORN/a1.nc"]

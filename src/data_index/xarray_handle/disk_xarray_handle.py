@@ -3,6 +3,7 @@ import pathlib
 import pydantic
 import xarray
 
+from data_index.protocols import ObjectReference
 from data_index.xarray_handle._magic import format_from_magic
 
 
@@ -12,8 +13,12 @@ class DiskXarrayHandle(pydantic.BaseModel):
     """
 
     path: pathlib.Path
-    s3_uri: str
+    object_ref: ObjectReference
     _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
+
+    @property
+    def s3_uri(self) -> str:
+        return self.object_ref.as_uri()
 
     @property
     def file_format(self) -> str | None:

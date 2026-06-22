@@ -1,13 +1,13 @@
+import hashlib
 import logging
 import pathlib
 import re
 import typing
 
-import cloudpathlib
 import pydantic
 import sh
 
-from data_index.protocols import BatchEntry, XarrayHandle
+from data_index.protocols import BatchEntry, ObjectReference, XarrayHandle
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
 
 logger = logging.getLogger(__name__)
@@ -25,6 +25,15 @@ class S5CMDFetcher(pydantic.BaseModel):
     anon: bool = pydantic.Field(default=False)
 
     @staticmethod
+    def _version_path_token(version_id: str) -> str:
+        """Filesystem-safe token for a version ID."""
+        return hashlib.sha256(version_id.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _quote_version_id(version_id: str) -> str:
+        return version_id.replace("\\", "\\\\").replace('"', '\\"')
+
+    @staticmethod
     def _check_availability() -> str:
         try:
             return str(sh.s5cmd("version")).strip()
@@ -32,29 +41,62 @@ class S5CMDFetcher(pydantic.BaseModel):
             raise RuntimeError("s5cmd not found in PATH.")
 
     @staticmethod
-    def _prepare_commands(uris: list[str], extract_path: pathlib.Path) -> list[str]:
+    def _prepare_commands(
+        entries: list[BatchEntry], extract_path: pathlib.Path
+    ) -> tuple[list[str], dict[str, ObjectReference]]:
         commands = []
-        for uri in uris:
-            s3_path = cloudpathlib.S3Path(uri)
-            local_path = extract_path / s3_path.bucket / s3_path.key
-            commands.append(f"cp {uri} {local_path}")
-        return commands
+        destination_object_refs: dict[str, ObjectReference] = {}
+        for entry in entries:
+            source_uri = entry.object_ref.as_uri()
+            quoted_version_id = S5CMDFetcher._quote_version_id(
+                entry.object_ref.version_id
+            )
+            version_token = S5CMDFetcher._version_path_token(
+                entry.object_ref.version_id
+            )
+            local_path = (
+                extract_path
+                / entry.object_ref.bucket
+                / version_token
+                / entry.object_ref.key
+            )
+            local_path_str = str(local_path.resolve())
+            destination_object_refs[local_path_str] = entry.object_ref
+            commands.append(
+                f'cp --version-id "{quoted_version_id}" {source_uri} {local_path}'
+            )
+        return commands, destination_object_refs
 
     @staticmethod
-    def _parse_s5cmd_output(stdout_str: str) -> list[XarrayHandle]:
+    def _parse_s5cmd_output(
+        stdout_str: str, destination_object_refs: dict[str, ObjectReference]
+    ) -> list[XarrayHandle]:
         """
         Parses s5cmd stdout to identify successful downloads.
         Expected line format: cp s3://bucket/key local/path
         """
         entries = []
-        pattern = re.compile(r"cp\s+(s3://\S+)\s+(\S+)")
+        pattern = re.compile(r'cp(?:\s+--version-id\s+"[^"]*")?\s+(s3://\S+)\s+(\S+)')
 
         for line in stdout_str.splitlines():
             match = pattern.search(line)
             if match:
                 s3_uri = match.group(1)
                 local_path = pathlib.Path(match.group(2)).resolve()
-                entries.append(DiskXarrayHandle(path=local_path, s3_uri=s3_uri))
+                object_ref = destination_object_refs.get(str(local_path))
+                if object_ref is None:
+                    try:
+                        object_ref = ObjectReference.from_s3_uri(s3_uri)
+                    except ValueError as exc:
+                        raise RuntimeError(
+                            f"Unable to resolve object reference for download: {line}"
+                        ) from exc
+                entries.append(
+                    DiskXarrayHandle(
+                        path=local_path,
+                        object_ref=object_ref,
+                    )
+                )
 
         return entries
 
@@ -74,11 +116,12 @@ class S5CMDFetcher(pydantic.BaseModel):
 
         self._check_availability()
 
-        uris = [entry.uri for entry in entries]
-        if not uris:
+        if not entries:
             return []
 
-        commands = self._prepare_commands(uris, self.extract_path)
+        commands, destination_object_refs = self._prepare_commands(
+            entries, self.extract_path
+        )
         input_stream = "\n".join(commands) + "\n"
 
         try:
@@ -88,12 +131,18 @@ class S5CMDFetcher(pydantic.BaseModel):
                 args.append("--no-sign-request")
             args += ["run"]
             output = sh.s5cmd(*args, _in=input_stream)
-            return self._parse_s5cmd_output(stdout_str=self._decode_stream(output))
+            return self._parse_s5cmd_output(
+                stdout_str=self._decode_stream(output),
+                destination_object_refs=destination_object_refs,
+            )
         except sh.ErrorReturnCode as e:
             stdout_str = self._decode_stream(e.stdout)
             stderr_str = self._decode_stream(e.stderr)
 
-            manifest = self._parse_s5cmd_output(stdout_str=stdout_str)
+            manifest = self._parse_s5cmd_output(
+                stdout_str=stdout_str,
+                destination_object_refs=destination_object_refs,
+            )
             error_lines = [
                 line.strip() for line in stderr_str.splitlines() if line.strip()
             ]

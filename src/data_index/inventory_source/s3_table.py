@@ -7,6 +7,7 @@ import pydantic
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
+from data_index.inventory_source._contract import enforce_inventory_contract
 from data_index.inventory_source.live_s3 import LiveS3InventorySource
 
 
@@ -21,17 +22,15 @@ class S3TableInventorySource(LiveS3InventorySource):
     )
 
     @staticmethod
-    def _s3_uri_column() -> polars.Expr:
-        return polars.concat_str(
-            polars.lit("s3://"),
-            polars.col("bucket"),
-            polars.lit("/"),
-            polars.col("key"),
-        ).alias("s3_uri")
-
-    @staticmethod
     def _empty_inventory() -> polars.DataFrame:
-        return polars.DataFrame(schema={"s3_uri": polars.String, "size": polars.Int64})
+        return polars.DataFrame(
+            schema={
+                "bucket": polars.String,
+                "key": polars.String,
+                "version_id": polars.String,
+                "size": polars.Int64,
+            }
+        )
 
     def _scan(self, selected_fields: tuple[str, ...]) -> polars.DataFrame:
         scan_kwargs = self.table_scan_config.model_dump(exclude_none=True)
@@ -41,13 +40,17 @@ class S3TableInventorySource(LiveS3InventorySource):
         return table.scan(**scan_kwargs).to_polars()
 
     def inventory(self) -> polars.DataFrame:
-        df = self._scan(selected_fields=("bucket", "key", "size"))
+        df = self._scan(selected_fields=("bucket", "key", "version_id", "size"))
         if df.is_empty():
             return self._empty_inventory()
 
-        return df.select(
-            self._s3_uri_column(),
-            polars.col("size"),
+        return enforce_inventory_contract(
+            df.select(
+                polars.col("bucket"),
+                polars.col("key"),
+                polars.col("version_id"),
+                polars.col("size"),
+            )
         )
 
 
@@ -60,7 +63,9 @@ class S3TableFacilitySubsetInventorySource(S3TableInventorySource):
     subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
 
     def inventory(self) -> polars.DataFrame:
-        df = self._scan(selected_fields=("bucket", "key", "size", "facility"))
+        df = self._scan(
+            selected_fields=("bucket", "key", "version_id", "size", "facility")
+        )
         if df.is_empty():
             return self._empty_inventory()
 
@@ -74,7 +79,11 @@ class S3TableFacilitySubsetInventorySource(S3TableInventorySource):
         if not sampled_slices:
             return self._empty_inventory()
 
-        return polars.concat(sampled_slices).select(
-            self._s3_uri_column(),
-            polars.col("size"),
+        return enforce_inventory_contract(
+            polars.concat(sampled_slices).select(
+                polars.col("bucket"),
+                polars.col("key"),
+                polars.col("version_id"),
+                polars.col("size"),
+            )
         )

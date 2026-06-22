@@ -7,6 +7,7 @@ import polars
 import pydantic
 
 from data_index.inventory_source import LiveS3InventorySource
+from data_index.inventory_source._contract import enforce_inventory_contract
 
 _DEFAULT_PATH = pathlib.Path(".extract/s3_metadata")
 _INVENTORY_PARQUET = pathlib.Path("imos-data.inventory.parquet")
@@ -14,7 +15,7 @@ _INVENTORY_PARQUET = pathlib.Path("imos-data.inventory.parquet")
 
 class LiveS3InventorySourceFacilitySubset(LiveS3InventorySource):
     """InventorySource that runs the s3_metadata ETL to materialise the live S3 inventory
-    table to disk, then reads it back as a DataFrame with `s3_uri` and `size` columns.
+    table to disk, then returns required identity columns plus size.
 
     If skip_if_exists=True (default) and the target path already contains parquet files,
     the ETL is skipped and the existing data is returned directly.
@@ -55,7 +56,7 @@ class LiveS3InventorySourceFacilitySubset(LiveS3InventorySource):
             facility_rows = (
                 polars.scan_parquet(self.path / "**" / "*.parquet")
                 .filter(polars.col("key").str.starts_with(f"IMOS/{facility}/"))
-                .select("bucket", "key", "size")
+                .select("bucket", "key", "version_id", "size")
                 .collect()
             )
             if facility_rows.is_empty():
@@ -69,11 +70,19 @@ class LiveS3InventorySourceFacilitySubset(LiveS3InventorySource):
         # No samples case
         if not sampled_slices:
             return polars.DataFrame(
-                schema={"s3_uri": polars.String, "size": polars.Int64}
+                schema={
+                    "bucket": polars.String,
+                    "key": polars.String,
+                    "version_id": polars.String,
+                    "size": polars.Int64,
+                }
             )
 
-        # Concat and adjust to s3_uri
-        return polars.concat(sampled_slices).select(
-            self._s3_uri_column(),
-            polars.col("size"),
+        return enforce_inventory_contract(
+            polars.concat(sampled_slices).select(
+                polars.col("bucket"),
+                polars.col("key"),
+                polars.col("version_id"),
+                polars.col("size"),
+            )
         )

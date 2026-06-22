@@ -5,6 +5,8 @@ import typing
 
 import diskcache
 
+from data_index.protocols import ObjectReference
+
 
 class DiskCachedUnstructuredMetadata:
     """UnstructuredMetadata written to a strictly temporary diskcache.
@@ -16,18 +18,26 @@ class DiskCachedUnstructuredMetadata:
     _temp_dir_manager = tempfile.TemporaryDirectory(prefix="metadata_cache_")
     CACHE_PATH: pathlib.Path = pathlib.Path(_temp_dir_manager.name)
 
-    def __init__(self, s3_uri: str, data: dict) -> None:
-        self._s3_uri = s3_uri
+    def __init__(self, object_ref: ObjectReference, data: dict) -> None:
+        self._object_ref = object_ref
         with diskcache.Cache(
             str(self.CACHE_PATH), size_limit=self.CACHE_SIZE_LIMIT
         ) as cache:
-            cache[s3_uri] = data
+            cache[self._cache_key] = data
+
+    @property
+    def _cache_key(self) -> tuple[str, str, str]:
+        return (
+            self._object_ref.bucket,
+            self._object_ref.key,
+            self._object_ref.version_id,
+        )
 
     def load(self) -> dict:
         with diskcache.Cache(
             str(self.CACHE_PATH), size_limit=self.CACHE_SIZE_LIMIT
         ) as cache:
-            return cache[self._s3_uri]
+            return cache[self._cache_key]
 
     @classmethod
     def cleanup(cls):

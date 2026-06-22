@@ -39,15 +39,24 @@ def _summarise_batch_handles(
     logger = prefect.get_run_logger()
 
     # Reconcile what we expected to fetch with what extract returned.
-    expected_uris = set(batch_df["s3_uri"].to_list())
-    handle_uris = [handle.s3_uri for handle in handles]
-    fetched_uris = set(handle_uris)
-    missing_uris = sorted(expected_uris - fetched_uris)
-    extra_uris = sorted(fetched_uris - expected_uris)
-    duplicate_handle_uris = len(handle_uris) - len(fetched_uris)
-    expected_count = len(expected_uris)
+    expected_identity = set(
+        zip(batch_df["bucket"], batch_df["key"], batch_df["version_id"], strict=True)
+    )
+    handle_identity = [
+        (
+            handle.object_ref.bucket,
+            handle.object_ref.key,
+            handle.object_ref.version_id,
+        )
+        for handle in handles
+    ]
+    fetched_identity = set(handle_identity)
+    missing_identity = sorted(expected_identity - fetched_identity)
+    extra_identity = sorted(fetched_identity - expected_identity)
+    duplicate_handle_identity = len(handle_identity) - len(fetched_identity)
+    expected_count = len(expected_identity)
     coverage_pct = (
-        (len(fetched_uris) / expected_count * 100) if expected_count else 100.0
+        (len(fetched_identity) / expected_count * 100) if expected_count else 100.0
     )
 
     # Summarise how many handles came from each backing implementation.
@@ -59,14 +68,14 @@ def _summarise_batch_handles(
 
     logger.info(
         f"Batch handle summary: expected={expected_count} fetched={len(handles)} "
-        f"unique={len(fetched_uris)} missing={len(missing_uris)} "
-        f"extra={len(extra_uris)} duplicate_uris={duplicate_handle_uris} "
+        f"unique={len(fetched_identity)} missing={len(missing_identity)} "
+        f"extra={len(extra_identity)} duplicate_identities={duplicate_handle_identity} "
         f"coverage={coverage_pct:.2f}% handle_types=[{handle_types_summary or 'none'}]"
     )
-    if missing_uris or extra_uris:
+    if missing_identity or extra_identity:
         logger.warning(
-            f"Extract reconciliation mismatch: missing={len(missing_uris)} "
-            f"extra={len(extra_uris)}"
+            f"Extract reconciliation mismatch: missing={len(missing_identity)} "
+            f"extra={len(extra_identity)}"
         )
 
     # Always publish one compact summary artifact.
@@ -74,12 +83,12 @@ def _summarise_batch_handles(
         key="extract-handle-summary",
         table=[
             {
-                "expected_uris": expected_count,
+                "expected_identities": expected_count,
                 "fetched_handles": len(handles),
-                "unique_fetched_uris": len(fetched_uris),
-                "missing_uris": len(missing_uris),
-                "extra_uris": len(extra_uris),
-                "duplicate_handle_uris": duplicate_handle_uris,
+                "unique_fetched_identities": len(fetched_identity),
+                "missing_identities": len(missing_identity),
+                "extra_identities": len(extra_identity),
+                "duplicate_handle_identities": duplicate_handle_identity,
                 "coverage_pct": round(coverage_pct, 2),
                 "handle_types": handle_types_summary or "none",
             }
@@ -88,24 +97,38 @@ def _summarise_batch_handles(
     )
 
     # Publish bounded mismatch samples only when relevant.
-    if missing_uris:
-        missing_sample = missing_uris[:_ARTIFACT_SAMPLE_LIMIT]
+    if missing_identity:
+        missing_sample = missing_identity[:_ARTIFACT_SAMPLE_LIMIT]
         prefect.artifacts.create_table_artifact(
             key="extract-missing-handle-sample",
-            table=[{"s3_uri": uri} for uri in missing_sample],
+            table=[
+                {
+                    "bucket": bucket,
+                    "key": key,
+                    "version_id": version_id,
+                }
+                for bucket, key, version_id in missing_sample
+            ],
             description=(
-                f"Missing handles sample ({len(missing_uris)} total, "
+                f"Missing handles sample ({len(missing_identity)} total, "
                 f"showing first {len(missing_sample)})"
             ),
         )
 
-    if extra_uris:
-        extra_sample = extra_uris[:_ARTIFACT_SAMPLE_LIMIT]
+    if extra_identity:
+        extra_sample = extra_identity[:_ARTIFACT_SAMPLE_LIMIT]
         prefect.artifacts.create_table_artifact(
             key="extract-extra-handle-sample",
-            table=[{"s3_uri": uri} for uri in extra_sample],
+            table=[
+                {
+                    "bucket": bucket,
+                    "key": key,
+                    "version_id": version_id,
+                }
+                for bucket, key, version_id in extra_sample
+            ],
             description=(
-                f"Extra handles sample ({len(extra_uris)} total, "
+                f"Extra handles sample ({len(extra_identity)} total, "
                 f"showing first {len(extra_sample)})"
             ),
         )

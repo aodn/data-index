@@ -35,7 +35,7 @@ def load(
     # Re-Hydrate unstructured metadata
     # TODO: May need to occur in batches to not overflow
     unstructured = {
-        r.s3_uri: r.unstructured_metadata.load()
+        r.object_ref.as_versioned_uri(): r.unstructured_metadata.load()
         for r in succeeded
         if r.unstructured_metadata is not None
     }

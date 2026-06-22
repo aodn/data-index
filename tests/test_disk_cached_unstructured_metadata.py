@@ -1,26 +1,36 @@
+from data_index.protocols import ObjectReference
 from data_index.unstructured_metadata.disk_cache_unstructured_metadata import (
     DiskCachedUnstructuredMetadata,
 )
 
 
+def _object_ref(uri: str, version_id: str = "v1") -> ObjectReference:
+    bucket, key = uri.removeprefix("s3://").split("/", 1)
+    return ObjectReference(bucket=bucket, key=key, version_id=version_id)
+
+
 def test_load_returns_stored_data():
     data = {"title": "Test", "count": 42}
     handle = DiskCachedUnstructuredMetadata(
-        s3_uri="s3://bucket/load-test.nc", data=data
+        object_ref=_object_ref("s3://bucket/load-test.nc"), data=data
     )
 
     assert handle.load() == data
 
 
 def test_two_uris_are_independent():
-    DiskCachedUnstructuredMetadata(s3_uri="s3://bucket/uri-a.nc", data={"key": "a"})
-    DiskCachedUnstructuredMetadata(s3_uri="s3://bucket/uri-b.nc", data={"key": "b"})
+    DiskCachedUnstructuredMetadata(
+        object_ref=_object_ref("s3://bucket/uri-a.nc"), data={"key": "a"}
+    )
+    DiskCachedUnstructuredMetadata(
+        object_ref=_object_ref("s3://bucket/uri-b.nc"), data={"key": "b"}
+    )
 
     handle_a = DiskCachedUnstructuredMetadata(
-        s3_uri="s3://bucket/uri-a.nc", data={"key": "a"}
+        object_ref=_object_ref("s3://bucket/uri-a.nc"), data={"key": "a"}
     )
     handle_b = DiskCachedUnstructuredMetadata(
-        s3_uri="s3://bucket/uri-b.nc", data={"key": "b"}
+        object_ref=_object_ref("s3://bucket/uri-b.nc"), data={"key": "b"}
     )
 
     assert handle_a.load()["key"] == "a"
@@ -29,10 +39,10 @@ def test_two_uris_are_independent():
 
 def test_overwrite_with_same_uri_returns_latest_data():
     DiskCachedUnstructuredMetadata(
-        s3_uri="s3://bucket/overwrite.nc", data={"version": 1}
+        object_ref=_object_ref("s3://bucket/overwrite.nc"), data={"version": 1}
     )
     handle = DiskCachedUnstructuredMetadata(
-        s3_uri="s3://bucket/overwrite.nc", data={"version": 2}
+        object_ref=_object_ref("s3://bucket/overwrite.nc"), data={"version": 2}
     )
 
     assert handle.load()["version"] == 2

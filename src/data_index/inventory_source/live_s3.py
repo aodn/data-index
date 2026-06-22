@@ -8,6 +8,7 @@ import pydantic
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.iceberg_config.table_scan_config import IcebergTableScanConfig
+from data_index.inventory_source._contract import enforce_inventory_contract
 from data_index.s3_metadata.extract import extract
 from data_index.s3_metadata.load import load
 from data_index.s3_metadata.transform import transform
@@ -18,7 +19,7 @@ _INVENTORY_PARQUET = pathlib.Path("imos-data.inventory.parquet")
 
 class LiveS3InventorySource(pydantic.BaseModel):
     """InventorySource that runs the s3_metadata ETL to materialise the live S3 inventory
-    table to disk, then reads it back as a DataFrame with `s3_uri` and `size` columns.
+    table to disk, then reads it back as a DataFrame with required identity columns.
 
     If skip_if_exists=True (default) and the target path already contains parquet files,
     the ETL is skipped and the existing data is returned directly.
@@ -45,23 +46,16 @@ class LiveS3InventorySource(pydantic.BaseModel):
         live_lf = transform(inventory_lf)
         load(live_lf, path=self.path)
 
-    @staticmethod
-    def _s3_uri_column() -> polars.Expr:
-        return polars.concat_str(
-            polars.lit("s3://"),
-            polars.col("bucket"),
-            polars.lit("/"),
-            polars.col("key"),
-        ).alias("s3_uri")
-
     def inventory(self) -> polars.DataFrame:
         if not (self.skip_if_exists and self._has_data()):
             self._run_etl()
 
-        return (
+        return enforce_inventory_contract(
             polars.scan_parquet(self.path / "**" / "*.parquet")
             .select(
-                self._s3_uri_column(),
+                polars.col("bucket"),
+                polars.col("key"),
+                polars.col("version_id"),
                 polars.col("size"),
             )
             .collect()

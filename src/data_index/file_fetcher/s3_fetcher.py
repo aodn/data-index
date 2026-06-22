@@ -23,7 +23,8 @@ class S3Fetcher(pydantic.BaseModel):
     def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
         return [
             S3XarrayHandle(
-                path=cloudpathlib.S3Path(cloud_path=entry.uri),
+                path=cloudpathlib.S3Path(cloud_path=entry.object_ref.as_uri()),
+                object_ref=entry.object_ref,
                 block_size=self.block_size,
             )
             for entry in entries

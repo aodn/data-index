@@ -1,21 +1,25 @@
 from unittest.mock import MagicMock, patch
 
-from data_index.protocols import ExtractionResult
+from data_index.protocols import ExtractionResult, ObjectReference
 from data_index.transform import transform
 
 
 class _Handle:
-    def __init__(self, s3_uri: str):
-        self.s3_uri = s3_uri
+    def __init__(self, bucket: str, key: str, version_id: str):
+        self.object_ref = ObjectReference(bucket=bucket, key=key, version_id=version_id)
+
+    @property
+    def s3_uri(self):
+        return self.object_ref.as_uri()
 
 
 def test_transform_runs_sequentially_and_preserves_order():
-    handles = [_Handle("s3://bucket/a.nc"), _Handle("s3://bucket/b.nc")]
+    handles = [_Handle("bucket", "a.nc", "v1"), _Handle("bucket", "b.nc", "v2")]
     extractor = MagicMock()
     metadata_factory = MagicMock()
     expected_results = [
         ExtractionResult(
-            s3_uri=handle.s3_uri,
+            object_ref=handle.object_ref,
             structured_metadata=None,
             unstructured_metadata=None,
             status="failed",

@@ -7,7 +7,10 @@ from data_index.structured_sink.parquet_sink import ParquetSink
 
 def make_metadata(**kwargs) -> StructuredMetadata:
     defaults = dict(
-        s3_uri="s3://bucket/file.nc",
+        bucket="bucket",
+        key="file.nc",
+        version_id="v1",
+        facility="UNKNOWN",
         geospatial_lat_min=-10.0,
         geospatial_lat_max=10.0,
         geospatial_lon_min=100.0,
@@ -35,12 +38,12 @@ def test_writes_rows_with_correct_schema_and_values(tmp_path):
     sink = ParquetSink(path=path)
     rows = [
         make_metadata(
-            s3_uri="s3://bucket/a.nc",
+            key="a.nc",
             geospatial_lat_min=-1.0,
             geospatial_lat_max=1.0,
         ),
         make_metadata(
-            s3_uri="s3://bucket/b.nc",
+            key="b.nc",
             geospatial_lat_min=-2.0,
             geospatial_lat_max=2.0,
         ),
@@ -51,7 +54,9 @@ def test_writes_rows_with_correct_schema_and_values(tmp_path):
     df = polars.read_parquet(path)
     assert df.schema == StructuredMetadata.as_polars_schema()
     assert len(df) == 2
-    assert df["s3_uri"].to_list() == ["s3://bucket/a.nc", "s3://bucket/b.nc"]
+    assert df["bucket"].to_list() == ["bucket", "bucket"]
+    assert df["key"].to_list() == ["a.nc", "b.nc"]
+    assert df["version_id"].to_list() == ["v1", "v1"]
     assert df["schema_version"].to_list() == [
         StructuredMetadata.SCHEMA_VERSION,
         StructuredMetadata.SCHEMA_VERSION,
@@ -96,9 +101,9 @@ def test_appends_on_subsequent_writes(tmp_path):
     path = tmp_path / "out.parquet"
     sink = ParquetSink(path=path)
 
-    sink.write([make_metadata(s3_uri="s3://bucket/a.nc", geospatial_lat_min=-1.0)])
-    sink.write([make_metadata(s3_uri="s3://bucket/b.nc", geospatial_lat_min=-2.0)])
+    sink.write([make_metadata(key="a.nc", geospatial_lat_min=-1.0)])
+    sink.write([make_metadata(key="b.nc", geospatial_lat_min=-2.0)])
 
     df = polars.read_parquet(path)
     assert len(df) == 2
-    assert set(df["s3_uri"].to_list()) == {"s3://bucket/a.nc", "s3://bucket/b.nc"}
+    assert set(df["key"].to_list()) == {"a.nc", "b.nc"}

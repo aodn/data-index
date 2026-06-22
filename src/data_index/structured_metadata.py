@@ -64,9 +64,12 @@ class StructuredMetadata:
     schema generation.
     """
 
-    SCHEMA_VERSION: typing.ClassVar[int] = 1
+    SCHEMA_VERSION: typing.ClassVar[int] = 3
 
-    s3_uri: str
+    bucket: str
+    key: str
+    version_id: str
+    hash: str
     schema_version: int | None = SCHEMA_VERSION
     geospatial_lat_min: float | None = None
     geospatial_lat_max: float | None = None
@@ -76,6 +79,7 @@ class StructuredMetadata:
     geospatial_vertical_max: float | None = None
     geospatial_vertical_positive: str | None = None
     time_coverage_start: str | None = None
+    time_coverage_start_year: int | None = None
     time_coverage_end: str | None = None
     date_created: str | None = None
     crs: str | None = None
@@ -94,7 +98,12 @@ class StructuredMetadata:
     variables: list[str] | None = None
     standard_names: list[str] | None = None
     file_format: str | None = None
-    collection: str | None = None
+    facility: str = "UNKNOWN"
+
+    @property
+    def s3_uri(self) -> str:
+        """Backward-compatible S3 URI view for legacy consumers."""
+        return f"s3://{self.bucket}/{self.key}"
 
     @classmethod
     def _parse_annotation(cls, annotation) -> tuple[_TypeSpec, bool]:

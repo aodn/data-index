@@ -3,10 +3,9 @@ import typing
 import pydantic
 import xarray
 
-from data_index.metadata_extractor._sanitize import (
-    _serialize_with_orjson,
-)
-from data_index.protocols import RawExtractionResult, XarrayHandle
+from data_index._collection import derive_facility
+from data_index.metadata_extractor._sanitize import _serialize_with_orjson
+from data_index.protocols import ObjectReference, RawExtractionResult, XarrayHandle
 from data_index.structured_metadata import StructuredMetadata
 
 
@@ -21,7 +20,7 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         try:
             structured = self._extract_structured(
                 ds=handle.ds,
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 file_format=handle.file_format,
             )
             unstructured = self._extract_unstructured(
@@ -29,14 +28,14 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
                 file_format=handle.file_format,
             )
             return RawExtractionResult(
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 structured_metadata=structured,
                 unstructured_metadata=unstructured,
                 status="succeeded",
             )
         except Exception as exc:
             return RawExtractionResult(
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
@@ -46,7 +45,7 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
     def _extract_structured(
         self,
         ds: xarray.Dataset,
-        s3_uri: str,
+        object_ref: ObjectReference,
         file_format: str | None = None,
     ) -> StructuredMetadata:
         """
@@ -59,7 +58,10 @@ class UnstructuedNetCDFExtractor(pydantic.BaseModel):
         # `Site`, `Platform` and `Deployment`
         # `keywords`
         return StructuredMetadata(
-            s3_uri=s3_uri,
+            bucket=object_ref.bucket,
+            key=object_ref.key,
+            version_id=object_ref.version_id,
+            facility=derive_facility(object_ref.key),
             file_format=file_format,
             geospatial_lat_min=None,
             geospatial_lat_max=None,

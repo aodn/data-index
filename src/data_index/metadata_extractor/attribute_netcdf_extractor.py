@@ -1,12 +1,12 @@
+import re
 import typing
 
 import pydantic
 import xarray
 
-from data_index.metadata_extractor._sanitize import (
-    _serialize_with_orjson,
-)
-from data_index.protocols import RawExtractionResult, XarrayHandle
+from data_index._collection import derive_facility
+from data_index.metadata_extractor._sanitize import _serialize_with_orjson
+from data_index.protocols import ObjectReference, RawExtractionResult, XarrayHandle
 from data_index.structured_metadata import StructuredMetadata
 
 
@@ -16,6 +16,13 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
     type: typing.Literal["attribute_netcdf_extractor"] = pydantic.Field(
         default="attribute_netcdf_extractor"
     )
+
+    @staticmethod
+    def _extract_year(value: str | None) -> int | None:
+        if not value:
+            return None
+        match = re.search(r"\b(\d{4})\b", value)
+        return int(match.group(1)) if match else None
 
     def extract(self, handle: XarrayHandle) -> RawExtractionResult:
         """Extract structured and unstructured metadata for one handle.
@@ -27,7 +34,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         try:
             structured = self._extract_structured(
                 ds=handle.ds,
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 file_format=handle.file_format,
             )
             unstructured = self._extract_unstructured(
@@ -35,14 +42,14 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 file_format=handle.file_format,
             )
             return RawExtractionResult(
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 structured_metadata=structured,
                 unstructured_metadata=unstructured,
                 status="succeeded",
             )
         except Exception as exc:
             return RawExtractionResult(
-                s3_uri=handle.s3_uri,
+                object_ref=handle.object_ref,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
@@ -52,13 +59,13 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
     def _extract_structured(
         self,
         ds: xarray.Dataset,
-        s3_uri: str,
+        object_ref: ObjectReference,
         file_format: str | None = None,
     ) -> StructuredMetadata:
         """Build structured metadata row from global attributes and dataset structure.
 
         :param ds: Open xarray dataset.
-        :param s3_uri: Source S3 URI for the row.
+        :param object_ref: Source object identity for the row.
         :param file_format: File format derived from magic bytes.
         :returns: Structured metadata row.
         """
@@ -67,7 +74,10 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         # For dimensions, capture the sizes of the dimensions not just the names
 
         metadata_kwargs = {
-            "s3_uri": s3_uri,
+            "bucket": object_ref.bucket,
+            "key": object_ref.key,
+            "version_id": object_ref.version_id,
+            "facility": derive_facility(object_ref.key),
             "file_format": file_format,
         }
 
@@ -117,6 +127,9 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         metadata_kwargs["dimensions"] = self._sorted_or_none(ds.dims)
         metadata_kwargs["variables"] = self._sorted_or_none(ds.data_vars)
         metadata_kwargs["standard_names"] = self._extract_standard_names(ds)
+        metadata_kwargs["time_coverage_start_year"] = self._extract_year(
+            metadata_kwargs["time_coverage_start"]
+        )
 
         return StructuredMetadata(**metadata_kwargs)
 

@@ -45,11 +45,23 @@ class ThresholdFileFetcher(pydantic.BaseModel):
         prefect.artifacts.create_table_artifact(
             key="threshold-fetcher-routing",
             table=[
-                {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "disk"}
+                {
+                    "bucket": e.object_ref.bucket,
+                    "key": e.object_ref.key,
+                    "version_id": e.object_ref.version_id,
+                    "size_bytes": e.size_bytes,
+                    "route": "disk",
+                }
                 for e in disk_entries
             ]
             + [
-                {"s3_uri": e.uri, "size_bytes": e.size_bytes, "route": "cloud"}
+                {
+                    "bucket": e.object_ref.bucket,
+                    "key": e.object_ref.key,
+                    "version_id": e.object_ref.version_id,
+                    "size_bytes": e.size_bytes,
+                    "route": "cloud",
+                }
                 for e in cloud_entries
             ],
             description=f"Routing decisions (threshold: {self.size_threshold_bytes:,} bytes)",

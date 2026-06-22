@@ -29,7 +29,10 @@ def table_config(tmp_path):
 
 def make_metadata(**kwargs) -> StructuredMetadata:
     defaults = dict(
-        s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc",
+        bucket="imos-data",
+        key="IMOS/ANMN/NSW/file.nc",
+        version_id="v1",
+        facility="ANMN",
         geospatial_lat_min=-10.0,
         geospatial_lat_max=10.0,
         geospatial_lon_min=100.0,
@@ -38,7 +41,6 @@ def make_metadata(**kwargs) -> StructuredMetadata:
         time_coverage_end="2020-06-01",
         crs="EPSG:4326",
         file_format="NETCDF4",
-        collection="ANMN",
     )
     defaults.update(kwargs)
     return StructuredMetadata(**defaults)
@@ -59,27 +61,25 @@ def test_provision_sets_schema_version_table_property(table_config):
 def test_writes_rows_with_correct_values(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
     rows = [
-        make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/a.nc", geospatial_lat_min=-1.0),
-        make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/b.nc", geospatial_lat_min=-2.0),
+        make_metadata(key="IMOS/ANMN/a.nc", geospatial_lat_min=-1.0),
+        make_metadata(key="IMOS/ANMN/b.nc", geospatial_lat_min=-2.0),
     ]
 
     sink.write(rows)
 
     df = table_config.load().scan().to_pandas()
     assert len(df) == 2
-    assert set(df["s3_uri"]) == {
-        "s3://imos-data/IMOS/ANMN/a.nc",
-        "s3://imos-data/IMOS/ANMN/b.nc",
-    }
+    assert set(df["bucket"]) == {"imos-data"}
+    assert set(df["key"]) == {"IMOS/ANMN/a.nc", "IMOS/ANMN/b.nc"}
     assert set(df["schema_version"]) == {StructuredMetadata.SCHEMA_VERSION}
 
 
 def test_upserts_on_subsequent_writes(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri = "s3://imos-data/IMOS/ANMN/a.nc"
+    key = "IMOS/ANMN/a.nc"
 
-    sink.write([make_metadata(s3_uri=uri, geospatial_lat_min=-1.0)])
-    sink.write([make_metadata(s3_uri=uri, geospatial_lat_min=-2.0)])
+    sink.write([make_metadata(key=key, geospatial_lat_min=-1.0)])
+    sink.write([make_metadata(key=key, geospatial_lat_min=-2.0)])
 
     df = table_config.load().scan().to_pandas()
     assert len(df) == 1
@@ -88,32 +88,32 @@ def test_upserts_on_subsequent_writes(table_config):
 
 def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri_a = "s3://imos-data/IMOS/ANMN/a.nc"
-    uri_b = "s3://imos-data/IMOS/ANMN/b.nc"
+    key_a = "IMOS/ANMN/a.nc"
+    key_b = "IMOS/ANMN/b.nc"
 
-    sink.write([make_metadata(s3_uri=uri_a, geospatial_lat_min=-1.0)])
+    sink.write([make_metadata(key=key_a, geospatial_lat_min=-1.0)])
     sink.write(
         [
-            make_metadata(s3_uri=uri_a, geospatial_lat_min=-2.0),
-            make_metadata(s3_uri=uri_b, geospatial_lat_min=-3.0),
+            make_metadata(key=key_a, geospatial_lat_min=-2.0),
+            make_metadata(key=key_b, geospatial_lat_min=-3.0),
         ]
     )
 
     df = table_config.load().scan().to_pandas()
-    lat_by_uri = dict(zip(df["s3_uri"], df["geospatial_lat_min"], strict=True))
+    lat_by_key = dict(zip(df["key"], df["geospatial_lat_min"], strict=True))
     assert len(df) == 2
-    assert lat_by_uri[uri_a] == -2.0
-    assert lat_by_uri[uri_b] == -3.0
+    assert lat_by_key[key_a] == -2.0
+    assert lat_by_key[key_b] == -3.0
 
 
-def test_duplicate_s3_uri_within_batch_keeps_last_occurrence(table_config):
+def test_duplicate_identity_within_batch_keeps_last_occurrence(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri = "s3://imos-data/IMOS/ANMN/a.nc"
+    key = "IMOS/ANMN/a.nc"
 
     sink.write(
         [
-            make_metadata(s3_uri=uri, geospatial_lat_min=-1.0),
-            make_metadata(s3_uri=uri, geospatial_lat_min=-2.0),
+            make_metadata(key=key, geospatial_lat_min=-1.0),
+            make_metadata(key=key, geospatial_lat_min=-2.0),
         ]
     )
 
@@ -140,7 +140,6 @@ def test_null_fields_survive_roundtrip(table_config):
                 geospatial_lat_min=None,
                 geospatial_lat_max=None,
                 crs=None,
-                collection=None,
             )
         ]
     )
@@ -148,7 +147,6 @@ def test_null_fields_survive_roundtrip(table_config):
     df = table_config.load().scan().to_pandas()
     assert df["geospatial_lat_min"].isna().all()
     assert df["crs"].isna().all()
-    assert df["collection"].isna().all()
 
 
 def test_writes_extended_structured_metadata_fields(table_config):
@@ -218,7 +216,7 @@ def test_provision_evolves_existing_legacy_schema(tmp_path):
         ),
     )
 
-    sink.provision()
+    sink.provision(reset=True)
 
     schema = config.load().schema()
     assert schema.find_field("keywords").required is False

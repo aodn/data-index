@@ -2,11 +2,18 @@ from unittest.mock import MagicMock, patch
 
 import cloudpathlib
 
+from data_index.protocols import ObjectReference
 from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
 
 
-def make_handle(uri: str = "s3://bucket/path/to/file.nc") -> S3XarrayHandle:
-    return S3XarrayHandle(path=cloudpathlib.S3Path(uri))
+def make_handle(
+    uri: str = "s3://bucket/path/to/file.nc", version_id: str = "v1"
+) -> S3XarrayHandle:
+    bucket, key = uri.removeprefix("s3://").split("/", 1)
+    return S3XarrayHandle(
+        path=cloudpathlib.S3Path(uri),
+        object_ref=ObjectReference(bucket=bucket, key=key, version_id=version_id),
+    )
 
 
 def test_s3_uri_returns_correct_string():
@@ -83,5 +90,6 @@ def test_ds_returns_singleton_dataset():
         path="bucket/path/to/file.nc",
         cache_type=handle.cache_type,
         block_size=handle.block_size,
+        version_id="v1",
     )
     open_dataset.assert_called_once_with(filename_or_obj=mock_file)

@@ -9,6 +9,7 @@ import prefect.cache_policies
 from data_index.protocols import (
     ExtractionResult,
     MetadataExtractor,
+    ObjectReference,
     UnstructuredMetadata,
     XarrayHandle,
 )
@@ -18,7 +19,9 @@ from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 def _transform_single(
     xarray_handle: XarrayHandle,
     extractor: MetadataExtractor,
-    unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
+    unstructured_metadata_factory: typing.Callable[
+        [ObjectReference, dict], UnstructuredMetadata
+    ],
     logger: logging.Logger,
 ) -> ExtractionResult:
     # Attempt extraction
@@ -27,7 +30,7 @@ def _transform_single(
         if raw.status == "failed":
             logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
             return ExtractionResult(
-                s3_uri=xarray_handle.s3_uri,
+                object_ref=xarray_handle.object_ref,
                 structured_metadata=None,
                 unstructured_metadata=None,
                 status="failed",
@@ -35,17 +38,17 @@ def _transform_single(
             )
         logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
         return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
+            object_ref=xarray_handle.object_ref,
             structured_metadata=raw.structured_metadata,
             unstructured_metadata=unstructured_metadata_factory(
-                xarray_handle.s3_uri, raw.unstructured_metadata
+                xarray_handle.object_ref, raw.unstructured_metadata
             ),
             status="succeeded",
         )
     except Exception as exc:
         logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
         return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
+            object_ref=xarray_handle.object_ref,
             structured_metadata=None,
             unstructured_metadata=None,
             status="failed",
@@ -67,7 +70,7 @@ def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
     metadata_factory: typing.Callable[
-        [str, dict], UnstructuredMetadata
+        [ObjectReference, dict], UnstructuredMetadata
     ] = DiskCachedUnstructuredMetadata,
     max_workers: int | None = None,
 ) -> list[ExtractionResult]:
@@ -75,7 +78,7 @@ def transform(
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
     Runs _transform_single sequentially. Each call immediately persists
-    unstructured metadata via metadata_factory(s3_uri, data). Releases handle
+    unstructured metadata via metadata_factory(object_ref, data). Releases handle
     resources after all files are processed.
 
     Args:

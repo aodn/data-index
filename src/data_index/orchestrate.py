@@ -15,6 +15,7 @@ from data_index.protocols import (
     FileFetcher,
     InventorySource,
     MetadataExtractor,
+    ObjectReference,
     StructuredSink,
     UnstructuredMetadata,
     UnstructuredSink,
@@ -42,7 +43,7 @@ def _process_batch(
     structured_sink: StructuredSink,
     unstructured_sink: UnstructuredSink,
     metadata_factory: typing.Callable[
-        [str, dict], UnstructuredMetadata
+        [ObjectReference, dict], UnstructuredMetadata
     ] = DiskCachedUnstructuredMetadata,
     transform_max_workers: int | None = None,
 ) -> None:
@@ -86,7 +87,7 @@ def orchestrate(
         extractor: MetadataExtractor — extracts structured/unstructured metadata
         structured_sink: StructuredSink — persists structured metadata
         unstructured_sink: UnstructuredSink — persists unstructured metadata
-        metadata_factory: callable(s3_uri, data) → UnstructuredMetadata
+        metadata_factory: callable(object_ref, data) → UnstructuredMetadata
         transform_max_workers: max threads per batch in the transform step; None uses Python's default
     """
 

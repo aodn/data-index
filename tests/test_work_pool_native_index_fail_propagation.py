@@ -9,7 +9,10 @@ from data_index.work_pool_native import index as work_pool_index
 
 
 def _batch_df(uri: str) -> polars.DataFrame:
-    return polars.DataFrame({"s3_uri": [uri], "size": [1]})
+    bucket, key = uri.removeprefix("s3://").split("/", 1)
+    return polars.DataFrame(
+        {"bucket": [bucket], "key": [key], "version_id": ["v1"], "size": [1]}
+    )
 
 
 def test_index_batch_raises_when_subflow_state_is_none():

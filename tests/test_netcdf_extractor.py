@@ -5,6 +5,7 @@ import pytest
 import xarray
 
 from data_index.metadata_extractor.netcdf_extractor import NetCDFExtractor
+from data_index.protocols import ObjectReference
 
 
 def make_dataset(
@@ -49,12 +50,17 @@ class StubHandle:
         file_format: str | None = None,
     ):
         self._ds = ds
-        self.s3_uri = s3_uri
+        bucket, key = s3_uri.removeprefix("s3://").split("/", 1)
+        self.object_ref = ObjectReference(bucket=bucket, key=key, version_id="v1")
         self.file_format = file_format
 
     @property
     def ds(self) -> xarray.Dataset:
         return self._ds
+
+    @property
+    def s3_uri(self) -> str:
+        return self.object_ref.as_uri()
 
     def cleanup(self) -> None:
         pass
@@ -84,6 +90,7 @@ def test_extracts_lat_lon_time_ranges(extractor):
     assert sm.geospatial_lon_max == pytest.approx(110.0)
     assert sm.time_coverage_start is not None
     assert sm.time_coverage_end is not None
+    assert sm.time_coverage_start_year == 2020
     assert "2020-01-01" in sm.time_coverage_start
     assert "2020-06-01" in sm.time_coverage_end
     assert sm.s3_uri == "s3://bucket/file.nc"
@@ -134,8 +141,12 @@ def test_extracts_crs_from_global_attrs_when_no_grid_mapping(extractor):
 
 def test_returns_failed_status_when_extraction_raises(extractor):
     class BrokenHandle:
-        s3_uri = "s3://bucket/broken.nc"
+        object_ref = ObjectReference(bucket="bucket", key="broken.nc", version_id="v1")
         file_format = None
+
+        @property
+        def s3_uri(self):
+            return self.object_ref.as_uri()
 
         @property
         def ds(self):
@@ -202,28 +213,28 @@ def test_unstructured_metadata_with_surrogate_string_attribute_is_sanitized(extr
     json.dumps(result.unstructured_metadata)
 
 
-def test_extracts_collection_as_second_path_segment(extractor):
+def test_extracts_facility_as_second_key_segment(extractor):
     ds = xarray.Dataset()
     result = extractor.extract(
         StubHandle(ds, s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc")
     )
 
-    assert result.structured_metadata.collection == "ANMN"
+    assert result.structured_metadata.facility == "ANMN"
 
 
-def test_collection_is_none_for_short_uri(extractor):
+def test_facility_is_unknown_for_short_uri(extractor):
     ds = xarray.Dataset()
     result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/file.nc"))
 
-    assert result.structured_metadata.collection is None
+    assert result.structured_metadata.facility == "UNKNOWN"
 
 
-def test_collection_is_none_for_single_segment_key(extractor):
-    """A file one level deep must not have its filename treated as its collection."""
+def test_facility_is_unknown_for_single_segment_key(extractor):
+    """A file one level deep must not have its filename treated as a facility."""
     ds = xarray.Dataset()
     result = extractor.extract(StubHandle(ds, s3_uri="s3://bucket/IMOS/file.nc"))
 
-    assert result.structured_metadata.collection is None
+    assert result.structured_metadata.facility == "UNKNOWN"
 
 
 def test_file_format_propagates_to_structured_and_unstructured(extractor):

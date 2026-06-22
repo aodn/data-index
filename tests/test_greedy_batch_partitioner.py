@@ -6,7 +6,9 @@ from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
 def _inventory(*sizes: int) -> polars.DataFrame:
     return polars.DataFrame(
         {
-            "s3_uri": [f"s3://bucket/file{i}.nc" for i in range(len(sizes))],
+            "bucket": ["bucket" for _ in range(len(sizes))],
+            "key": [f"file{i}.nc" for i in range(len(sizes))],
+            "version_id": [f"v{i}" for i in range(len(sizes))],
             "size": list(sizes),
         }
     )
@@ -51,7 +53,12 @@ def test_batches_contain_all_original_files():
     inventory = _inventory(10, 20, 30, 40)
     batches = list(partitioner.partition(inventory))
 
-    all_uris = [
-        row["s3_uri"] for batch in batches for row in batch.iter_rows(named=True)
+    all_identity = [
+        (row["bucket"], row["key"], row["version_id"])
+        for batch in batches
+        for row in batch.iter_rows(named=True)
     ]
-    assert sorted(all_uris) == sorted(inventory["s3_uri"].to_list())
+    expected_identity = list(
+        zip(inventory["bucket"], inventory["key"], inventory["version_id"], strict=True)
+    )
+    assert sorted(all_identity) == sorted(expected_identity)
