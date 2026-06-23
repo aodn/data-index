@@ -28,11 +28,18 @@ def _transform_single(
             return extraction_result
         logger.info(f"extraction succeeded for {object_reference.as_versioned_uri()}")
         return extraction_result
+
+    # Failed extraction
     except Exception as e:
         logger.warning(
             f"extraction failed for {object_reference.as_versioned_uri()}: {e}"
         )
-        return extraction_result
+        return ExtractionResult(
+            structured_metadata=None,
+            unstructured_metadata=None,
+            status="error",
+            error=str(e),
+        )
 
     # Attempt cleanup
     finally:
