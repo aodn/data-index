@@ -1,3 +1,5 @@
+import json
+
 import xarray
 
 from data_index.metadata_extractor.attribute_netcdf_extractor import (
@@ -31,7 +33,6 @@ def _object_reference(
         version_id="0",
         size=32,
         xarray_handle=None,
-        extraction_result=None,
     ).with_xarray_handle(StubXarrayHandle(ds=ds))
 
 
@@ -124,10 +125,9 @@ def test_extract_succeeds_with_surrogate_string_in_global_attrs():
     extractor = AttributeNetCDFExtractor()
     ds = xarray.Dataset(attrs={"title": f"{chr(0xDCFF)}bad"})
 
-    result = extractor.extract(_object_reference(ds))
+    extraction_result = extractor.extract(_object_reference(ds))
 
-    assert result.status == "succeeded"
-    assert result.unstructured_metadata is not None
-    assert (
-        result.unstructured_metadata.metadata["global_attrs"]["title"] == "\\udcffbad"
-    )
+    assert extraction_result.status == "succeeded"
+    assert extraction_result.unstructured_metadata is not None
+    metadata = json.loads(extraction_result.unstructured_metadata.metadata)
+    assert metadata["global_attrs"]["title"] == "\\udcffbad"

@@ -6,6 +6,7 @@ import prefect
 import prefect.cache_policies
 
 from data_index.protocols import (
+    ExtractionResult,
     MetadataExtractor,
     ObjectReference,
 )
@@ -15,24 +16,23 @@ def _transform_single(
     object_reference: ObjectReference,
     extractor: MetadataExtractor,
     logger: logging.Logger,
-) -> ObjectReference:
+) -> ExtractionResult:
 
     # Attempt extraction
     try:
         extraction_result = extractor.extract(object_reference=object_reference)
-        object_reference.with_extraction_result(extraction_result=extraction_result)
         if extraction_result.status == "failed":
             logger.warning(
                 f"extraction failed for {object_reference.as_versioned_uri()}: {extraction_result.error}"
             )
-            return object_reference
+            return extraction_result
         logger.info(f"extraction succeeded for {object_reference.as_versioned_uri()}")
-        return object_reference
+        return extraction_result
     except Exception as e:
         logger.warning(
             f"extraction failed for {object_reference.as_versioned_uri()}: {e}"
         )
-        return object_reference
+        return extraction_result
 
     # Attempt cleanup
     finally:
@@ -48,7 +48,7 @@ def _transform_single(
 def transform(
     object_references: list[ObjectReference],
     extractor: MetadataExtractor,
-) -> list[ObjectReference]:
+) -> list[ExtractionResult]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
@@ -65,7 +65,7 @@ def transform(
     logger = prefect.get_run_logger()
 
     logger.info("Running extraction sequentially...")
-    results = [
+    extraction_results = [
         _transform_single(
             object_reference=object_reference,
             extractor=extractor,
@@ -76,4 +76,4 @@ def transform(
     logger.info("Sequential extraction complete!")
 
     logger.info("Transform complete!")
-    return results
+    return extraction_results
