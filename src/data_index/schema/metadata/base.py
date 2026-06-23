@@ -57,14 +57,11 @@ class _PyIcebergIdAllocator:
 
 
 @dataclasses.dataclass(
+    kw_only=True,
     frozen=True,
 )
 class Metadata:
-    """Structured metadata row schema and backend schema converters.
-
-    ``StructuredMetadata`` is source-of-truth for Polars, PyArrow, and PyIceberg
-    schema generation.
-    """
+    """Metadata row schema to inherit from"""
 
     bucket: str
     key: str

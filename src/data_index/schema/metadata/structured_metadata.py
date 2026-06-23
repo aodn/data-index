@@ -44,5 +44,5 @@ class StructuredMetadata(Metadata):
     dimensions: list[str] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None
-    file_format: str | None = None
-    facility: str | None = None
+    file_format: str
+    facility: str
