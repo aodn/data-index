@@ -17,7 +17,6 @@ class ObjectReference(typing.NamedTuple):
     version_id: str
     size: int | None
     xarray_handle: XarrayHandle | None
-    extraction_result: ExtractionResult | None
 
     def as_uri(self) -> str:
         return f"s3://{self.bucket}/{self.key}"
@@ -36,11 +35,6 @@ class ObjectReference(typing.NamedTuple):
         an underscore.
         """
         return self._replace(xarray_handle=xarray_handle)
-
-    def with_extraction_result(
-        self, extraction_result: ExtractionResult
-    ) -> ObjectReference:
-        return self._replace(extraction_result=extraction_result)
 
     @property
     def hash(self) -> str:

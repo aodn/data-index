@@ -99,7 +99,6 @@ def test_schema_version_field_defaults_to_class_var_value():
         version_id="v1",
         size=0,
         xarray_handle=None,
-        extraction_result=None,
     )
     row = StructuredMetadata(
         bucket=object_reference.bucket,

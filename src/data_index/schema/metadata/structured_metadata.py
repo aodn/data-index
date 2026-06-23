@@ -4,7 +4,10 @@ import typing
 from .base import Metadata
 
 
-@dataclasses.dataclass(kw_only=True)
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
 class StructuredMetadata(Metadata):
     """Structured metadata row schema and backend schema converters.
 

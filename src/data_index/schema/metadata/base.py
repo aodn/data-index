@@ -56,7 +56,9 @@ class _PyIcebergIdAllocator:
         return nested_id
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(
+    frozen=True,
+)
 class Metadata:
     """Structured metadata row schema and backend schema converters.
 

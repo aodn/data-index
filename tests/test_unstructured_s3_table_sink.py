@@ -49,7 +49,6 @@ def test_writes_identity_facility_and_json_metadata(table_config):
             version_id="0",
             size=0,
             xarray_handle=None,
-            extraction_result=None,
         ),
         ObjectReference(
             bucket="test",
@@ -57,7 +56,6 @@ def test_writes_identity_facility_and_json_metadata(table_config):
             version_id="0",
             size=0,
             xarray_handle=None,
-            extraction_result=None,
         ),
     ]
 
@@ -93,7 +91,6 @@ def test_upserts_on_subsequent_writes(table_config):
         version_id="v1",
         size=0,
         xarray_handle=None,
-        extraction_result=None,
     )
 
     # First write (Initial insertion)
@@ -134,7 +131,6 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
         version_id="v1",
         size=0,
         xarray_handle=None,
-        extraction_result=None,
     )
     obj_ref_b = ObjectReference(
         bucket="imos-data",
@@ -142,7 +138,6 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
         version_id="v2",
         size=0,
         xarray_handle=None,
-        extraction_result=None,
     )
 
     # First write (Initial insertion of row A)

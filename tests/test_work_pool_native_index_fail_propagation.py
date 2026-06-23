@@ -15,7 +15,6 @@ def _object_reference(key: str) -> ObjectReference:
         version_id="0",
         size=32,
         xarray_handle=None,
-        extraction_result=None,
     )
 
 

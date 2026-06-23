@@ -14,7 +14,6 @@ def _object_reference(
         version_id=version_id,
         size=size,
         xarray_handle=None,
-        extraction_result=None,
     )
 
 

@@ -35,7 +35,6 @@ def make_metadata(key: str, **kwargs) -> StructuredMetadata:
         version_id="v1",
         size=0,
         xarray_handle=None,
-        extraction_result=None,
     )
     defaults = dict(
         bucket=object_reference.bucket,
