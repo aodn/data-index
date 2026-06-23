@@ -25,6 +25,8 @@ def extract(
     Returns a list of XarrayHandle per file.
     """
 
+    logger = prefect.get_run_logger()
+
     # Count occurrences using the built-in versioned URI generator
     uri_counts = collections.Counter(
         object_reference.as_versioned_uri() for object_reference in object_references
@@ -43,6 +45,13 @@ def extract(
             "Duplicates list:\n" + "\n".join(duplicate_details)
         )
 
+    # Get the number of bytes
+    bytes = sum([object_reference.size for object_reference in object_references])
+
     # Fetch
+    logger.info(
+        f"Extracting `{len(object_references)}` files (`{(bytes / 1024 / 1024):,.2f}` MB)"
+    )
     object_references = fetcher.fetch(object_references=object_references)
+    logger.info(f"Extracted `{len(object_references)}` files!")
     return object_references

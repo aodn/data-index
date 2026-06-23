@@ -132,7 +132,7 @@ def index_batch(
     return
 
 
-@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=4))
+@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=2))
 def run_index_work_pool(
     inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
