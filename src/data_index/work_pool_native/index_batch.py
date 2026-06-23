@@ -1,7 +1,7 @@
 import prefect
 
 from data_index.extract import extract
-from data_index.file_fetcher import FSSpecFetcher
+from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
 from data_index.load import load
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
@@ -17,7 +17,7 @@ from data_index.unstructured_sink import (
 @prefect.flow
 def index_batch(
     object_reference_batch: list[ObjectReference],
-    fetcher: FSSpecFetcher,
+    fetcher: FSSpecFetcher | ObstoreFetcher,
     extractor: AttributeNetCDFExtractor,
     structured_sink: StructuredS3TableSink,
     unstructured_sink: UnstructuredS3TableSink,
@@ -55,5 +55,5 @@ def index_batch(
 if __name__ == "__main__":
     index_batch.serve(
         name="index-batch",
-        global_limit=8,
+        global_limit=12,
     )

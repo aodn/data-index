@@ -19,6 +19,10 @@ class ObstoreFetcher(pydantic.BaseModel):
     bucket: str = pydantic.Field(default="imos-data")
     region: str = pydantic.Field(default="ap-southeast-2")
     skip_signature: bool = pydantic.Field(default=True)
+    min_chunk_size: int = pydantic.Field(
+        default=100 * 1024**2, description="Defaults to 100MB"
+    )
+    override_downloaded_files: bool = pydantic.Field(default=False)
     _store: obstore.store.S3Store = pydantic.PrivateAttr()
 
     @pydantic.model_validator(mode="after")
@@ -37,6 +41,9 @@ class ObstoreFetcher(pydantic.BaseModel):
         self,
         object_reference: data_index.protocols.ObjectReference,
     ) -> data_index.xarray_handle.DiskXarrayHandle:
+        """
+        Construct a disk xarray handle utilising the stream to disk utility.
+        """
 
         path = self.stream_to_disk(object_reference=object_reference)
         return data_index.xarray_handle.DiskXarrayHandle(
@@ -47,19 +54,31 @@ class ObstoreFetcher(pydantic.BaseModel):
         self,
         object_reference: data_index.protocols.ObjectReference,
     ) -> pathlib.Path:
+        """
+        Stream the source object to disk in 10MB chunks
+        """
 
+        # Construct the write path
         write_path = self.extract_path / object_reference.path
+
+        # Optionally don't re-download existing files
+        if write_path.is_file() and not self.override_downloaded_files:
+            return write_path
+
+        # Stream the path to disk and return the path
         write_path.parent.mkdir(parents=True, exist_ok=True)
         with open(write_path, "wb") as f:
             for chunk in self.get_stream(object_reference=object_reference):
                 f.write(chunk)
-
         return write_path
 
     def get_stream(
         self,
         object_reference: data_index.protocols.ObjectReference,
     ):
+        """
+        Convert an ObjectReference into a stream generator.
+        """
 
         options = dict()
 
@@ -70,11 +89,16 @@ class ObstoreFetcher(pydantic.BaseModel):
         return self.store.get(
             path=object_reference.key,
             options=options,
-        ).stream()
+        ).stream(min_chunk_size=self.min_chunk_size)
 
     def fetch(
         self, object_references: list[data_index.protocols.ObjectReference]
     ) -> list[data_index.protocols.ObjectReference]:
+        """
+        Populate all ObjectReferences with disk xarray handles.
+
+        Causes download of all passed in object_references to `self.extract_path`
+        """
         return [
             object_reference.with_xarray_handle(
                 xarray_handle=self.object_reference_to_disk_xarray_handle(
