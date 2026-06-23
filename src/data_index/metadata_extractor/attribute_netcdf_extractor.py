@@ -24,7 +24,8 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         :param handle: Dataset handle to read from.
         :returns: Extraction result with success/failure status.
         """
-
+        structured_metadata = None
+        unstructured_metadata = None
         try:
             structured_metadata = self._extract_structured(
                 object_reference=object_reference,
