@@ -3,6 +3,7 @@ import pathlib
 import prefect
 import prefect.deployments
 import prefect.futures
+import prefect.runtime.deployment
 import prefect.states
 import prefect.task_runners
 
@@ -132,8 +133,20 @@ def index_batch(
     return
 
 
-@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=2))
-def run_index_work_pool(
+def get_task_runner():
+    """
+    Task runner dynamic parameter override helper.
+
+    Routes dynamic parameter setting to the flow runner from flow parameters.
+
+    https://docs.prefect.io/v3/api-ref/python/prefect-runtime-deployment
+    """
+    max_workers = prefect.runtime.deployment.parameters.get("max_workers", 4)
+    return prefect.task_runners.ProcessPoolTaskRunner(max_workers=max_workers)
+
+
+@prefect.flow(task_runner=get_task_runner)
+def index(
     inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
@@ -141,9 +154,13 @@ def run_index_work_pool(
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredS3TableSink = _unstructured_s3_table_sink,
-    index_batch_flow_name="index-batch",
-    index_batch_deployment_name="index-batch",
+    index_batch_flow_name: str = "index-batch",
+    index_batch_deployment_name: str = "index-batch",
+    max_workers: int = 4,
 ):
+    """
+    Orchestrating flow for the indexing of netcdf files.
+    """
 
     logger = prefect.get_run_logger()
 
@@ -199,6 +216,6 @@ def run_index_work_pool(
 
 
 if __name__ == "__main__":
-    run_index_work_pool.serve(
+    index.serve(
         name="run-index-work-pool",
     )
