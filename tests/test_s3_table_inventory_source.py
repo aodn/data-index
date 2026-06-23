@@ -33,54 +33,63 @@ def table_config(tmp_path: pathlib.Path) -> IcebergTableConfig:
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ACORN/a1.nc",
+                "version_id": "v1",
                 "size": 1,
                 "facility": "ACORN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ACORN/a2.nc",
+                "version_id": "v2",
                 "size": 2,
                 "facility": "ACORN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ACORN/a3.nc",
+                "version_id": "v3",
                 "size": 3,
                 "facility": "ACORN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ANMN/b1.nc",
+                "version_id": "v4",
                 "size": 4,
                 "facility": "ANMN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ANMN/b2.nc",
+                "version_id": "v5",
                 "size": 5,
                 "facility": "ANMN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ANMN/b3.nc",
+                "version_id": "v6",
                 "size": 6,
                 "facility": "ANMN",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ABOS/c1.nc",
+                "version_id": "v7",
                 "size": 7,
                 "facility": "ABOS",
             },
             {
                 "bucket": "imos-data",
                 "key": "IMOS/ABOS/c2.nc",
+                "version_id": "v8",
                 "size": 8,
                 "facility": "ABOS",
             },
             {
                 "bucket": "imos-data",
                 "key": "misc/other.nc",
+                "version_id": "v9",
                 "size": 9,
                 "facility": None,
             },
@@ -100,8 +109,9 @@ def _iceberg_schema():
     return Schema(
         NestedField(1, "bucket", StringType(), required=True),
         NestedField(2, "key", StringType(), required=True),
-        NestedField(3, "size", LongType(), required=False),
-        NestedField(4, "facility", StringType(), required=False),
+        NestedField(3, "version_id", StringType(), required=True),
+        NestedField(4, "size", LongType(), required=False),
+        NestedField(5, "facility", StringType(), required=False),
     )
 
 
@@ -112,6 +122,7 @@ def _write_rows(table, rows: list[dict]) -> None:
         [
             pa.field("bucket", pa.string(), nullable=False),
             pa.field("key", pa.string(), nullable=False),
+            pa.field("version_id", pa.string(), nullable=False),
             pa.field("size", pa.int64(), nullable=True),
             pa.field("facility", pa.string(), nullable=True),
         ]
@@ -120,6 +131,7 @@ def _write_rows(table, rows: list[dict]) -> None:
         {
             "bucket": pa.array([r["bucket"] for r in rows], type=pa.string()),
             "key": pa.array([r["key"] for r in rows], type=pa.string()),
+            "version_id": pa.array([r["version_id"] for r in rows], type=pa.string()),
             "size": pa.array([r["size"] for r in rows], type=pa.int64()),
             "facility": pa.array([r["facility"] for r in rows], type=pa.string()),
         },
@@ -140,7 +152,7 @@ def test_inventory_filters_by_row_filter_key_prefix(table_config):
 
     assert isinstance(df, polars.DataFrame)
     assert len(df) == 3
-    assert all("/IMOS/ACORN/" in uri for uri in df["s3_uri"].to_list())
+    assert all(key.startswith("IMOS/ACORN/") for key in df["key"].to_list())
 
 
 def test_inventory_filters_by_row_filter_facility_subset(table_config):
@@ -154,8 +166,8 @@ def test_inventory_filters_by_row_filter_facility_subset(table_config):
     df = source.inventory()
 
     assert len(df) == 5
-    assert not df["s3_uri"].str.contains("/IMOS/ACORN/").any()
-    assert not df["s3_uri"].str.contains("/misc/").any()
+    assert not df["key"].str.contains("^IMOS/ACORN/").any()
+    assert not df["key"].str.contains("^misc/").any()
 
 
 def test_inventory_subsets_per_selected_facility(table_config):
@@ -169,6 +181,6 @@ def test_inventory_subsets_per_selected_facility(table_config):
 
     df = source.inventory()
 
-    assert len(df.filter(polars.col("s3_uri").str.contains("/IMOS/ACORN/"))) == 2
-    assert len(df.filter(polars.col("s3_uri").str.contains("/IMOS/ANMN/"))) == 2
-    assert not df["s3_uri"].str.contains("/IMOS/ABOS/").any()
+    assert len(df.filter(polars.col("key").str.contains("^IMOS/ACORN/"))) == 2
+    assert len(df.filter(polars.col("key").str.contains("^IMOS/ANMN/"))) == 2
+    assert not df["key"].str.contains("^IMOS/ABOS/").any()

@@ -32,7 +32,7 @@ def table_config(tmp_path: pathlib.Path) -> IcebergTableConfig:
                 "key": "IMOS/ACORN/file.nc",
                 "size": 1024,
                 "sequence_number": "1",
-                "version_id": None,
+                "version_id": "v1",
                 "is_delete_marker": False,
             },
             {
@@ -40,7 +40,7 @@ def table_config(tmp_path: pathlib.Path) -> IcebergTableConfig:
                 "key": "IMOS/ANMN/other.nc",
                 "size": 2048,
                 "sequence_number": "1",
-                "version_id": None,
+                "version_id": "v2",
                 "is_delete_marker": False,
             },
         ],
@@ -97,7 +97,7 @@ def _write_rows(table, rows: list[dict]) -> None:
     table.append(arrow_table)
 
 
-def test_inventory_returns_s3_uri_and_size_columns(table_config, tmp_path):
+def test_inventory_returns_identity_and_size_columns(table_config, tmp_path):
     source = LiveS3InventorySource(
         table_config=table_config,
         table_scan_config=TableScanConfig(),
@@ -106,10 +106,10 @@ def test_inventory_returns_s3_uri_and_size_columns(table_config, tmp_path):
     df = source.inventory()
 
     assert isinstance(df, polars.DataFrame)
-    assert set(df.columns) == {"s3_uri", "size"}
+    assert set(df.columns) == {"bucket", "key", "version_id", "size"}
 
 
-def test_inventory_constructs_s3_uri_from_bucket_and_key(table_config, tmp_path):
+def test_inventory_returns_bucket_key_and_version_values(table_config, tmp_path):
     source = LiveS3InventorySource(
         table_config=table_config,
         table_scan_config=TableScanConfig(),
@@ -117,8 +117,12 @@ def test_inventory_constructs_s3_uri_from_bucket_and_key(table_config, tmp_path)
     )
     df = source.inventory()
 
-    assert "s3://imos-data/IMOS/ACORN/file.nc" in df["s3_uri"].to_list()
-    assert "s3://imos-data/IMOS/ANMN/other.nc" in df["s3_uri"].to_list()
+    assert ("imos-data", "IMOS/ACORN/file.nc", "v1") in set(
+        zip(df["bucket"], df["key"], df["version_id"], strict=True)
+    )
+    assert ("imos-data", "IMOS/ANMN/other.nc", "v2") in set(
+        zip(df["bucket"], df["key"], df["version_id"], strict=True)
+    )
 
 
 def test_skip_if_exists_skips_etl_when_data_present(table_config, tmp_path):
@@ -162,7 +166,7 @@ def test_skip_if_exists_false_reruns_etl(table_config, tmp_path):
                 "key": "IMOS/NEW/new.nc",
                 "size": 512,
                 "sequence_number": "1",
-                "version_id": None,
+                "version_id": "v3",
                 "is_delete_marker": False,
             },
         ],

@@ -7,11 +7,13 @@ import cloudpathlib
 import polars
 import pydantic
 
+from data_index.inventory_source._contract import enforce_inventory_contract
+
 
 class ParquetInventorySource(pydantic.BaseModel):
     """Reads a Parquet file (local path or S3 URI) as an inventory DataFrame.
 
-    The Parquet file must have `s3_uri` (String) and `size` (Int64) columns.
+    The Parquet file must have `bucket`, `key`, `version_id`, and `size` columns.
     """
 
     type: typing.Literal["parquet"] = pydantic.Field(default="parquet")
@@ -29,7 +31,9 @@ class ParquetInventorySource(pydantic.BaseModel):
                 return self.source
 
     def inventory(self) -> polars.DataFrame:
-        return polars.read_parquet(
-            source=self._resolved_source,
-            columns=["s3_uri", "size"],
+        return enforce_inventory_contract(
+            polars.read_parquet(
+                source=self._resolved_source,
+                columns=["bucket", "key", "version_id", "size"],
+            )
         )

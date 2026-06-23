@@ -1,40 +1,45 @@
+import json
+
 import xarray
 
 from data_index.metadata_extractor.attribute_netcdf_extractor import (
     AttributeNetCDFExtractor,
 )
+from data_index.protocols import ObjectReference
 
 
-class StubHandle:
-    def __init__(
-        self,
-        ds: xarray.Dataset,
-        s3_uri: str = "s3://imos-data/IMOS/ANMN/NSW/file.nc",
-        file_format: str | None = None,
-    ):
+class StubXarrayHandle:
+    def __init__(self, ds: xarray.Dataset):
         self._ds = ds
-        self.s3_uri = s3_uri
-        self.file_format = file_format
+        self.file_format = "NETCDF4"
 
     @property
     def ds(self) -> xarray.Dataset:
         return self._ds
 
-    def cleanup(self) -> None:
-        pass
 
-
-def test_extract_supports_aliases_for_structured_scalar_attributes():
-    extractor = AttributeNetCDFExtractor()
-    ds = xarray.Dataset(
+def _object_reference(
+    ds: xarray.Dataset = xarray.Dataset(
         attrs={
             "conventions": "CF-1.8",
             "featureType": "trajectory",
             "instrumentSerialNumber": "INS-001",
         }
-    )
+    ),
+) -> ObjectReference:
+    return ObjectReference(
+        bucket="test",
+        key="IMOS/file.nc",
+        version_id="0",
+        size=32,
+        xarray_handle=None,
+    ).with_xarray_handle(StubXarrayHandle(ds=ds))
 
-    result = extractor.extract(StubHandle(ds))
+
+def test_extract_supports_aliases_for_structured_scalar_attributes():
+    extractor = AttributeNetCDFExtractor()
+
+    result = extractor.extract(_object_reference())
 
     assert result.status == "succeeded"
     assert result.structured_metadata is not None
@@ -53,7 +58,7 @@ def test_extract_prioritizes_exact_alias_order_over_normalized_fallback():
         }
     )
 
-    result = extractor.extract(StubHandle(ds))
+    result = extractor.extract(_object_reference(ds))
 
     assert result.status == "succeeded"
     assert result.structured_metadata is not None
@@ -86,12 +91,15 @@ def test_extract_derives_dimensions_variables_and_standard_names():
         },
     )
 
-    result = extractor.extract(StubHandle(ds))
+    result = extractor.extract(_object_reference(ds))
 
     assert result.status == "succeeded"
     assert result.structured_metadata is not None
     assert result.structured_metadata.dimensions == ["lat", "time"]
-    assert result.structured_metadata.variables == ["salinity", "temp"]
+    assert result.structured_metadata.variables == [
+        "salinity",
+        "temp",
+    ]
     assert result.structured_metadata.standard_names == [
         "latitude",
         "sea_water_salinity",
@@ -104,7 +112,7 @@ def test_extract_sets_derived_lists_to_none_when_empty():
     extractor = AttributeNetCDFExtractor()
     ds = xarray.Dataset()
 
-    result = extractor.extract(StubHandle(ds))
+    result = extractor.extract(_object_reference(ds))
 
     assert result.status == "succeeded"
     assert result.structured_metadata is not None
@@ -117,8 +125,9 @@ def test_extract_succeeds_with_surrogate_string_in_global_attrs():
     extractor = AttributeNetCDFExtractor()
     ds = xarray.Dataset(attrs={"title": f"{chr(0xDCFF)}bad"})
 
-    result = extractor.extract(StubHandle(ds))
+    extraction_result = extractor.extract(_object_reference(ds))
 
-    assert result.status == "succeeded"
-    assert result.unstructured_metadata is not None
-    assert result.unstructured_metadata["global_attrs"]["title"] == "\\udcffbad"
+    assert extraction_result.status == "succeeded"
+    assert extraction_result.unstructured_metadata is not None
+    metadata = json.loads(extraction_result.unstructured_metadata.metadata)
+    assert metadata["global_attrs"]["title"] == "\\udcffbad"

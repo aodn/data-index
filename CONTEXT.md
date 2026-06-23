@@ -17,8 +17,12 @@ The canonical identity of an S3 object version: (`bucket`, `key`, `version_id`),
 _Avoid_: object key, uri-only identity, `s3_uri`-only identity
 
 **Object Reference**:
-A lightweight immutable value object (named tuple) that carries (`bucket`, `key`, `version_id`) across protocol boundaries.
+A lightweight immutable value object (named tuple) that carries (`bucket`, `key`, `version_id`) across protocol boundaries, and exposes derived convenience properties for `hash` and `facility`.
 _Avoid_: parsing identity from strings repeatedly
+
+**Object Reference Hash**:
+A deterministic SHA-256 hash derived from **Object Version Identity**, used as sink join/upsert key while preserving explicit identity fields.
+_Avoid_: hash-only identity
 
 **Facility**:
 The second path segment of the S3 key under `IMOS/` (for example, `ANMN` from `IMOS/ANMN/NSW/file.nc`). This is the canonical domain term for top-level IMOS grouping; when not derivable, use sentinel `UNKNOWN`.
@@ -29,7 +33,7 @@ A fixed-schema set of fields extracted from a NetCDF file — including **Object
 _Avoid_: metadata (without qualifier)
 
 **Unstructured Metadata**:
-The full set of global attributes, variable metadata, coordinate metadata, and file format from a NetCDF file. Represented by the `UnstructuredMetadata` protocol. The default implementation (`DiskCachedUnstructuredMetadata`) writes to diskcache immediately on construction and reads back on `load()`. Schema varies by dataset.
+The full set of global attributes, variable metadata, coordinate metadata, and file format from a NetCDF file, represented as an `UnstructuredMetadata` row contract with fields (`bucket`, `key`, `version_id`, `hash`, `schema_version`, `file_format`, `facility`, `metadata`) where `metadata` is a dict payload.
 _Avoid_: raw metadata, attributes
 
 **Extraction Result**:
@@ -47,7 +51,7 @@ _Avoid_: version, encoding, NetCDF version
 - The **Orchestrator** reads and writes the **Run State File** to track which Batches have been processed
 - A **Batch** is consumed by `extract` to produce a list of **XarrayHandle** objects
 - A list of **XarrayHandle** objects is consumed by `transform`; one `_transform_single` task runs per handle
-- Each `_transform_single` passes the full **XarrayHandle** to **MetadataExtractor** (not just the dataset), then produces one **Extraction Result**; unstructured metadata is persisted immediately by calling the injected `metadata_factory(object_ref, data)`
+- Each `_transform_single` passes the full **XarrayHandle** to **MetadataExtractor** (not just the dataset), then builds one **Extraction Result** with final `StructuredMetadata` and `UnstructuredMetadata` rows
 - **Extraction Results** are returned by `transform` and consumed by `load`
 - `load` delegates persistence to an injected **StructuredSink** and **UnstructuredSink**
 - `extract` delegates file fetching to an injected **FileFetcher**, passing a list of **Batch Entry** objects
@@ -82,7 +86,7 @@ A pluggable component that, given a list of **Batch Entry** objects, returns a l
 _Avoid_: downloader, fetcher, sync class
 
 **MetadataExtractor**:
-A pluggable component that, given an **XarrayHandle**, extracts both Structured and Unstructured Metadata in a single pass and returns a `RawExtractionResult` (with unstructured metadata as a plain `dict`). Receives the handle — not a raw `xarray.Dataset` — so it can read `file_format` from magic bytes without reopening the file. The `transform` step is responsible for persisting the dict via `metadata_factory`.
+A pluggable component that, given an **XarrayHandle**, extracts both Structured and Unstructured Metadata in a single pass and returns a `RawExtractionResult` (with unstructured metadata as a plain `dict`). Receives the handle — not a raw `xarray.Dataset` — so it can read `file_format` from magic bytes without reopening the file.
 _Avoid_: parser, reader
 
 **StructuredSink**:
@@ -90,7 +94,7 @@ A pluggable component that prepares and persists Structured Metadata rows to a t
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives row objects carrying (`bucket`, `key`, `version_id`, metadata) — callers resolve `UnstructuredMetadata.load()` before passing. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) partitioned by `facility`, with schema including (`bucket`, `key`, `version_id`), `facility` derived from `key`, and JSON-encoded `metadata`; rows are upserted on (`bucket`, `key`, `version_id`) (latest write wins).
+A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) partitioned by `facility`, with rows upserted by hash join key (latest write wins).
 _Avoid_: writer, exporter
 
 ## Constraints
@@ -99,20 +103,25 @@ _Avoid_: writer, exporter
 - `sink.provision()` must be called before any `sink.write()` calls — the **Orchestrator**'s `pre_run` hook is the canonical place to do this
 - Schema-breaking sink transitions use an explicit opt-in reset mode in `provision()` (drop/recreate), not implicit destructive behavior
 - S3-table sinks own idempotency for **Object Version Identity** by upserting (latest write wins per object version); this applies forward from the upsert change and does not retroactively deduplicate historical append-era duplicates
-- diskcache is keyed by **Object Version Identity**
+- Sink upsert/join operations use **Object Reference Hash**; `bucket`, `key`, and `version_id` remain required identity fields in all pipeline contracts and sink schemas
+- **Object Reference Hash** generation (`sha256(bucket/key/version composite)`) is a stable contract; changes require explicit schema/version migration
 - Identity fields (`bucket`, `key`, `version_id`) are required and non-null at pipeline boundaries
 - Pipeline stages fail fast if any identity field (`bucket`, `key`, `version_id`) is null/empty
 - Structured and Unstructured sink contracts stay consistent on identity model and upsert key semantics
 - Missing/invalid facility derivations are coerced to sentinel `UNKNOWN` (not null)
 - File fetch/read operations are pinned to `version_id`; extraction must read the exact requested object version
 - Legacy inventory sources are out-of-scope for this contract shift; only active orchestrated sources must satisfy the new identity contract
-- `ExtractionResult` is the single carrier of identity; `UnstructuredMetadata` handles carry payload only
+- `ExtractionResult` is the single carrier of identity and unstructured payload between transform and load
 - Logs/artifacts/manifests emit identity as explicit `bucket`, `key`, `version_id` fields
-- `facility` is derived once during transform/extraction and carried to sinks; sinks must not re-derive
+- `facility` and `hash` are derived once during transform/extraction and carried to sinks; sinks must not re-derive
+- `UnstructuredMetadata.metadata` remains a dict in the shared contract; sinks handle storage-specific serialization
+- Unstructured writes use latest-write-wins semantics on hash; duplicate hashes in a write batch keep the last row
 - Version-pinned fetch target rendering is centralized in a shared helper used by all fetchers
 - The `StructuredSink` enforces the Structured Metadata schema on write
 - `StructuredMetadata` dataclass is schema source-of-truth for Polars, PyArrow, and Iceberg representations
+- `UnstructuredMetadata` dataclass is schema source-of-truth for Polars, PyArrow, and Iceberg representations, including `schema_version`
 - Structured and unstructured S3 tables publish schema-version table properties; breaking schema changes must bump version
+- Unstructured schema transitions that introduce new identity/join fields use reset-and-reload, not in-place backfill
 - **File Format** is determined from magic bytes (first 8 bytes of the file), not from xarray internals — avoids coupling to private xarray/netCDF4 attributes
 - NetCDF4/HDF5 files require multiple block fetches to traverse the HDF5 btree even for metadata-only reads; this makes `S3XarrayHandle` slower for large NetCDF4 files than for NetCDF3
 - **Three-layer concurrency model**: peak resource usage is `batch_workers × transform_threads × s5cmd_workers`. On Fargate each worker runs in an isolated container so all three can be maximised independently. For local runs all three layers share the same machine and must be capped together to avoid memory exhaustion and CPU saturation.
@@ -130,10 +139,10 @@ _Avoid_: build pipeline, validation pipeline
 ## Example dialogue
 
 > **Dev:** "Should we re-index a file if we've already seen it?"
-> **Domain expert:** "Yes. Re-indexing the same object version is safe — the S3-table sinks upsert by **Object Version Identity**, so the latest write replaces earlier values for that version."
+> **Domain expert:** "Yes. Re-indexing the same object version is safe — the S3-table sinks upsert by **Object Reference Hash** (derived from **Object Version Identity**), so the latest write replaces earlier values for that version."
 
-> **Dev:** "Why do we store **Unstructured Metadata** in diskcache instead of just a JSON file?"
-> **Domain expert:** "The schema varies wildly across datasets. We need concurrent writes from Prefect tasks and a format we can query later. Diskcache gives us that before we decide on a permanent store like DynamoDB."
+> **Dev:** "Why do we keep **Unstructured Metadata** in memory through `transform` instead of persisting intermediate handles?"
+> **Domain expert:** "In our current batch sizing, in-memory payloads are acceptable and the simpler contract parity with **Structured Metadata** is more valuable than an extra persistence abstraction."
 
 > **Dev:** "Why doesn't the extractor use `geospatial_lat_min` from global attributes instead of computing min/max from the coordinate arrays?"
 > **Domain expert:** "We don't know yet which files carry those ACDD attributes reliably. The first pipeline run will collect **Unstructured Metadata** for every file — we'll analyse the attribute distribution and build a v2 extractor once we know what's actually there."
@@ -151,5 +160,10 @@ _Avoid_: build pipeline, validation pipeline
 - "`s3_uri` was treated as a required pipeline identifier" — resolved: remove `s3_uri` from pipeline contracts and use **Object Version Identity** only.
 - "S3 identity field names were ambiguous (`s3_*` vs unprefixed)" — resolved: use `bucket`, `key`, `version_id` consistently across pipeline contracts.
 - "How to hand off identity between stages (composite fields vs value object)" — resolved: use a lightweight named-tuple **Object Reference**.
+- "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
+- "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.
+- "Should sink joins use composite identity or hash?" — resolved: use **Object Reference Hash** for joins/upserts, while keeping explicit **Object Version Identity** fields required everywhere.
 - "Missing facility handling (fail vs nullable vs sentinel)" — resolved: use sentinel `UNKNOWN`.
 - "Batch partitioner naming used `collection`" — resolved: rename to `FacilityGroupedBatchPartitioner`.
+- "Should transform/load exchange Arrow tables instead of domain rows?" — deferred: keep typed domain-row contracts for now; revisit later.
+- "Should local Parquet sinks match hash-upsert parity with S3 sinks?" — deferred: S3-path parity now; local Parquet parity later.

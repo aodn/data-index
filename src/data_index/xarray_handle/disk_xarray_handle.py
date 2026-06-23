@@ -12,8 +12,11 @@ class DiskXarrayHandle(pydantic.BaseModel):
     """
 
     path: pathlib.Path
-    s3_uri: str
     _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
+
+    @property
+    def s3_uri(self) -> str:
+        return self.object_ref.as_uri()
 
     @property
     def file_format(self) -> str | None:

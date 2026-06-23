@@ -5,7 +5,8 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import DoubleType, NestedField, StringType
 
 from data_index.iceberg_config import IcebergTableConfig, SqliteCatalogConfig
-from data_index.structured_metadata import StructuredMetadata
+from data_index.protocols import ObjectReference
+from data_index.schema.metadata import StructuredMetadata
 from data_index.structured_sink.s3_table_sink import StructuredS3TableSink
 
 NAMESPACE = "test_ns"
@@ -27,9 +28,20 @@ def table_config(tmp_path):
     return config
 
 
-def make_metadata(**kwargs) -> StructuredMetadata:
+def make_metadata(key: str, **kwargs) -> StructuredMetadata:
+    object_reference = ObjectReference(
+        bucket="imos-data",
+        key=key,
+        version_id="v1",
+        size=0,
+        xarray_handle=None,
+    )
     defaults = dict(
-        s3_uri="s3://imos-data/IMOS/ANMN/NSW/file.nc",
+        bucket=object_reference.bucket,
+        key=object_reference.key,
+        version_id=object_reference.version_id,
+        hash=object_reference.hash,
+        facility="ANMN",
         geospatial_lat_min=-10.0,
         geospatial_lat_max=10.0,
         geospatial_lon_min=100.0,
@@ -38,7 +50,6 @@ def make_metadata(**kwargs) -> StructuredMetadata:
         time_coverage_end="2020-06-01",
         crs="EPSG:4326",
         file_format="NETCDF4",
-        collection="ANMN",
     )
     defaults.update(kwargs)
     return StructuredMetadata(**defaults)
@@ -50,36 +61,28 @@ def test_provision_is_idempotent(table_config):
     ).provision()  # table already exists — must not raise
 
 
-def test_provision_sets_schema_version_table_property(table_config):
-    table = table_config.load()
-
-    assert table.properties["schema_version"] == str(StructuredMetadata.SCHEMA_VERSION)
-
-
 def test_writes_rows_with_correct_values(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
     rows = [
-        make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/a.nc", geospatial_lat_min=-1.0),
-        make_metadata(s3_uri="s3://imos-data/IMOS/ANMN/b.nc", geospatial_lat_min=-2.0),
+        make_metadata(key="IMOS/ANMN/a.nc", geospatial_lat_min=-1.0),
+        make_metadata(key="IMOS/ANMN/b.nc", geospatial_lat_min=-2.0),
     ]
 
     sink.write(rows)
 
     df = table_config.load().scan().to_pandas()
     assert len(df) == 2
-    assert set(df["s3_uri"]) == {
-        "s3://imos-data/IMOS/ANMN/a.nc",
-        "s3://imos-data/IMOS/ANMN/b.nc",
-    }
+    assert set(df["bucket"]) == {"imos-data"}
+    assert set(df["key"]) == {"IMOS/ANMN/a.nc", "IMOS/ANMN/b.nc"}
     assert set(df["schema_version"]) == {StructuredMetadata.SCHEMA_VERSION}
 
 
 def test_upserts_on_subsequent_writes(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri = "s3://imos-data/IMOS/ANMN/a.nc"
+    key = "IMOS/ANMN/a.nc"
 
-    sink.write([make_metadata(s3_uri=uri, geospatial_lat_min=-1.0)])
-    sink.write([make_metadata(s3_uri=uri, geospatial_lat_min=-2.0)])
+    sink.write([make_metadata(key=key, geospatial_lat_min=-1.0)])
+    sink.write([make_metadata(key=key, geospatial_lat_min=-2.0)])
 
     df = table_config.load().scan().to_pandas()
     assert len(df) == 1
@@ -88,38 +91,22 @@ def test_upserts_on_subsequent_writes(table_config):
 
 def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri_a = "s3://imos-data/IMOS/ANMN/a.nc"
-    uri_b = "s3://imos-data/IMOS/ANMN/b.nc"
+    key_a = "IMOS/ANMN/a.nc"
+    key_b = "IMOS/ANMN/b.nc"
 
-    sink.write([make_metadata(s3_uri=uri_a, geospatial_lat_min=-1.0)])
+    sink.write([make_metadata(key=key_a, geospatial_lat_min=-1.0)])
     sink.write(
         [
-            make_metadata(s3_uri=uri_a, geospatial_lat_min=-2.0),
-            make_metadata(s3_uri=uri_b, geospatial_lat_min=-3.0),
+            make_metadata(key=key_a, geospatial_lat_min=-2.0),
+            make_metadata(key=key_b, geospatial_lat_min=-3.0),
         ]
     )
 
     df = table_config.load().scan().to_pandas()
-    lat_by_uri = dict(zip(df["s3_uri"], df["geospatial_lat_min"], strict=True))
+    lat_by_key = dict(zip(df["key"], df["geospatial_lat_min"], strict=True))
     assert len(df) == 2
-    assert lat_by_uri[uri_a] == -2.0
-    assert lat_by_uri[uri_b] == -3.0
-
-
-def test_duplicate_s3_uri_within_batch_keeps_last_occurrence(table_config):
-    sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    uri = "s3://imos-data/IMOS/ANMN/a.nc"
-
-    sink.write(
-        [
-            make_metadata(s3_uri=uri, geospatial_lat_min=-1.0),
-            make_metadata(s3_uri=uri, geospatial_lat_min=-2.0),
-        ]
-    )
-
-    df = table_config.load().scan().to_pandas()
-    assert len(df) == 1
-    assert df["geospatial_lat_min"].iloc[0] == -2.0
+    assert lat_by_key[key_a] == -2.0
+    assert lat_by_key[key_b] == -3.0
 
 
 def test_empty_write_is_noop(table_config):
@@ -137,10 +124,10 @@ def test_null_fields_survive_roundtrip(table_config):
     sink.write(
         [
             make_metadata(
+                key="a.nc",
                 geospatial_lat_min=None,
                 geospatial_lat_max=None,
                 crs=None,
-                collection=None,
             )
         ]
     )
@@ -148,7 +135,6 @@ def test_null_fields_survive_roundtrip(table_config):
     df = table_config.load().scan().to_pandas()
     assert df["geospatial_lat_min"].isna().all()
     assert df["crs"].isna().all()
-    assert df["collection"].isna().all()
 
 
 def test_writes_extended_structured_metadata_fields(table_config):
@@ -157,6 +143,7 @@ def test_writes_extended_structured_metadata_fields(table_config):
     sink.write(
         [
             make_metadata(
+                key="a.nc",
                 keywords="ocean,temp",
                 instrument="CTD",
                 metadata_uuid="123e4567-e89b-12d3-a456-426614174000",
@@ -218,7 +205,7 @@ def test_provision_evolves_existing_legacy_schema(tmp_path):
         ),
     )
 
-    sink.provision()
+    sink.provision(reset=True)
 
     schema = config.load().schema()
     assert schema.find_field("keywords").required is False

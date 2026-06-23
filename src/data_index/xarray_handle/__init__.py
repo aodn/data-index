@@ -1,7 +1,7 @@
 from .disk_xarray_handle import DiskXarrayHandle
-from .s3_xarray_handle import S3XarrayHandle
+from .fsspec_xarray_handle import FSSpecXarrayHandle
 
 __all__ = [
     "DiskXarrayHandle",
-    "S3XarrayHandle",
+    "FSSpecXarrayHandle",
 ]

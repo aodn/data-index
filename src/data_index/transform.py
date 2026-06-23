@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import typing
 
 import prefect
 import prefect.cache_policies
@@ -9,73 +8,59 @@ import prefect.cache_policies
 from data_index.protocols import (
     ExtractionResult,
     MetadataExtractor,
-    UnstructuredMetadata,
-    XarrayHandle,
+    ObjectReference,
 )
-from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
 def _transform_single(
-    xarray_handle: XarrayHandle,
+    object_reference: ObjectReference,
     extractor: MetadataExtractor,
-    unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
     logger: logging.Logger,
 ) -> ExtractionResult:
+
     # Attempt extraction
     try:
-        raw = extractor.extract(handle=xarray_handle)
-        if raw.status == "failed":
-            logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
-            return ExtractionResult(
-                s3_uri=xarray_handle.s3_uri,
-                structured_metadata=None,
-                unstructured_metadata=None,
-                status="failed",
-                error=raw.error,
+        extraction_result = extractor.extract(object_reference=object_reference)
+        if extraction_result.status == "failed":
+            logger.warning(
+                f"extraction failed for {object_reference.as_versioned_uri()}: {extraction_result.error}"
             )
-        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
-        return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
-            structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(
-                xarray_handle.s3_uri, raw.unstructured_metadata
-            ),
-            status="succeeded",
+            return extraction_result
+        logger.info(f"extraction succeeded for {object_reference.as_versioned_uri()}")
+        return extraction_result
+
+    # Failed extraction
+    except Exception as e:
+        logger.warning(
+            f"extraction failed for {object_reference.as_versioned_uri()}: {e}"
         )
-    except Exception as exc:
-        logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
         return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
             structured_metadata=None,
             unstructured_metadata=None,
-            status="failed",
-            error=str(exc),
+            status="error",
+            error=str(e),
         )
 
     # Attempt cleanup
     finally:
         try:
-            xarray_handle.ds.close()
-        except Exception as exc:
+            object_reference.xarray_handle.cleanup()
+        except Exception as e:
             logger.warning(
-                f"Disposal of xarray handle failed for {xarray_handle.s3_uri}: {exc}"
+                f"Disposal of xarray handle failed for {object_reference.as_versioned_uri()}: {e}"
             )
 
 
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def transform(
-    xarray_handles: list[XarrayHandle],
+    object_references: list[ObjectReference],
     extractor: MetadataExtractor,
-    metadata_factory: typing.Callable[
-        [str, dict], UnstructuredMetadata
-    ] = DiskCachedUnstructuredMetadata,
-    max_workers: int | None = None,
 ) -> list[ExtractionResult]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
     Runs _transform_single sequentially. Each call immediately persists
-    unstructured metadata via metadata_factory(s3_uri, data). Releases handle
+    unstructured metadata via metadata_factory(object_ref, data). Releases handle
     resources after all files are processed.
 
     Args:
@@ -87,16 +72,15 @@ def transform(
     logger = prefect.get_run_logger()
 
     logger.info("Running extraction sequentially...")
-    results = [
+    extraction_results = [
         _transform_single(
-            xarray_handle=xarray_handle,
+            object_reference=object_reference,
             extractor=extractor,
-            unstructured_metadata_factory=metadata_factory,
             logger=logger,
         )
-        for xarray_handle in xarray_handles
+        for object_reference in object_references
     ]
     logger.info("Sequential extraction complete!")
 
     logger.info("Transform complete!")
-    return results
+    return extraction_results

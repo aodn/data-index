@@ -11,10 +11,12 @@ from pyiceberg.catalog import Catalog
 from pyiceberg.exceptions import (
     CommitFailedException,
     NamespaceAlreadyExistsError,
+    NoSuchTableError,
     TableAlreadyExistsError,
 )
-from pyiceberg.partitioning import PartitionSpec
+from pyiceberg.partitioning import PartitionField, PartitionSpec
 from pyiceberg.table import Table
+from pyiceberg.transforms import IdentityTransform
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
 from data_index.structured_metadata import StructuredMetadata
@@ -28,7 +30,8 @@ class StructuredS3TableSink(pydantic.BaseModel):
     """StructuredSink implementation that upserts Structured Metadata to a pre-provisioned Iceberg table.
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
-    hook. Writes upsert on `s3_uri` (latest row wins within a batch and across writes).
+    hook. Writes upsert on (`bucket`, `key`, `version_id`) (latest row wins within
+    a batch and across writes).
     Concurrent upserts from multiple workers are safe — OCC conflicts are retried with
     exponential backoff.
     """
@@ -53,24 +56,34 @@ class StructuredS3TableSink(pydantic.BaseModel):
             self.iceberg_table_config.load(),
         )
 
-    def provision(self, partition_spec: PartitionSpec | None = None) -> None:
+    def provision(
+        self, partition_spec: PartitionSpec | None = None, reset: bool = False
+    ) -> None:
         """Create the namespace and table if they don't already exist.
 
-        Pass a partition_spec to control partitioning (e.g. identity on collection).
-        Defaults to no partitioning.
+        Pass a partition_spec to override default partitioning.
+        By default rows are partitioned by facility and time_coverage_start_year.
+        Set reset=True to drop and recreate the table (explicit opt-in destructive mode).
         """
+        identifier = (
+            self.iceberg_table_config.namespace,
+            self.iceberg_table_config.table_name,
+        )
         try:
             self.catalog.create_namespace(self.iceberg_table_config.namespace)
         except NamespaceAlreadyExistsError:
             pass
+        if reset:
+            try:
+                self.catalog.drop_table(identifier)
+            except NoSuchTableError:
+                pass
+            self._instances.pop("table", None)
         try:
             self.catalog.create_table(
-                identifier=(
-                    self.iceberg_table_config.namespace,
-                    self.iceberg_table_config.table_name,
-                ),
+                identifier=identifier,
                 schema=StructuredMetadata.as_pyiceberg_schema(),
-                partition_spec=partition_spec or PartitionSpec(),
+                partition_spec=partition_spec or self._default_partition_spec(),
                 properties={
                     _SCHEMA_VERSION_PROPERTY: str(StructuredMetadata.SCHEMA_VERSION)
                 },
@@ -83,10 +96,10 @@ class StructuredS3TableSink(pydantic.BaseModel):
     def write(self, data: list[StructuredMetadata]) -> None:
         if not data:
             return
-        arrow_table = self._to_arrow(self._dedupe_by_s3_uri(data))
+        arrow_table = self._to_arrow(data=data)
         for attempt in range(_MAX_RETRIES):
             try:
-                self.table.upsert(arrow_table, join_cols=["s3_uri"])
+                self.table.upsert(arrow_table, join_cols=["hash"])
                 return
             except CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
@@ -136,8 +149,28 @@ class StructuredS3TableSink(pydantic.BaseModel):
         )
 
     @staticmethod
-    def _dedupe_by_s3_uri(data: list[StructuredMetadata]) -> list[StructuredMetadata]:
-        deduped: dict[str, StructuredMetadata] = {}
+    def _default_partition_spec() -> PartitionSpec:
+        schema = StructuredMetadata.as_pyiceberg_schema()
+        facility_field_id = schema.find_field("facility").field_id
+        time_start_field_id = schema.find_field("time_coverage_start_year").field_id
+        return PartitionSpec(
+            PartitionField(
+                source_id=facility_field_id,
+                field_id=1000,
+                transform=IdentityTransform(),
+                name="facility",
+            ),
+            PartitionField(
+                source_id=time_start_field_id,
+                field_id=1001,
+                transform=IdentityTransform(),
+                name="time_coverage_start_year",
+            ),
+        )
+
+    @staticmethod
+    def _dedupe_by_identity(data: list[StructuredMetadata]) -> list[StructuredMetadata]:
+        deduped: dict[tuple[str, str, str], StructuredMetadata] = {}
         for row in data:
-            deduped[row.s3_uri] = row
+            deduped[(row.bucket, row.key, row.version_id)] = row
         return list(deduped.values())

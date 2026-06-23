@@ -1,13 +1,22 @@
-def derive_collection(s3_uri: str) -> str | None:
-    """Return the second path segment of the S3 key as the collection identifier.
+UNKNOWN_FACILITY = "UNKNOWN"
 
-    E.g. 's3://bucket/IMOS/ANMN/NSW/file.nc' → 'ANMN'.
-    Returns None if the URI has fewer than two path segments (avoids treating
-    a filename as a collection for shallow URIs like 's3://bucket/IMOS/file.nc').
+
+def derive_facility(key: str) -> str:
+    """Derive facility as the second key segment.
+
+    E.g. ``IMOS/ANMN/NSW/file.nc`` -> ``ANMN``.
+    Missing/invalid keys are coerced to ``UNKNOWN``.
     """
-    parts = s3_uri.split("/")
-    # parts: ['s3:', '', 'bucket', 'seg1', 'seg2', ...]
-    #                               idx3    idx4
-    # Require at least one segment beyond the collection (len > 5) so that
-    # a file sitting exactly one level deep doesn't become its own collection.
-    return parts[4] if len(parts) > 5 else None
+    parts = [part for part in key.split("/") if part]
+    if len(parts) < 3:
+        return UNKNOWN_FACILITY
+    facility = parts[1].strip()
+    return facility if facility else UNKNOWN_FACILITY
+
+
+def derive_collection(s3_uri: str) -> str | None:
+    """Backward-compatible adapter to legacy collection semantics."""
+    parts = s3_uri.split("/", 3)
+    key = parts[3] if len(parts) > 3 else ""
+    facility = derive_facility(key)
+    return None if facility == UNKNOWN_FACILITY else facility

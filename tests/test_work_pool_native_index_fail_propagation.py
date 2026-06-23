@@ -1,15 +1,30 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import polars
 import prefect
 import pytest
 
+from data_index.protocols import ObjectReference
 from data_index.work_pool_native import index as work_pool_index
 
 
-def _batch_df(uri: str) -> polars.DataFrame:
-    return polars.DataFrame({"s3_uri": [uri], "size": [1]})
+def _object_reference(key: str) -> ObjectReference:
+    return ObjectReference(
+        bucket="test",
+        key=key,
+        version_id="0",
+        size=32,
+        xarray_handle=None,
+    )
+
+
+def _object_reference_batch() -> list[ObjectReference]:
+
+    return [
+        _object_reference(key="IMOS/ANMN/a.nc"),
+        _object_reference(key="IMOS/ANMN/b.nc"),
+        _object_reference(key="IMOS/ANMN/c.nc"),
+    ]
 
 
 def test_index_batch_raises_when_subflow_state_is_none():
@@ -25,12 +40,11 @@ def test_index_batch_raises_when_subflow_state_is_none():
                 i=0,
                 index_batch_flow_name="index-batch",
                 index_batch_deployment_name="index-batch",
-                batch_df=_batch_df("s3://bucket/a.nc"),
+                object_reference_batch=_object_reference_batch(),
                 fetcher=MagicMock(),
                 extractor=MagicMock(),
                 structured_sink=MagicMock(),
                 unstructured_sink=MagicMock(),
-                transform_max_workers=1,
             )
 
 
@@ -47,12 +61,11 @@ def test_index_batch_propagates_failed_subflow_exception():
                 i=1,
                 index_batch_flow_name="index-batch",
                 index_batch_deployment_name="index-batch",
-                batch_df=_batch_df("s3://bucket/b.nc"),
+                object_reference_batch=_object_reference_batch(),
                 fetcher=MagicMock(),
                 extractor=MagicMock(),
                 structured_sink=MagicMock(),
                 unstructured_sink=MagicMock(),
-                transform_max_workers=1,
             )
 
 
@@ -64,8 +77,8 @@ def test_run_index_work_pool_raises_if_any_batch_future_fails():
 
     partitioner = MagicMock()
     partitioner.partition.return_value = [
-        _batch_df("s3://bucket/a.nc"),
-        _batch_df("s3://bucket/b.nc"),
+        _object_reference_batch(),
+        _object_reference_batch(),
     ]
 
     ok_future = SimpleNamespace(state=prefect.states.Completed())
@@ -95,5 +108,4 @@ def test_run_index_work_pool_raises_if_any_batch_future_fails():
                 unstructured_sink=MagicMock(),
                 index_batch_flow_name="index-batch",
                 index_batch_deployment_name="index-batch",
-                transform_max_workers=1,
             )

@@ -7,7 +7,7 @@ import prefect.states
 import prefect.task_runners
 
 from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
+from data_index.file_fetcher import FSSpecFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
     IcebergTableScanConfig,
@@ -19,13 +19,10 @@ from data_index.inventory_source import (
 )
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
-    NetCDFExtractor,
-    UnstructuedNetCDFExtractor,
 )
-from data_index.structured_metadata import StructuredMetadata
-from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
+from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
+from data_index.structured_sink import StructuredS3TableSink
 from data_index.unstructured_sink import (
-    UnstructuredParquetSink,
     UnstructuredS3TableSink,
 )
 
@@ -34,9 +31,8 @@ ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
 REGION = "ap-southeast-2"
 BATCH_SIZE = 1_000
 OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
-THRESHOLD_BYTES = 10 * 1024**2  # 10 MB
+THRESHOLD_BYTES = 10 * 1024**2 * 10  # 100 MB
 S5CMD_WORKERS = 8
-TRANSFORM_MAX_WORKERS = 4
 
 
 # --- Live Inventory Source config
@@ -54,17 +50,9 @@ _inventory_table_config = IcebergTableConfig(
 _inventory_source = S3TableInventorySource(
     table_config=_inventory_table_config,
     table_scan_config=IcebergTableScanConfig(
-        row_filter="""
-        (
-            key LIKE 'IMOS/ANMN/AM/%'
-            OR key LIKE 'IMOS/ANMN/NRS/%'
-            OR key LIKE 'IMOS/ANMN/NSW/%'
-            OR key LIKE 'IMOS/ANMN/QLD/%'
-            OR key LIKE 'IMOS/ANMN/SA/%'
-            OR key LIKE 'IMOS/ANMN/WA/%'
-        )
-        AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'
-        """
+        row_filter="(key LIKE 'IMOS/ANMN/AM/%' OR key LIKE 'IMOS/ANMN/NRS/%' OR key LIKE 'IMOS/ANMN/NSW/%' OR key LIKE 'IMOS/ANMN/QLD/%' OR key LIKE 'IMOS/ANMN/SA/%' OR key LIKE 'IMOS/ANMN/WA/%') AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'",
+        selected_fields=["bucket", "key", "version_id", "size"],
+        limit=1000,
     ),
 )
 
@@ -75,7 +63,7 @@ _greedy_partitioner = GreedyBatchPartitioner(
 )
 
 # --- File fetcher ---
-_file_fetcher = S5CMDFetcher(num_workers=S5CMD_WORKERS)
+_file_fetcher = FSSpecFetcher()
 
 # --- Metadata extractor ---
 _attribute_netcdf_extractor = AttributeNetCDFExtractor()
@@ -99,7 +87,7 @@ _structured_s3_table_sink = StructuredS3TableSink(
 _unstructured_metadata_table_config = IcebergTableConfig(
     catalog_config=_data_index_catalog_config,
     namespace="data_index",
-    table_name="unstructured_metadata",
+    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
 )
 
 _unstructured_s3_table_sink = UnstructuredS3TableSink(
@@ -114,12 +102,11 @@ def index_batch(
     i,
     index_batch_flow_name,
     index_batch_deployment_name,
-    batch_df,
+    object_reference_batch,
     fetcher,
     extractor,
     structured_sink,
     unstructured_sink,
-    transform_max_workers: int,
 ):
 
     # Run the index batch
@@ -127,12 +114,11 @@ def index_batch(
         name=f"{index_batch_flow_name}/{index_batch_deployment_name}",
         flow_run_name=f"process-batch-{i}",
         parameters={
-            "batch": batch_df.to_dicts(),
+            "object_reference_batch": object_reference_batch,
             "fetcher": fetcher,
             "extractor": extractor,
             "structured_sink": structured_sink,
             "unstructured_sink": unstructured_sink,
-            "transform_max_workers": transform_max_workers,
         },
     )
 
@@ -147,22 +133,17 @@ def index_batch(
     return
 
 
-@prefect.flow(task_runner=prefect.task_runners.ThreadPoolTaskRunner(max_workers=8))
+@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=12))
 def run_index_work_pool(
     inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
-    extractor: AttributeNetCDFExtractor
-    | NetCDFExtractor
-    | UnstructuedNetCDFExtractor = _attribute_netcdf_extractor,
-    structured_sink: StructuredParquetSink
-    | StructuredS3TableSink = _structured_s3_table_sink,
-    unstructured_sink: UnstructuredParquetSink
-    | UnstructuredS3TableSink = _unstructured_s3_table_sink,
+    fetcher: FSSpecFetcher = _file_fetcher,
+    extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
+    structured_sink: StructuredS3TableSink = _structured_s3_table_sink,
+    unstructured_sink: UnstructuredS3TableSink = _unstructured_s3_table_sink,
     index_batch_flow_name="index-batch",
     index_batch_deployment_name="index-batch",
-    transform_max_workers: int = TRANSFORM_MAX_WORKERS,
 ):
 
     logger = prefect.get_run_logger()
@@ -173,8 +154,8 @@ def run_index_work_pool(
 
     # Provision the sinks
     logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
-    structured_sink.provision()
-    unstructured_sink.provision()
+    # structured_sink.provision()
+    # unstructured_sink.provision()
 
     # Dispatch
     # Note: Scheduler has to be able to hold all the dispatch
@@ -182,21 +163,20 @@ def run_index_work_pool(
     logger.info(f"Dispatching ({len(inventory)} files total)")
     logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
 
+    object_reference_batch_generator = partitioner.partition(inventory=inventory)
+
     futures = [
         index_batch.submit(
             i=i,
             index_batch_flow_name=index_batch_flow_name,
             index_batch_deployment_name=index_batch_deployment_name,
-            batch_df=batch_df,
+            object_reference_batch=object_reference_batch,
             fetcher=fetcher,
             extractor=extractor,
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
-            transform_max_workers=transform_max_workers,
         )
-        for i, batch_df in enumerate(
-            iterable=partitioner.partition(inventory=inventory),
-        )
+        for i, object_reference_batch in enumerate(object_reference_batch_generator)
     ]
 
     #  Stream results

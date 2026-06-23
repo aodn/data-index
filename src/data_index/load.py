@@ -21,24 +21,27 @@ def load(
     before being passed to the sink.
     """
     logger = prefect.get_run_logger()
-    succeeded = [r for r in extraction_results if r.status == "succeeded"]
+    succeeded = [
+        extraction_result
+        for extraction_result in extraction_results
+        if extraction_result.status == "succeeded"
+    ]
 
-    structured = [
-        result.structured_metadata
-        for result in succeeded
-        if result.structured_metadata is not None
+    structured_metadata = [
+        extraction_result.structured_metadata
+        for extraction_result in succeeded
+        if extraction_result.structured_metadata is not None
     ]
     logger.info("Sinking structued metadata rows...")
-    structured_sink.write(structured)
-    logger.info(f"Sunk {len(structured)} structured metadata rows!")
+    structured_sink.write(structured_metadata)
+    logger.info(f"Sunk {len(structured_metadata)} structured metadata rows!")
 
     # Re-Hydrate unstructured metadata
-    # TODO: May need to occur in batches to not overflow
-    unstructured = {
-        r.s3_uri: r.unstructured_metadata.load()
-        for r in succeeded
-        if r.unstructured_metadata is not None
-    }
+    unstructured = [
+        extraction_result.unstructured_metadata
+        for extraction_result in succeeded
+        if extraction_result.unstructured_metadata is not None
+    ]
     if unstructured:
         logger.info("Sinking unstructued metadata rows...")
         unstructured_sink.write(unstructured)
