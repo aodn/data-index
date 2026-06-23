@@ -1,3 +1,4 @@
+import json
 import re
 import typing
 
@@ -155,7 +156,10 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             key=object_reference.key,
             version_id=object_reference.version_id,
             hash=object_reference.hash,
-            metadata=_serialize_with_orjson(data=unstructured),
+            metadata=json.dumps(
+                obj=_serialize_with_orjson(data=unstructured),
+                indent=None,
+            ),
             file_format=object_reference.xarray_handle.file_format,
             facility=derive_facility(object_reference.key),
         )
