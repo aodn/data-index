@@ -14,7 +14,7 @@ import data_index.schema.metadata
 class ObjectReference(typing.NamedTuple):
     bucket: str
     key: str
-    version_id: str
+    version_id: str | None
     size: int | None
     xarray_handle: XarrayHandle | None
 
@@ -42,6 +42,12 @@ class ObjectReference(typing.NamedTuple):
         # Use a distinct delimiter to prevent boundary-shifting collisions
         composite = f"bucket:{self.bucket}|key:{self.key}|version:{self.version_id}"
         return hashlib.sha256(composite.encode("utf-8")).hexdigest()
+
+    @property
+    def path(self) -> pathlib.Path:
+        if self.version_id:
+            return pathlib.Path(f"{self.bucket}/{self.key}:{self.version_id}")
+        return pathlib.Path(f"{self.bucket}/{self.key}")
 
 
 @dataclasses.dataclass

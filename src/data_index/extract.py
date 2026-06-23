@@ -9,7 +9,11 @@ import prefect.cache_policies
 from data_index.protocols import FileFetcher, ObjectReference
 
 
-@prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE,
+    retries=3,
+    retry_delay_seconds=[5, 13, 35],
+)
 def extract(
     object_references: list[ObjectReference],
     fetcher: FileFetcher,
