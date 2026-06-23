@@ -16,7 +16,7 @@ class StructuredMetadata(Metadata):
     """
 
     # Upgrade the schema version when changing the schema
-    SCHEMA_VERSION: typing.ClassVar[int] = 2
+    SCHEMA_VERSION: typing.ClassVar[int] = 3
     schema_version: int = SCHEMA_VERSION
 
     geospatial_lat_min: float | None = None
@@ -44,5 +44,5 @@ class StructuredMetadata(Metadata):
     dimensions: list[str] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None
-    file_format: str | None = None
-    facility: str | None = None
+    file_format: str
+    facility: str

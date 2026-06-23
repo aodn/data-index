@@ -66,6 +66,7 @@ def test_writes_identity_facility_and_json_metadata(table_config):
             version_id=object_reference.version_id,
             hash=object_reference.hash,
             facility=derive_facility(object_reference.key),
+            file_format="TESTING",
             metadata="{}",
         )
         for object_reference in object_references
@@ -100,6 +101,7 @@ def test_upserts_on_subsequent_writes(table_config):
         version_id=obj_ref.version_id,
         hash="initial-hash",
         facility=derive_facility(obj_ref.key),
+        file_format="TESTING",
         metadata=json.dumps({"x": 1}),
     )
     sink.write([meta_v1])
@@ -111,6 +113,7 @@ def test_upserts_on_subsequent_writes(table_config):
         version_id=obj_ref.version_id,
         hash="initial-hash",
         facility=derive_facility(obj_ref.key),
+        file_format="TESTING",
         metadata=json.dumps({"x": 2}),
     )
     sink.write([meta_v2])
@@ -147,6 +150,7 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
         version_id=obj_ref_a.version_id,
         hash="hash-a",
         facility=derive_facility(obj_ref_a.key),
+        file_format="TESTING",
         metadata=json.dumps({"x": 1}),
     )
     sink.write([meta_a_v1])
@@ -158,6 +162,7 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
         version_id=obj_ref_a.version_id,
         hash="hash-a",
         facility=derive_facility(obj_ref_a.key),
+        file_format="TESTING",
         metadata=json.dumps({"x": 2}),
     )
     meta_b_v1 = UnstructuredMetadata(
@@ -166,6 +171,7 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
         version_id=obj_ref_b.version_id,
         hash="hash-b",
         facility=derive_facility(obj_ref_b.key),
+        file_format="TESTING",
         metadata=json.dumps({"x": 3}),
     )
     sink.write([meta_a_v2, meta_b_v1])

@@ -592,6 +592,22 @@ oauthlib==3.3.1 \
     --hash=sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9 \
     --hash=sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1
     # via requests-oauthlib
+obstore==0.10.1 \
+    --hash=sha256:5cbad4afb93c26e39e6c51c390b9b6fec9602e9af50c4c0552f10f883524d197 \
+    --hash=sha256:6bbd313dd82bd66b054cc1567927d69b17caed2bdf110da558e46e0ee4ba4e41 \
+    --hash=sha256:84deb458af8601eb1dd948d58b9760bed2f0e7f36c6e9bcd5a61425cb2683b2a \
+    --hash=sha256:a3c35027a90ee1c97b82933907e5846c48d72bce714c7571f9fceac7a3c86551 \
+    --hash=sha256:b193a53101bda703f887f1c0733cde7324ba6f9c80f0a81bdae5df8cb25c26f4 \
+    --hash=sha256:b2902e2c9e1ca193bff39530bb907fd38204e68037ffb694a50042118eeb7a0b \
+    --hash=sha256:beb2e6f5c2c633add1a80182c223c862bc523d9c7c55b793423851831ef8a9ac \
+    --hash=sha256:c16e29b975430690c72ec71be9e6a4fe63854ff25985e6a3a1682419b55898ac \
+    --hash=sha256:c51488d41646bfd75fbb67507bbc55d6f5623d5b12ce0506a260a7a1f3e792da \
+    --hash=sha256:c949aa4d69c5a796f7daefa9bce2efcf5bc29a21399915e47efcbb6d18787f80 \
+    --hash=sha256:e5b009a5c257e9811b8d22bad2f090f8cdf24dca6afa1bafab88cb0ff5140317 \
+    --hash=sha256:ed4e795b9997f91041d2ad43b633099e0eb891337228d34e4c706ef8f0c5ae92 \
+    --hash=sha256:f195d3c1258406976848246cfb0490790ec0a22bd0560e548364afb846b4bce2 \
+    --hash=sha256:f1b6e994b719e294a2b2aeb74f2ae8e5a294453a47d8a9d6f3104a28ef7d8aa5
+    # via data-index
 opentelemetry-api==1.41.1 \
     --hash=sha256:0ad1814d73b875f84494387dae86ce0b12c68556331ce6ce8fe789197c949621 \
     --hash=sha256:a22df900e75c76dc08440710e51f52f1aa6b451b429298896023e60db5b3139f
@@ -1109,6 +1125,7 @@ typing-extensions==4.15.0 \
     #   anyio
     #   exceptiongroup
     #   fastapi
+    #   obstore
     #   opentelemetry-api
     #   prefect
     #   py-key-value-aio

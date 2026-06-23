@@ -8,6 +8,8 @@ from data_index.protocols import ExtractionResult, StructuredSink, UnstructuredS
 
 @prefect.task(
     cache_policy=prefect.cache_policies.NO_CACHE,
+    retries=3,
+    retry_delay_seconds=[5, 13, 35],
 )
 def load(
     extraction_results: list[ExtractionResult],

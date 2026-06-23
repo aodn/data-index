@@ -7,7 +7,7 @@ import prefect.states
 import prefect.task_runners
 
 from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import FSSpecFetcher
+from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
     IcebergTableScanConfig,
@@ -52,7 +52,6 @@ _inventory_source = S3TableInventorySource(
     table_scan_config=IcebergTableScanConfig(
         row_filter="(key LIKE 'IMOS/ANMN/AM/%' OR key LIKE 'IMOS/ANMN/NRS/%' OR key LIKE 'IMOS/ANMN/NSW/%' OR key LIKE 'IMOS/ANMN/QLD/%' OR key LIKE 'IMOS/ANMN/SA/%' OR key LIKE 'IMOS/ANMN/WA/%') AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'",
         selected_fields=["bucket", "key", "version_id", "size"],
-        limit=1000,
     ),
 )
 
@@ -63,7 +62,7 @@ _greedy_partitioner = GreedyBatchPartitioner(
 )
 
 # --- File fetcher ---
-_file_fetcher = FSSpecFetcher()
+_file_fetcher = ObstoreFetcher()
 
 # --- Metadata extractor ---
 _attribute_netcdf_extractor = AttributeNetCDFExtractor()
@@ -133,12 +132,12 @@ def index_batch(
     return
 
 
-@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=12))
+@prefect.flow(task_runner=prefect.task_runners.ProcessPoolTaskRunner(max_workers=2))
 def run_index_work_pool(
     inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: FSSpecFetcher = _file_fetcher,
+    fetcher: FSSpecFetcher | ObstoreFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredS3TableSink = _unstructured_s3_table_sink,
@@ -154,8 +153,8 @@ def run_index_work_pool(
 
     # Provision the sinks
     logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
-    # structured_sink.provision()
-    # unstructured_sink.provision()
+    structured_sink.provision()
+    unstructured_sink.provision()
 
     # Dispatch
     # Note: Scheduler has to be able to hold all the dispatch

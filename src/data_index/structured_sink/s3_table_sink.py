@@ -19,7 +19,7 @@ from pyiceberg.table import Table
 from pyiceberg.transforms import IdentityTransform
 
 from data_index.iceberg_config.iceberg_table_config import IcebergTableConfig
-from data_index.structured_metadata import StructuredMetadata
+from data_index.schema.metadata import StructuredMetadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
@@ -152,19 +152,12 @@ class StructuredS3TableSink(pydantic.BaseModel):
     def _default_partition_spec() -> PartitionSpec:
         schema = StructuredMetadata.as_pyiceberg_schema()
         facility_field_id = schema.find_field("facility").field_id
-        time_start_field_id = schema.find_field("time_coverage_start_year").field_id
         return PartitionSpec(
             PartitionField(
                 source_id=facility_field_id,
                 field_id=1000,
                 transform=IdentityTransform(),
                 name="facility",
-            ),
-            PartitionField(
-                source_id=time_start_field_id,
-                field_id=1001,
-                transform=IdentityTransform(),
-                name="time_coverage_start_year",
             ),
         )
 

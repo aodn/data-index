@@ -1,10 +1,9 @@
 from .fsspec_fetcher import FSSpecFetcher
-
-# from .s5cmd_fetcher import S5CMDFetcher
-# from .threshold_fetcher import ThresholdFileFetcher
+from .obstore_fetcher import ObstoreFetcher
 
 __all__ = [
     "FSSpecFetcher",
+    "ObstoreFetcher",
     # "S5CMDFetcher",
     # "ThresholdFileFetcher",
 ]

@@ -17,6 +17,7 @@ dependencies = [
     "h5py>=3.16.0",
     "netcdf4>=1.7.4",
     "numpy>=2.4.4",
+    "obstore>=0.10.1",
     "polars>=1.40.1",
     "prefect>=3.6.28",
     "prefect-aws>=0.7.7",

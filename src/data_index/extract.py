@@ -9,7 +9,11 @@ import prefect.cache_policies
 from data_index.protocols import FileFetcher, ObjectReference
 
 
-@prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
+@prefect.task(
+    cache_policy=prefect.cache_policies.NO_CACHE,
+    retries=3,
+    retry_delay_seconds=[5, 13, 35],
+)
 def extract(
     object_references: list[ObjectReference],
     fetcher: FileFetcher,
@@ -20,6 +24,8 @@ def extract(
     Validates: required schema columns, unique object versions, total size within limit.
     Returns a list of XarrayHandle per file.
     """
+
+    logger = prefect.get_run_logger()
 
     # Count occurrences using the built-in versioned URI generator
     uri_counts = collections.Counter(
@@ -39,6 +45,13 @@ def extract(
             "Duplicates list:\n" + "\n".join(duplicate_details)
         )
 
+    # Get the number of bytes
+    bytes = sum([object_reference.size for object_reference in object_references])
+
     # Fetch
+    logger.info(
+        f"Extracting `{len(object_references)}` files (`{(bytes / 1024 / 1024):,.2f}` MB)"
+    )
     object_references = fetcher.fetch(object_references=object_references)
+    logger.info(f"Extracted `{len(object_references)}` files!")
     return object_references
