@@ -1,8 +1,10 @@
+import dataclasses
 import typing
 
 from .base import Metadata
 
 
+@dataclasses.dataclass(kw_only=True)
 class UnstructuredMetadata(Metadata):
     """Structured metadata row schema and backend schema converters.
 
@@ -14,4 +16,6 @@ class UnstructuredMetadata(Metadata):
     SCHEMA_VERSION: typing.ClassVar[int] = 2
     schema_version: int = SCHEMA_VERSION
 
-    metadata = str
+    metadata: str
+    file_format: str | None = None
+    facility: str | None = None

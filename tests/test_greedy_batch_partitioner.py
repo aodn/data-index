@@ -51,14 +51,17 @@ def test_empty_inventory_yields_no_batches():
 def test_batches_contain_all_original_files():
     partitioner = GreedyBatchPartitioner(max_files=2, max_bytes=1000)
     inventory = _inventory(10, 20, 30, 40)
-    batches = list(partitioner.partition(inventory))
+    batches = list(partitioner.partition(inventory=inventory))
 
-    all_identity = [
-        (row["bucket"], row["key"], row["version_id"])
+    object_references = [
+        {
+            k: v
+            for k, v in object_reference._asdict().items()
+            if k not in {"xarray_handle", "extraction_result"}
+        }
         for batch in batches
-        for row in batch.iter_rows(named=True)
+        for object_reference in batch
     ]
-    expected_identity = list(
-        zip(inventory["bucket"], inventory["key"], inventory["version_id"], strict=True)
+    assert inventory.equals(
+        other=polars.DataFrame(data=object_references),
     )
-    assert sorted(all_identity) == sorted(expected_identity)

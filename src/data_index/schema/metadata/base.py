@@ -64,7 +64,6 @@ class Metadata:
     schema generation.
     """
 
-    schema_version: int
     bucket: str
     key: str
     version_id: str

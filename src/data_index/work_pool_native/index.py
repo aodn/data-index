@@ -7,7 +7,7 @@ import prefect.states
 import prefect.task_runners
 
 from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import S3Fetcher, S5CMDFetcher, ThresholdFileFetcher
+from data_index.file_fetcher import FSSpecFetcher
 from data_index.iceberg_config import (
     IcebergTableConfig,
     IcebergTableScanConfig,
@@ -19,8 +19,6 @@ from data_index.inventory_source import (
 )
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
-    NetCDFExtractor,
-    UnstructuedNetCDFExtractor,
 )
 from data_index.structured_metadata import StructuredMetadata
 from data_index.structured_sink import StructuredParquetSink, StructuredS3TableSink
@@ -75,7 +73,7 @@ _greedy_partitioner = GreedyBatchPartitioner(
 )
 
 # --- File fetcher ---
-_file_fetcher = S5CMDFetcher(num_workers=S5CMD_WORKERS)
+_file_fetcher = FSSpecFetcher()
 
 # --- Metadata extractor ---
 _attribute_netcdf_extractor = AttributeNetCDFExtractor()
@@ -152,10 +150,8 @@ def run_index_work_pool(
     inventory_source: S3TableInventorySource
     | S3TableFacilitySubsetInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: S3Fetcher | S5CMDFetcher | ThresholdFileFetcher = _file_fetcher,
-    extractor: AttributeNetCDFExtractor
-    | NetCDFExtractor
-    | UnstructuedNetCDFExtractor = _attribute_netcdf_extractor,
+    fetcher: FSSpecFetcher = _file_fetcher,
+    extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: StructuredParquetSink
     | StructuredS3TableSink = _structured_s3_table_sink,
     unstructured_sink: UnstructuredParquetSink

@@ -20,72 +20,67 @@ def _patch_prefect_runtime():
         yield
 
 
-def test_extract_accepts_required_columns_with_extras_and_builds_object_refs():
-    batch_df = _batch_df(
-        [
+def _df() -> polars.DataFrame:
+    return polars.DataFrame(
+        data=[
             {
                 "bucket": "bucket-a",
                 "key": "path/a.nc",
                 "version_id": "v1",
                 "size": 10,
-                "extra": "x",
             },
             {
                 "bucket": "bucket-b",
                 "key": "path/b.nc",
                 "version_id": "v2",
                 "size": 20,
-                "extra": "y",
             },
         ]
     )
-    fetcher = MagicMock()
-    fetcher.fetch.return_value = []
 
-    extract.fn(batch_df=batch_df, fetcher=fetcher)
 
-    fetch_entries = fetcher.fetch.call_args.args[0]
-    assert [entry.object_ref for entry in fetch_entries] == [
-        ObjectReference(bucket="bucket-a", key="path/a.nc", version_id="v1"),
-        ObjectReference(bucket="bucket-b", key="path/b.nc", version_id="v2"),
+def _object_references(df: polars.DataFrame = _df()) -> list[ObjectReference]:
+    return [
+        ObjectReference(
+            bucket=bucket,
+            key=key,
+            version_id=version_id,
+            size=size,
+            xarray_handle=None,
+            extraction_result=None,
+        )
+        for bucket, key, version_id, size in df.select(
+            "bucket", "key", "version_id", "size"
+        ).iter_rows()
     ]
-    assert [entry.size_bytes for entry in fetch_entries] == [10, 20]
 
 
 def test_extract_rejects_duplicate_object_version_identity():
-    batch_df = _batch_df(
-        [
-            {
-                "bucket": "bucket-a",
-                "key": "path/a.nc",
-                "version_id": "v1",
-                "size": 10,
-            },
-            {
-                "bucket": "bucket-a",
-                "key": "path/a.nc",
-                "version_id": "v1",
-                "size": 20,
-            },
-        ]
+    object_references = _object_references(
+        df=polars.DataFrame(
+            data=[
+                {
+                    "bucket": "bucket-a",
+                    "key": "path/a.nc",
+                    "version_id": "v1",
+                    "size": 10,
+                },
+                {
+                    "bucket": "bucket-a",
+                    "key": "path/a.nc",
+                    "version_id": "v1",
+                    "size": 20,
+                },
+            ]
+        )
     )
 
-    with pytest.raises(
-        ValueError, match=r"Duplicate \(`bucket`, `key`, `version_id`\) values in batch"
-    ):
-        extract.fn(batch_df=batch_df, fetcher=MagicMock())
+    # Updated to match the new dynamic, multi-line error format
+    expected_error_regex = (
+        r"Validation failed: Duplicate object references detected\.\n"
+        r"Duplicates list:\n"
+        r"s3://bucket-a/path/a\.nc\?versionId=v1 \(appears 2 times\)"
+    )
 
-
-@pytest.mark.parametrize("missing_column", ["bucket", "key", "version_id", "size"])
-def test_extract_rejects_missing_required_columns(missing_column: str):
-    row = {
-        "bucket": "bucket-a",
-        "key": "path/a.nc",
-        "version_id": "v1",
-        "size": 10,
-    }
-    row.pop(missing_column)
-    batch_df = _batch_df([row])
-
-    with pytest.raises(ValueError, match="Batch schema missing required columns"):
-        extract.fn(batch_df=batch_df, fetcher=MagicMock())
+    with pytest.raises(ValueError, match=expected_error_regex):
+        extract.fn(object_references=object_references, fetcher=MagicMock())

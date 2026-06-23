@@ -4,12 +4,12 @@ from unittest.mock import patch
 import pydantic
 import pytest
 
-from data_index.file_fetcher.s3_fetcher import S3Fetcher
+from data_index.file_fetcher.fsspec_fetcher import S3Fetcher
 from data_index.file_fetcher.s5cmd_fetcher import S5CMDFetcher
 from data_index.file_fetcher.threshold_fetcher import ThresholdFileFetcher
 from data_index.protocols import BatchEntry, ObjectReference
 from data_index.xarray_handle.disk_xarray_handle import DiskXarrayHandle
-from data_index.xarray_handle.s3_xarray_handle import S3XarrayHandle
+from data_index.xarray_handle.fsspec_xarray_handle import S3XarrayHandle
 
 # --- Stubs ---
 

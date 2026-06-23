@@ -1,67 +1,48 @@
 from __future__ import annotations
 
 import logging
-import typing
 
 import prefect
 import prefect.cache_policies
 
 from data_index.protocols import (
-    ExtractionResult,
     MetadataExtractor,
     ObjectReference,
-    UnstructuredMetadata,
     XarrayHandle,
 )
-from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
 
 
 def _transform_single(
-    xarray_handle: XarrayHandle,
+    object_reference: ObjectReference,
     extractor: MetadataExtractor,
-    unstructured_metadata_factory: typing.Callable[
-        [ObjectReference, dict], UnstructuredMetadata
-    ],
+    unstructured_metadata_factory,
     logger: logging.Logger,
-) -> ExtractionResult:
+) -> ObjectReference:
+
     # Attempt extraction
     try:
-        raw = extractor.extract(handle=xarray_handle)
-        if raw.status == "failed":
-            logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
-            return ExtractionResult(
-                object_ref=xarray_handle.object_ref,
-                structured_metadata=None,
-                unstructured_metadata=None,
-                status="failed",
-                error=raw.error,
+        extraction_result = extractor.extract(object_reference=object_reference)
+        object_reference.with_extraction_result(extraction_result=extraction_result)
+        if extraction_result.status == "failed":
+            logger.warning(
+                f"extraction failed for {object_reference.as_versioned_uri()}: {extraction_result.error}"
             )
-        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
-        return ExtractionResult(
-            object_ref=xarray_handle.object_ref,
-            structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(
-                xarray_handle.object_ref, raw.unstructured_metadata
-            ),
-            status="succeeded",
+            return object_reference
+        logger.info(f"extraction succeeded for {object_reference.as_versioned_uri()}")
+        return object_reference
+    except Exception as e:
+        logger.warning(
+            f"extraction failed for {object_reference.as_versioned_uri()}: {e}"
         )
-    except Exception as exc:
-        logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
-        return ExtractionResult(
-            object_ref=xarray_handle.object_ref,
-            structured_metadata=None,
-            unstructured_metadata=None,
-            status="failed",
-            error=str(exc),
-        )
+        return object_reference
 
     # Attempt cleanup
     finally:
         try:
-            xarray_handle.ds.close()
-        except Exception as exc:
+            object_reference.xarray_handle.cleanup()
+        except Exception as e:
             logger.warning(
-                f"Disposal of xarray handle failed for {xarray_handle.s3_uri}: {exc}"
+                f"Disposal of xarray handle failed for {object_reference.as_versioned_uri()}: {e}"
             )
 
 
@@ -69,11 +50,8 @@ def _transform_single(
 def transform(
     xarray_handles: list[XarrayHandle],
     extractor: MetadataExtractor,
-    metadata_factory: typing.Callable[
-        [ObjectReference, dict], UnstructuredMetadata
-    ] = DiskCachedUnstructuredMetadata,
-    max_workers: int | None = None,
-) -> list[ExtractionResult]:
+    metadata_factory,
+) -> list[ObjectReference]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 

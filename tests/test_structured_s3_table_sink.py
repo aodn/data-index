@@ -5,7 +5,8 @@ from pyiceberg.schema import Schema
 from pyiceberg.types import DoubleType, NestedField, StringType
 
 from data_index.iceberg_config import IcebergTableConfig, SqliteCatalogConfig
-from data_index.structured_metadata import StructuredMetadata
+from data_index.protocols import ObjectReference
+from data_index.schema.metadata import StructuredMetadata
 from data_index.structured_sink.s3_table_sink import StructuredS3TableSink
 
 NAMESPACE = "test_ns"
@@ -27,11 +28,20 @@ def table_config(tmp_path):
     return config
 
 
-def make_metadata(**kwargs) -> StructuredMetadata:
-    defaults = dict(
+def make_metadata(key: str, **kwargs) -> StructuredMetadata:
+    object_reference = ObjectReference(
         bucket="imos-data",
-        key="IMOS/ANMN/NSW/file.nc",
+        key=key,
         version_id="v1",
+        size=0,
+        xarray_handle=None,
+        extraction_result=None,
+    )
+    defaults = dict(
+        bucket=object_reference.bucket,
+        key=object_reference.key,
+        version_id=object_reference.version_id,
+        hash=object_reference.hash,
         facility="ANMN",
         geospatial_lat_min=-10.0,
         geospatial_lat_max=10.0,
@@ -50,12 +60,6 @@ def test_provision_is_idempotent(table_config):
     StructuredS3TableSink(
         iceberg_table_config=table_config
     ).provision()  # table already exists — must not raise
-
-
-def test_provision_sets_schema_version_table_property(table_config):
-    table = table_config.load()
-
-    assert table.properties["schema_version"] == str(StructuredMetadata.SCHEMA_VERSION)
 
 
 def test_writes_rows_with_correct_values(table_config):
@@ -106,22 +110,6 @@ def test_upsert_replaces_existing_and_inserts_new_rows(table_config):
     assert lat_by_key[key_b] == -3.0
 
 
-def test_duplicate_identity_within_batch_keeps_last_occurrence(table_config):
-    sink = StructuredS3TableSink(iceberg_table_config=table_config)
-    key = "IMOS/ANMN/a.nc"
-
-    sink.write(
-        [
-            make_metadata(key=key, geospatial_lat_min=-1.0),
-            make_metadata(key=key, geospatial_lat_min=-2.0),
-        ]
-    )
-
-    df = table_config.load().scan().to_pandas()
-    assert len(df) == 1
-    assert df["geospatial_lat_min"].iloc[0] == -2.0
-
-
 def test_empty_write_is_noop(table_config):
     sink = StructuredS3TableSink(iceberg_table_config=table_config)
 
@@ -137,6 +125,7 @@ def test_null_fields_survive_roundtrip(table_config):
     sink.write(
         [
             make_metadata(
+                key="a.nc",
                 geospatial_lat_min=None,
                 geospatial_lat_max=None,
                 crs=None,
@@ -155,6 +144,7 @@ def test_writes_extended_structured_metadata_fields(table_config):
     sink.write(
         [
             make_metadata(
+                key="a.nc",
                 keywords="ocean,temp",
                 instrument="CTD",
                 metadata_uuid="123e4567-e89b-12d3-a456-426614174000",

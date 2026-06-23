@@ -1,8 +1,10 @@
+import dataclasses
 import typing
 
 from .base import Metadata
 
 
+@dataclasses.dataclass(kw_only=True)
 class StructuredMetadata(Metadata):
     """Structured metadata row schema and backend schema converters.
 
@@ -40,4 +42,4 @@ class StructuredMetadata(Metadata):
     variables: list[str] | None = None
     standard_names: list[str] | None = None
     file_format: str | None = None
-    collection: str | None = None
+    facility: str | None = None

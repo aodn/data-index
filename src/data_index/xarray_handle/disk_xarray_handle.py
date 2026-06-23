@@ -3,7 +3,6 @@ import pathlib
 import pydantic
 import xarray
 
-from data_index.protocols import ObjectReference
 from data_index.xarray_handle._magic import format_from_magic
 
 
@@ -13,7 +12,6 @@ class DiskXarrayHandle(pydantic.BaseModel):
     """
 
     path: pathlib.Path
-    object_ref: ObjectReference
     _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
 
     @property

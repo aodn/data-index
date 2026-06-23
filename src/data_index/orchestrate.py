@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import typing
-
 import polars
 import prefect
 import prefect.cache_policies
@@ -15,9 +13,7 @@ from data_index.protocols import (
     FileFetcher,
     InventorySource,
     MetadataExtractor,
-    ObjectReference,
     StructuredSink,
-    UnstructuredMetadata,
     UnstructuredSink,
 )
 from data_index.transform import transform
@@ -42,9 +38,6 @@ def _process_batch(
     extractor: MetadataExtractor,
     structured_sink: StructuredSink,
     unstructured_sink: UnstructuredSink,
-    metadata_factory: typing.Callable[
-        [ObjectReference, dict], UnstructuredMetadata
-    ] = DiskCachedUnstructuredMetadata,
     transform_max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
@@ -52,7 +45,6 @@ def _process_batch(
     results = transform(
         xarray_handles=handles,
         extractor=extractor,
-        metadata_factory=metadata_factory,
         max_workers=transform_max_workers,
     )
     load(

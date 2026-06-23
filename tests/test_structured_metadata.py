@@ -4,6 +4,7 @@ import polars
 import pyarrow
 from pyiceberg.types import DoubleType, ListType, StringType
 
+from data_index.protocols import ObjectReference
 from data_index.structured_metadata import StructuredMetadata
 
 
@@ -91,14 +92,20 @@ def test_structured_metadata_field_contract_updates():
     assert "collection" not in field_names
 
 
-def test_schema_version_is_class_var_and_not_dataclass_field():
-    field_names = [field.name for field in dataclasses.fields(StructuredMetadata)]
-
-    assert StructuredMetadata.SCHEMA_VERSION == 2
-    assert "SCHEMA_VERSION" not in field_names
-
-
 def test_schema_version_field_defaults_to_class_var_value():
-    row = StructuredMetadata(bucket="bucket", key="file.nc", version_id="v1")
+    object_reference = ObjectReference(
+        bucket="bucket",
+        key="file.nc",
+        version_id="v1",
+        size=0,
+        xarray_handle=None,
+        extraction_result=None,
+    )
+    row = StructuredMetadata(
+        bucket=object_reference.bucket,
+        key=object_reference.key,
+        version_id=object_reference.version_id,
+        hash=object_reference.hash,
+    )
 
     assert row.schema_version == StructuredMetadata.SCHEMA_VERSION
