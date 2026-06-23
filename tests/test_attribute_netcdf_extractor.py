@@ -40,14 +40,11 @@ def test_extract_supports_aliases_for_structured_scalar_attributes():
 
     result = extractor.extract(_object_reference())
 
-    assert result.extraction_result.status == "succeeded"
-    assert result.extraction_result.structured_metadata is not None
-    assert result.extraction_result.structured_metadata.conventions == "CF-1.8"
-    assert result.extraction_result.structured_metadata.feature_type == "trajectory"
-    assert (
-        result.extraction_result.structured_metadata.instrument_serial_number
-        == "INS-001"
-    )
+    assert result.status == "succeeded"
+    assert result.structured_metadata is not None
+    assert result.structured_metadata.conventions == "CF-1.8"
+    assert result.structured_metadata.feature_type == "trajectory"
+    assert result.structured_metadata.instrument_serial_number == "INS-001"
 
 
 def test_extract_prioritizes_exact_alias_order_over_normalized_fallback():
@@ -62,13 +59,10 @@ def test_extract_prioritizes_exact_alias_order_over_normalized_fallback():
 
     result = extractor.extract(_object_reference(ds))
 
-    assert result.extraction_result.status == "succeeded"
-    assert result.extraction_result.structured_metadata is not None
-    assert result.extraction_result.structured_metadata.conventions == "CF-UPPER"
-    assert (
-        result.extraction_result.structured_metadata.instrument_serial_number
-        == "INS-fallback"
-    )
+    assert result.status == "succeeded"
+    assert result.structured_metadata is not None
+    assert result.structured_metadata.conventions == "CF-UPPER"
+    assert result.structured_metadata.instrument_serial_number == "INS-fallback"
 
 
 def test_extract_derives_dimensions_variables_and_standard_names():
@@ -98,14 +92,14 @@ def test_extract_derives_dimensions_variables_and_standard_names():
 
     result = extractor.extract(_object_reference(ds))
 
-    assert result.extraction_result.status == "succeeded"
-    assert result.extraction_result.structured_metadata is not None
-    assert result.extraction_result.structured_metadata.dimensions == ["lat", "time"]
-    assert result.extraction_result.structured_metadata.variables == [
+    assert result.status == "succeeded"
+    assert result.structured_metadata is not None
+    assert result.structured_metadata.dimensions == ["lat", "time"]
+    assert result.structured_metadata.variables == [
         "salinity",
         "temp",
     ]
-    assert result.extraction_result.structured_metadata.standard_names == [
+    assert result.structured_metadata.standard_names == [
         "latitude",
         "sea_water_salinity",
         "sea_water_temperature",
@@ -119,11 +113,11 @@ def test_extract_sets_derived_lists_to_none_when_empty():
 
     result = extractor.extract(_object_reference(ds))
 
-    assert result.extraction_result.status == "succeeded"
-    assert result.extraction_result.structured_metadata is not None
-    assert result.extraction_result.structured_metadata.dimensions is None
-    assert result.extraction_result.structured_metadata.variables is None
-    assert result.extraction_result.structured_metadata.standard_names is None
+    assert result.status == "succeeded"
+    assert result.structured_metadata is not None
+    assert result.structured_metadata.dimensions is None
+    assert result.structured_metadata.variables is None
+    assert result.structured_metadata.standard_names is None
 
 
 def test_extract_succeeds_with_surrogate_string_in_global_attrs():
@@ -132,9 +126,8 @@ def test_extract_succeeds_with_surrogate_string_in_global_attrs():
 
     result = extractor.extract(_object_reference(ds))
 
-    assert result.extraction_result.status == "succeeded"
-    assert result.extraction_result.unstructured_metadata is not None
+    assert result.status == "succeeded"
+    assert result.unstructured_metadata is not None
     assert (
-        result.extraction_result.unstructured_metadata.metadata["global_attrs"]["title"]
-        == "\\udcffbad"
+        result.unstructured_metadata.metadata["global_attrs"]["title"] == "\\udcffbad"
     )
