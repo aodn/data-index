@@ -8,14 +8,12 @@ import prefect.cache_policies
 from data_index.protocols import (
     MetadataExtractor,
     ObjectReference,
-    XarrayHandle,
 )
 
 
 def _transform_single(
     object_reference: ObjectReference,
     extractor: MetadataExtractor,
-    unstructured_metadata_factory,
     logger: logging.Logger,
 ) -> ObjectReference:
 
@@ -48,9 +46,8 @@ def _transform_single(
 
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def transform(
-    xarray_handles: list[XarrayHandle],
+    object_references: list[ObjectReference],
     extractor: MetadataExtractor,
-    metadata_factory,
 ) -> list[ObjectReference]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
@@ -70,12 +67,11 @@ def transform(
     logger.info("Running extraction sequentially...")
     results = [
         _transform_single(
-            xarray_handle=xarray_handle,
+            object_reference=object_reference,
             extractor=extractor,
-            unstructured_metadata_factory=metadata_factory,
             logger=logger,
         )
-        for xarray_handle in xarray_handles
+        for object_reference in object_references
     ]
     logger.info("Sequential extraction complete!")
 

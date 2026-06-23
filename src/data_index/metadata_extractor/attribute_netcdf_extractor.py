@@ -17,7 +17,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         default="attribute_netcdf_extractor"
     )
 
-    def extract(self, object_reference: ObjectReference) -> ObjectReference:
+    def extract(self, object_reference: ObjectReference) -> ExtractionResult:
         """Extract structured and unstructured metadata for one handle.
 
         :param handle: Dataset handle to read from.
@@ -31,26 +31,17 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             unstructured_metadata = self._extract_unstructured(
                 object_reference=object_reference
             )
-            object_reference = object_reference.with_extraction_result(
-                extraction_result=ExtractionResult(
-                    structured_metadata=structured_metadata,
-                    unstructured_metadata=unstructured_metadata,
-                    status="succeeded",
-                )
+            return ExtractionResult(
+                structured_metadata=structured_metadata,
+                unstructured_metadata=unstructured_metadata,
+                status="succeeded",
             )
-            import rich
-
-            rich.print(object_reference)
-            return object_reference
         except Exception as e:
-            raise
-            return object_reference.with_extraction_result(
-                extraction_result=ExtractionResult(
-                    structured_metadata=None,
-                    unstructured_metadata=None,
-                    status="failed",
-                    error=str(e),
-                )
+            return ExtractionResult(
+                structured_metadata=structured_metadata,
+                unstructured_metadata=unstructured_metadata,
+                status="failed",
+                error=str(e),
             )
 
     @staticmethod
