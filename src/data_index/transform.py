@@ -26,7 +26,7 @@ def _transform_single(
                 f"extraction failed for {object_reference.as_versioned_uri()}: {extraction_result.error}"
             )
             return extraction_result
-        logger.info(f"extraction succeeded for {object_reference.as_versioned_uri()}")
+        logger.debug(f"extraction succeeded for {object_reference.as_versioned_uri()}")
         return extraction_result
 
     # Failed extraction

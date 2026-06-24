@@ -26,6 +26,8 @@ def index_batch(
 
     logger = prefect.get_run_logger()
 
+    return
+
     # Extract batch
     logger.info("Extracting batch...")
     object_references = extract(
