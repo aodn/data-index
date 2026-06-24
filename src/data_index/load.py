@@ -23,6 +23,12 @@ def load(
     before being passed to the sink.
     """
     logger = prefect.get_run_logger()
+
+    # Return empty list if no object_references passed in
+    if not extraction_results:
+        logger.warning("load called with no extraction results!")
+        return list()
+
     succeeded = [
         extraction_result
         for extraction_result in extraction_results

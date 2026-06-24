@@ -71,6 +71,11 @@ def transform(
     """
     logger = prefect.get_run_logger()
 
+    # Return empty list if no object_references passed in
+    if not object_references:
+        logger.warning("transform called with no object references!")
+        return list()
+
     logger.info("Running extraction sequentially...")
     extraction_results = [
         _transform_single(
