@@ -27,6 +27,11 @@ def extract(
 
     logger = prefect.get_run_logger()
 
+    # Return empty list if no object_references passed in
+    if not object_references:
+        logger.warning("extract called with no object references!")
+        return list()
+
     # Count occurrences using the built-in versioned URI generator
     uri_counts = collections.Counter(
         object_reference.as_versioned_uri() for object_reference in object_references

@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from prefect.states import Completed, Failed
-from prefect.testing.utilities import prefect_test_harness
 
 from data_index.runners.index import (
     index,
@@ -11,11 +10,19 @@ from data_index.runners.index import (
 )
 
 
-@pytest.fixture(scope="session", autouse=True)
-def prefect_test_env():
-    """Provides an isolated, in-memory Prefect server ONCE for the entire test suite execution."""
-    with prefect_test_harness():
-        yield
+@pytest.fixture
+def mock_run_logger():
+    """
+    Mocks Prefect's get_run_logger to prevent log output during testing
+    and allows assertion checks on logged messages.
+    """
+    with patch("prefect.get_run_logger") as mock_get_logger:
+        # Create the actual mock logger object that gets returned
+        mock_logger_instance = MagicMock()
+        mock_get_logger.return_value = mock_logger_instance
+
+        # Yield the instance so tests can use it for assertions
+        yield mock_logger_instance
 
 
 @pytest.fixture(scope="function")
