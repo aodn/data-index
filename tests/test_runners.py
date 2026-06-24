@@ -201,8 +201,9 @@ def test_index_pipeline_aggregates_failures(
 
 
 @patch("data_index.runners.index.index_pipeline")
+@patch("prefect.get_run_logger")
 def test_index_applies_task_runner_options(
-    mock_index_pipeline, mock_index_dependencies
+    mock_get_logger, mock_index_pipeline, mock_index_dependencies
 ):
     """Verifies that the task runner config is generated and applied via .with_options()"""
     # Setup the mock runner instance that the config block will return
@@ -210,6 +211,7 @@ def test_index_applies_task_runner_options(
     mock_index_dependencies[
         "task_runner_config"
     ].create.return_value = mock_runner_instance
+    mock_get_logger.return_value = MagicMock()
 
     # Set up the fluent interface mocking for index_pipeline.with_options()(parameters)
     mock_configured_pipeline = MagicMock()
