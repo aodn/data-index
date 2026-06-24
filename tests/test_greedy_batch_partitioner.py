@@ -1,3 +1,5 @@
+import dataclasses
+
 import polars
 
 from data_index.batch_partitioner.greedy import GreedyBatchPartitioner
@@ -56,7 +58,7 @@ def test_batches_contain_all_original_files():
     object_references = [
         {
             k: v
-            for k, v in object_reference._asdict().items()
+            for k, v in dataclasses.asdict(object_reference).items()
             if k not in {"xarray_handle", "extraction_result"}
         }
         for batch in batches
