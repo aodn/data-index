@@ -11,7 +11,8 @@ import xarray
 import data_index.schema.metadata
 
 
-class ObjectReference(typing.NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class ObjectReference:
     bucket: str
     key: str
     version_id: str | None
@@ -27,14 +28,11 @@ class ObjectReference(typing.NamedTuple):
     def as_path(self) -> pathlib.Path:
         return pathlib.Path(f"{self.bucket}/{self.key}/{self.version_id}")
 
-    def with_xarray_handle(self, xarray_handle: XarrayHandle) -> ObjectReference:
+    def with_xarray_handle(self, xarray_handle: XarrayHandle | None) -> typing.Self:
         """
         Returns a new ObjectReference with the updated xarray_handle.
-
-        Note that NamedTuple._replace is actually a public method despite having
-        an underscore.
         """
-        return self._replace(xarray_handle=xarray_handle)
+        return dataclasses.replace(self, xarray_handle=xarray_handle)
 
     @property
     def hash(self) -> str:
