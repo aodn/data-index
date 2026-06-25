@@ -56,18 +56,7 @@ class _PyIcebergIdAllocator:
         return nested_id
 
 
-@dataclasses.dataclass(
-    kw_only=True,
-    frozen=True,
-)
-class Metadata:
-    """Metadata row schema to inherit from"""
-
-    bucket: str
-    key: str
-    version_id: str
-    hash: str
-
+class Schema:
     @classmethod
     def _parse_annotation(cls, annotation) -> tuple[_TypeSpec, bool]:
         """Parse a field annotation into internal type spec + nullable flag.
@@ -120,10 +109,15 @@ class Metadata:
 
         :returns: Parsed field specifications in declaration order.
         """
-
+        resolved_hints = typing.get_type_hints(cls, include_extras=True)
         field_specs = []
-        for field in dataclasses.fields(class_or_instance=cls):
-            type_spec, nullable = cls._parse_annotation(field.type)
+        for field in dataclasses.fields(cls):
+            resolved_type = resolved_hints.get(field.name)
+
+            if field.metadata.get("ignore_for_schema", False):
+                continue
+
+            type_spec, nullable = cls._parse_annotation(resolved_type)
             field_specs.append(
                 _FieldSpec(name=field.name, type_spec=type_spec, nullable=nullable)
             )
@@ -257,4 +251,15 @@ class Metadata:
                 )
                 for index, field in enumerate(field_specs, start=1)
             ]
+        )
+
+    @classmethod
+    def to_arrow(
+        cls,
+        metadata: list[typing.Self],
+    ) -> pyarrow.Table:
+        """Convert a list of self to a validated pyarrow table"""
+        return pyarrow.Table.from_pylist(
+            [dataclasses.asdict(obj=metadata) for metadata in metadata],
+            schema=cls.as_pyarrow_schema(),
         )

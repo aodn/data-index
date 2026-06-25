@@ -37,18 +37,27 @@ class ObstoreFetcher(pydantic.BaseModel):
         """Expose the store via a read-only property."""
         return self._store
 
-    def object_reference_to_disk_xarray_handle(
+    def object_reference_to_staged_object(
         self,
         object_reference: data_index.protocols.ObjectReference,
-    ) -> data_index.xarray_handle.DiskXarrayHandle:
+    ) -> data_index.protocols.StagedObject | data_index.protocols.DeadLetter:
         """
         Construct a disk xarray handle utilising the stream to disk utility.
         """
 
-        path = self.stream_to_disk(object_reference=object_reference)
-        return data_index.xarray_handle.DiskXarrayHandle(
-            path=path,
-        )
+        # Try to construct a disk xarray handle for the object reference
+        try:
+            path = self.stream_to_disk(object_reference=object_reference)
+            return data_index.protocols.StagedObject(
+                object_reference=object_reference,
+                xarray_handle=data_index.xarray_handle.DiskXarrayHandle(
+                    path=path,
+                ),
+            )
+        except Exception as e:
+            return data_index.protocols.DeadLetter.from_object_reference(
+                object_reference=object_reference, error=str(e)
+            )
 
     def stream_to_disk(
         self,
@@ -93,35 +102,29 @@ class ObstoreFetcher(pydantic.BaseModel):
 
     def fetch(
         self, object_references: list[data_index.protocols.ObjectReference]
-    ) -> list[data_index.protocols.ObjectReference]:
+    ) -> tuple[
+        list[data_index.protocols.StagedObject, list[data_index.protocols.DeadLetter]]
+    ]:
         """
         Populate all ObjectReferences with disk xarray handles.
 
         Causes download of all passed in object_references to `self.extract_path`
         """
-        return [
-            object_reference.with_xarray_handle(
-                xarray_handle=self.object_reference_to_disk_xarray_handle(
-                    object_reference=object_reference
-                )
-            )
+
+        staged_objects = [
+            self.object_reference_to_staged_object(object_reference=object_reference)
             for object_reference in object_references
         ]
 
-
-if __name__ == "__main__":
-    import rich
-
-    obstore_fetcher = ObstoreFetcher()
-    rich.print(obstore_fetcher)
-
-    object_reference = data_index.protocols.ObjectReference(
-        bucket="imos-data",
-        key="IMOS/ANMN/SA/B1/Biogeochem_profiles/IMOS_ANMN-SA_CDEFKOSTUZ_20080212T053920Z_B1_FV01_Profile-SeacatPlus_C-20170214T015514Z.nc",
-        version_id=None,
-        size=0,
-        xarray_handle=None,
-    )
-
-    object_references = obstore_fetcher.fetch([object_reference])
-    rich.print(object_references)
+        return (
+            [
+                staged_object
+                for staged_object in staged_objects
+                if isinstance(staged_object, data_index.protocols.StagedObject)
+            ],
+            [
+                staged_object
+                for staged_object in staged_objects
+                if isinstance(staged_object, data_index.protocols.DeadLetter)
+            ],
+        )

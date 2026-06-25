@@ -1,23 +1,23 @@
 import dataclasses
 import typing
 
-from .base import Metadata
+from .base_metadata import BaseMetadata
 
 
 @dataclasses.dataclass(
     kw_only=True,
     frozen=True,
 )
-class StructuredMetadata(Metadata):
+class StructuredMetadata(BaseMetadata):
     """Structured metadata row schema and backend schema converters.
 
-    ``StructuredMetadata`` is source-of-truth for Polars, PyArrow, and PyIceberg
+    `StructuredMetadata` is source-of-truth for Polars, PyArrow, and PyIceberg
     schema generation.
     """
 
     # Upgrade the schema version when changing the schema
-    SCHEMA_VERSION: typing.ClassVar[int] = 3
-    schema_version: int = SCHEMA_VERSION
+    SCHEMA_VERSION: typing.ClassVar[int] = 4
+    schema_version: int = dataclasses.field(default=SCHEMA_VERSION)
 
     geospatial_lat_min: float | None = None
     geospatial_lat_max: float | None = None
@@ -44,5 +44,3 @@ class StructuredMetadata(Metadata):
     dimensions: list[str] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None
-    file_format: str
-    facility: str
