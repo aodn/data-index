@@ -44,8 +44,6 @@ class StructuredMetadata(BaseMetadata):
     dimensions: list[str] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None
-    file_format: str
-    facility: str
 
 
 if __name__ == "__main__":

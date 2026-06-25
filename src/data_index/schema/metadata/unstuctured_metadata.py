@@ -20,5 +20,3 @@ class UnstructuredMetadata(BaseMetadata):
     schema_version: int = SCHEMA_VERSION
 
     metadata: str
-    file_format: str
-    facility: str

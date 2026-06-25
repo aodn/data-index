@@ -14,3 +14,5 @@ class BaseMetadata(data_index.schema.Schema):
     key: str
     version_id: str
     hash: str
+    file_format: str
+    facility: str
