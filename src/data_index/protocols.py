@@ -68,7 +68,7 @@ class ExtractedObject:
     kw_only=True,
     frozen=True,
 )
-class DeadLetter(ObjectReference, data_index.schema.Schema):
+class DeadLetter(data_index.schema.Schema):
     """
     DeadLetter row schema and backend schema converters.
 
@@ -79,6 +79,11 @@ class DeadLetter(ObjectReference, data_index.schema.Schema):
     SCHEMA_VERSION: typing.ClassVar[int] = 4
     schema_version: int = SCHEMA_VERSION
 
+    # TODO: Untangle the mess of inheritance and schema for metadata vs dead letter vs object reference
+    bucket: str
+    key: str
+    version_id: str | None
+    size: int | None
     hash: str
     error: str | None
     index_flow_id: str | None = dataclasses.field(

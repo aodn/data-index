@@ -21,17 +21,16 @@ def object_reference():
 
 @patch("prefect.runtime.flow_run.get_id")
 @patch("prefect.runtime.flow_run.get_parent_flow_run_id")
-def test_prefect_runtime_defaults_success(mock_get_parent, mock_get_id):
+def test_prefect_runtime_defaults_success(
+    mock_get_parent, mock_get_id, object_reference
+):
     """Verify context-aware IDs are resolved when running inside an active Prefect flow."""
     mock_get_parent.return_value = "flow-parent-abc-123"
     mock_get_id.return_value = "flow-batch-xyz-789"
 
-    dl = DeadLetter(
+    dl = DeadLetter.from_object_reference(
+        object_reference=object_reference,
         error="Pipeline failure",
-        bucket="my-bucket",
-        key="path/file.json",
-        version_id=None,
-        size=2048,
     )
 
     assert dl.index_flow_id == "flow-parent-abc-123"
@@ -42,16 +41,16 @@ def test_prefect_runtime_defaults_success(mock_get_parent, mock_get_id):
 
 @patch("prefect.runtime.flow_run.get_id")
 @patch("prefect.runtime.flow_run.get_parent_flow_run_id")
-def test_prefect_runtime_defaults_missing_context(mock_get_parent, mock_get_id):
+def test_prefect_runtime_defaults_missing_context(
+    mock_get_parent, mock_get_id, object_reference
+):
     """Verify fields default gracefully to None if executed outside of a Prefect runtime environment."""
     mock_get_parent.return_value = None
     mock_get_id.return_value = None
-    dl = DeadLetter(
+
+    dl = DeadLetter.from_object_reference(
+        object_reference=object_reference,
         error="Local failure",
-        bucket="my-bucket",
-        key="path/file.json",
-        version_id=None,
-        size=2048,
     )
 
     assert dl.index_flow_id is None
@@ -60,12 +59,14 @@ def test_prefect_runtime_defaults_missing_context(mock_get_parent, mock_get_id):
 
 def test_prefect_runtime_explicit_overrides():
     """Verify that passing explicit flow IDs overrides the Prefect runtime factories entirely."""
+
     dl = DeadLetter(
         error="Manual run",
         bucket="b",
         key="k",
         version_id=None,
         size=10,
+        hash="",
         index_flow_id="explicit-parent",
         batch_flow_id="explicit-batch",
     )
