@@ -44,18 +44,3 @@ class StructuredMetadata(BaseMetadata):
     dimensions: list[str] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None
-
-
-if __name__ == "__main__":
-    import rich
-
-    rich.print(
-        StructuredMetadata(
-            bucket="test",
-            key="a.nc",
-            version_id="0",
-            hash="",
-            facility="",
-            file_format="",
-        ).as_pyarrow_schema()
-    )

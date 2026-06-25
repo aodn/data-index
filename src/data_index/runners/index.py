@@ -55,9 +55,8 @@ from data_index.protocols import (
     FileFetcher,
     InventorySource,
     MetadataExtractor,
+    MetadataSink,
     ObjectReference,
-    StructuredSink,
-    UnstructuredSink,
 )
 from data_index.runners.task_runner import (
     ProcessPoolRunnerConfig,
@@ -148,8 +147,8 @@ def index_batch(
     object_reference_batch: list[ObjectReference],
     fetcher: FileFetcher,
     extractor: MetadataExtractor,
-    structured_sink: StructuredSink,
-    unstructured_sink: UnstructuredSink,
+    structured_sink: MetadataSink,
+    unstructured_sink: MetadataSink,
 ):
     """
     Submit and monitor a specific sub-batch indexing deployment run.
@@ -213,8 +212,8 @@ def index_pipeline(
     partitioner: BatchPartitioner,
     fetcher: FileFetcher,
     extractor: MetadataExtractor,
-    structured_sink: StructuredSink,
-    unstructured_sink: UnstructuredSink,
+    structured_sink: MetadataSink,
+    unstructured_sink: MetadataSink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
 ):

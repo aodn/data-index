@@ -7,7 +7,6 @@ import typing
 
 import polars
 import prefect.runtime.flow_run
-import pyarrow
 import xarray
 
 import data_index.schema
@@ -164,41 +163,17 @@ class MetadataExtractor(typing.Protocol):
 
 
 @typing.runtime_checkable
-class Sink(typing.Protocol):
+class MetadataSink(typing.Protocol):
     def provision(self) -> None:
         """Prepare the target store before any writes (e.g. create directories or tables)."""
         ...
 
     def write(
         self,
-        data: pyarrow.Table,
-    ) -> list[DeadLetter]:
+        metadata: list[
+            data_index.schema.metadata.StructuredMetadata
+            | data_index.schema.metadata.UnstructuredMetadata
+        ],
+    ) -> None:
         """Persist data"""
-        ...
-
-
-@typing.runtime_checkable
-class StructuredSink(typing.Protocol):
-    def provision(self) -> None:
-        """Prepare the target store before any writes (e.g. create directories or tables)."""
-        ...
-
-    def write(
-        self,
-        data: list[data_index.schema.metadata.StructuredMetadata],
-    ) -> list[DeadLetter]:
-        """Persist Structured Metadata"""
-        ...
-
-
-@typing.runtime_checkable
-class UnstructuredSink(typing.Protocol):
-    def provision(self) -> None:
-        """Prepare the target store before any writes (e.g. create directories or tables)."""
-        ...
-
-    def write(
-        self, data: list[data_index.schema.metadata.UnstructuredMetadata]
-    ) -> list[DeadLetter]:
-        """Persist Unstructured Metadata"""
         ...

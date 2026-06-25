@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import dataclasses
 import random
 import time
 import typing
 
-import pyarrow as pa
 import pydantic
 import pyiceberg.catalog
 import pyiceberg.exceptions
@@ -14,7 +12,6 @@ import pyiceberg.table
 import pyiceberg.transforms
 
 import data_index.iceberg_config
-import data_index.protocols
 import data_index.schema.metadata
 
 _MAX_RETRIES = 5
@@ -53,7 +50,12 @@ class IcebergTableSink(pydantic.BaseModel):
         )
 
     @property
-    def _metadata_cls(self) -> typing.Type:
+    def _metadata_cls(
+        self,
+    ) -> (
+        data_index.schema.metadata.StructuredMetadata
+        | data_index.schema.metadata.UnstructuredMetadata
+    ):
         """Dynamically resolves the target metadata class wrapper based on kind."""
         match self.metadata_kind:
             case "structured":
@@ -128,47 +130,25 @@ class IcebergTableSink(pydantic.BaseModel):
             )
         )
 
-    def _to_arrow(
-        self, extracted_objects: list[data_index.protocols.ExtractedObject]
-    ) -> pa.Table:
-        # Dynamically switch between extraction_result.unstructured_metadata and structured_metadata
-        metadata_attr = f"{self.metadata_kind}_metadata"
-
-        return pa.Table.from_pylist(
-            [
-                dataclasses.asdict(getattr(obj.extraction_result, metadata_attr))
-                for obj in extracted_objects
-            ],
-            schema=self._metadata_cls.as_pyarrow_schema(),
-        )
-
     def write(
-        self, extracted_objects: list[data_index.protocols.ExtractedObject]
-    ) -> list[data_index.protocols.DeadLetter]:
-        try:
-            if not extracted_objects:
+        self,
+        metadata: list[
+            data_index.schema.metadata.StructuredMetadata
+            | data_index.schema.metadata.UnstructuredMetadata
+        ],
+    ) -> None:
+
+        # Fixed: passing extracted_objects positionally to avoid signature mismatch
+        table = self._metadata_cls.to_arrow(metadata=metadata)
+
+        for attempt in range(_MAX_RETRIES):
+            try:
+                self.table.upsert(df=table, join_cols=["hash"])
                 return list()
-
-            # Fixed: passing extracted_objects positionally to avoid signature mismatch
-            arrow_table = self._to_arrow(extracted_objects)
-
-            for attempt in range(_MAX_RETRIES):
-                try:
-                    self.table.upsert(arrow_table, join_cols=["hash"])
-                    return list()
-                except pyiceberg.exceptions.CommitFailedException:
-                    if attempt == _MAX_RETRIES - 1:
-                        raise
-                    self.table.refresh()
-                    time.sleep(
-                        random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
-                    )
-
-        # Return dead letter for every extracted object if execution failed
-        except Exception as e:
-            return [
-                data_index.protocols.DeadLetter.from_object_reference(
-                    object_reference=extracted_object.object_reference, error=str(e)
+            except pyiceberg.exceptions.CommitFailedException:
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                self.table.refresh()
+                time.sleep(
+                    random.uniform(a=_BASE_BACKOFF, b=_BASE_BACKOFF * 2) * (2**attempt)
                 )
-                for extracted_object in extracted_objects
-            ]

@@ -1,9 +1,45 @@
 from __future__ import annotations
 
+import typing
+
 import prefect
 import prefect.cache_policies
 
 import data_index.protocols
+
+
+@prefect.task
+def sink(
+    extracted_objects: list[data_index.protocols.ExtractedObject],
+    metadata_type: typing.Literal["structured_metadata", "unstructured_metadata"],
+    sink: data_index.protocols.MetadataSink,
+) -> list[data_index.protocols.DeadLetter]:
+
+    logger = prefect.get_run_logger()
+
+    # Sink structured metadata
+    try:
+        # Split the metadata_type
+        metadata = [
+            getattr(extracted_object.extraction_result, metadata_type)
+            for extracted_object in extracted_objects
+        ]
+
+        # Attempt to sink
+        logger.info(f"Sinking {len(extracted_objects)} {metadata_type} rows...")
+        sink.write(metadata=metadata)
+        logger.info(f"Sunk {len(extracted_objects)} structured metadata rows!")
+
+    # Report bad batch sink
+    except Exception as e:
+        # Assume all rows failed to sink
+        return [
+            data_index.protocols.DeadLetter.from_object_reference(
+                object_reference=extracted_object.object_reference,
+                error=str(e),
+            )
+            for extracted_object in extracted_objects
+        ]
 
 
 @prefect.task(
@@ -13,8 +49,8 @@ import data_index.protocols
 )
 def load(
     extracted_objects: list[data_index.protocols.ExtractedObject],
-    structured_sink: data_index.protocols.Sink,
-    unstructured_sink: data_index.protocols.Sink,
+    structured_sink: data_index.protocols.MetadataSink,
+    unstructured_sink: data_index.protocols.MetadataSink,
 ) -> list[data_index.protocols.DeadLetter]:
     """Persist structured and unstructured metadata via injected sinks.
 
@@ -29,16 +65,27 @@ def load(
         logger.warning("load called with no extraction results!")
         return list()
 
-    # TODO: DLQ
-    # Try catch logic here; if the load fails then add all object_references to DLQ
-    logger.info("Sinking structued metadata rows...")
-    dead_letters = structured_sink.write(extracted_objects)
-    logger.info(f"Sunk {len(extracted_objects)} structured metadata rows!")
-    # End catch;
+    # Sink structured metadata
+    dead_letters = sink(
+        extracted_objects=extracted_objects,
+        metadata_type="structured_metadata",
+        sink=structured_sink,
+    )
 
-    # TODO: DLQ
-    # Try catch logic here; if the load fails then add all object_references to DLQ
-    logger.info("Sinking unstructued metadata rows...")
-    dead_letters = unstructured_sink.write(extracted_objects)  # noqa
-    logger.info(f"Sunk {len(extracted_objects)} unstructured metadata rows!")
-    # End Catch;
+    # Abort and pass on dead letters
+    if dead_letters:
+        return dead_letters
+
+    # Sink structured metadata
+    dead_letters = sink(
+        extracted_objects=extracted_objects,
+        metadata_type="unstructured_metadata",
+        sink=unstructured_sink,
+    )
+
+    # Abort and pass on dead letters
+    if dead_letters:
+        return dead_letters
+
+    # Return empty list if no dead letters
+    return list()
