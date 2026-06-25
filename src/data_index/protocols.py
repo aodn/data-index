@@ -76,9 +76,10 @@ class DeadLetter(ObjectReference, data_index.schema.Schema):
     schema generation.
     """
 
-    SCHEMA_VERSION: typing.ClassVar[int] = 1
+    SCHEMA_VERSION: typing.ClassVar[int] = 4
     schema_version: int = SCHEMA_VERSION
 
+    hash: str
     error: str | None
     index_flow_id: str | None = dataclasses.field(
         default_factory=lambda: prefect.runtime.flow_run.get_parent_flow_run_id()
@@ -90,7 +91,7 @@ class DeadLetter(ObjectReference, data_index.schema.Schema):
     @classmethod
     def from_object_reference(
         cls,
-        object_reference: data_index.protocols.ObjectReference,
+        object_reference: ObjectReference,
         error: str | None,
     ) -> typing.Self:
         return cls(
@@ -98,6 +99,7 @@ class DeadLetter(ObjectReference, data_index.schema.Schema):
             key=object_reference.key,
             version_id=object_reference.version_id,
             size=object_reference.size,
+            hash=object_reference.hash,
             error=error,
         )
 

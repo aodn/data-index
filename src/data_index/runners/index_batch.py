@@ -45,7 +45,8 @@ def index_batch(
         fetcher=fetcher,
     )
     logger.info("Extracted batch!")
-    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+    if dead_letters:
+        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Transform batch
     logger.info("Transforming batch...")
@@ -54,7 +55,8 @@ def index_batch(
         extractor=extractor,
     )
     logger.info("Transformed batch!")
-    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+    if dead_letters:
+        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Load batch
     logger.info("Loading batch...")
@@ -64,7 +66,8 @@ def index_batch(
         unstructured_sink=unstructured_sink,
     )
     logger.info("Loaded batch!")
-    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+    if dead_letters:
+        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,8 @@ def sink(
 
     # Report bad batch sink
     except Exception as e:
+        logger.error(f"Failed to sink rows: {e}")
+
         # Assume all rows failed to sink
         return [
             data_index.protocols.DeadLetter.from_object_reference(

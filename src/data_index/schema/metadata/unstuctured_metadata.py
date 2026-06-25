@@ -16,7 +16,7 @@ class UnstructuredMetadata(BaseMetadata):
     """
 
     # Upgrade the schema version when changing the schema
-    SCHEMA_VERSION: typing.ClassVar[int] = 3
+    SCHEMA_VERSION: typing.ClassVar[int] = 4
     schema_version: int = SCHEMA_VERSION
 
     metadata: str

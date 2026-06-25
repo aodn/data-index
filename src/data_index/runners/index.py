@@ -273,11 +273,11 @@ def index_pipeline(
     inventory = inventory_source.inventory()
 
     # Provision the sinks
-    logger.info(
-        f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`, `{dead_letter_sink}`"
-    )
+    logger.info(f"Provisioning structured sink: {structured_sink}")
     structured_sink.provision()
+    logger.info(f"Provisioning unstructured sink: {unstructured_sink}")
     unstructured_sink.provision()
+    logger.info(f"Provisioning dead letter sink: {dead_letter_sink}")
     dead_letter_sink.provision()
 
     # Dispatch

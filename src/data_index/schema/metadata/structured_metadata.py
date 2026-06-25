@@ -16,7 +16,7 @@ class StructuredMetadata(BaseMetadata):
     """
 
     # Upgrade the schema version when changing the schema
-    SCHEMA_VERSION: typing.ClassVar[int] = 3
+    SCHEMA_VERSION: typing.ClassVar[int] = 4
     schema_version: int = dataclasses.field(default=SCHEMA_VERSION)
 
     geospatial_lat_min: float | None = None

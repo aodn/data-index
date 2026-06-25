@@ -252,3 +252,14 @@ class Schema:
                 for index, field in enumerate(field_specs, start=1)
             ]
         )
+
+    @classmethod
+    def to_arrow(
+        cls,
+        metadata: list[typing.Self],
+    ) -> pyarrow.Table:
+        """Convert a list of self to a validated pyarrow table"""
+        return pyarrow.Table.from_pylist(
+            [dataclasses.asdict(obj=metadata) for metadata in metadata],
+            schema=cls.as_pyarrow_schema(),
+        )
