@@ -52,6 +52,7 @@ from data_index.metadata_extractor import (
 )
 from data_index.protocols import (
     BatchPartitioner,
+    DeadLetter,
     FileFetcher,
     InventorySource,
     MetadataExtractor,
@@ -118,8 +119,8 @@ _structured_metadata_table_config = IcebergTableConfig(
     table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
 )
 
-_structured_s3_table_sink = IcebergTableSink(
-    metadata_kind="structured",
+_structured_table_sink = IcebergTableSink(
+    schema_kind="structured",
     iceberg_table_config=_structured_metadata_table_config,
 )
 
@@ -129,11 +130,23 @@ _unstructured_metadata_table_config = IcebergTableConfig(
     table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
 )
 
-_unstructured_s3_table_sink = IcebergTableSink(
-    metadata_kind="unstructured",
+_unstructured_table_sink = IcebergTableSink(
+    schema_kind="unstructured",
     iceberg_table_config=_unstructured_metadata_table_config,
 )
 
+_dead_letter_table_config = IcebergTableConfig(
+    catalog_config=_data_index_catalog_config,
+    namespace="data_index",
+    table_name=f"dead_letter_v{DeadLetter.SCHEMA_VERSION}",
+)
+
+_dead_letter_table_sink = IcebergTableSink(
+    schema_kind="dead_letter",
+    iceberg_table_config=_dead_letter_table_config,
+)
+
+# --- Runtime Config ---
 _task_runner_config = ProcessPoolRunnerConfig()
 
 
@@ -149,6 +162,7 @@ def index_batch(
     extractor: MetadataExtractor,
     structured_sink: MetadataSink,
     unstructured_sink: MetadataSink,
+    dead_letter_sink: MetadataSink,
 ):
     """
     Submit and monitor a specific sub-batch indexing deployment run.
@@ -192,6 +206,7 @@ def index_batch(
             "extractor": extractor,
             "structured_sink": structured_sink,
             "unstructured_sink": unstructured_sink,
+            "dead_letter_sink": dead_letter_sink,
         },
     )
 
@@ -214,6 +229,7 @@ def index_pipeline(
     extractor: MetadataExtractor,
     structured_sink: MetadataSink,
     unstructured_sink: MetadataSink,
+    dead_letter_sink: MetadataSink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
 ):
@@ -255,9 +271,12 @@ def index_pipeline(
     inventory = inventory_source.inventory()
 
     # Provision the sinks
-    logger.info(f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`")
+    logger.info(
+        f"Provisioning sinks: `{structured_sink}`, `{unstructured_sink}`, `{dead_letter_sink}`"
+    )
     structured_sink.provision()
     unstructured_sink.provision()
+    dead_letter_sink.provision()
 
     # Dispatch
     # Note: Scheduler has to be able to hold all the dispatch
@@ -277,6 +296,7 @@ def index_pipeline(
             extractor=extractor,
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
+            dead_letter_sink=dead_letter_sink,
         )
         for i, object_reference_batch in enumerate(object_reference_batch_generator)
     ]
@@ -307,8 +327,9 @@ def index(
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: FSSpecFetcher | ObstoreFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
-    structured_sink: IcebergTableSink = _structured_s3_table_sink,
-    unstructured_sink: IcebergTableSink = _unstructured_s3_table_sink,
+    structured_sink: IcebergTableSink = _structured_table_sink,
+    unstructured_sink: IcebergTableSink = _unstructured_table_sink,
+    dead_letter_sink: IcebergTableSink = _dead_letter_table_sink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig
@@ -356,6 +377,7 @@ def index(
             extractor=extractor,
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
+            dead_letter_sink=dead_letter_sink,
             index_batch_flow_name=index_batch_flow_name,
             index_batch_deployment_name=index_batch_deployment_name,
         )

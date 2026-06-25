@@ -5,8 +5,24 @@ from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
-from data_index.protocols import ObjectReference
+from data_index.protocols import DeadLetter, MetadataSink, ObjectReference
 from data_index.sink import IcebergTableSink
+
+
+@prefect.task
+def sink_dead_letters(
+    dead_letters: list[DeadLetter],
+    dead_letter_sink: MetadataSink,
+) -> None:
+
+    if not dead_letters:
+        return
+
+    logger = prefect.get_run_logger()
+    logger.error(f"Found {len(dead_letters)} dead letters!")
+    logger.info(f"writing {len(dead_letters)} dead letters...")
+    dead_letter_sink.write(metadata=dead_letters)
+    logger.info(f"Wrote {len(dead_letters)} dead letters!")
 
 
 @prefect.flow
@@ -16,6 +32,7 @@ def index_batch(
     extractor: AttributeNetCDFExtractor,
     structured_sink: IcebergTableSink,
     unstructured_sink: IcebergTableSink,
+    dead_letter_sink: IcebergTableSink,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
@@ -28,8 +45,7 @@ def index_batch(
         fetcher=fetcher,
     )
     logger.info("Extracted batch!")
-
-    # TODO: Deal with dead letters
+    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Transform batch
     logger.info("Transforming batch...")
@@ -38,17 +54,17 @@ def index_batch(
         extractor=extractor,
     )
     logger.info("Transformed batch!")
-
-    # TODO: Deal with dead letters
+    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Load batch
     logger.info("Loading batch...")
-    data_index.load(
+    dead_letters = data_index.load(
         extracted_objects=extracted_objects,
         structured_sink=structured_sink,
         unstructured_sink=unstructured_sink,
     )
     logger.info("Loaded batch!")
+    sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
 
 if __name__ == "__main__":

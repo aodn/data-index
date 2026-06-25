@@ -12,6 +12,7 @@ import pyiceberg.table
 import pyiceberg.transforms
 
 import data_index.iceberg_config
+import data_index.protocols
 import data_index.schema.metadata
 
 _MAX_RETRIES = 5
@@ -28,9 +29,7 @@ class IcebergTableSink(pydantic.BaseModel):
     """
 
     type: typing.Literal["s3_table_sink"] = pydantic.Field(default="s3_table_sink")
-    metadata_kind: typing.Literal["structured", "unstructured"] = pydantic.Field(
-        default="structured"
-    )
+    schema_kind: typing.Literal["structured", "unstructured", "dead_letter"]
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
 
     _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
@@ -57,11 +56,13 @@ class IcebergTableSink(pydantic.BaseModel):
         | data_index.schema.metadata.UnstructuredMetadata
     ):
         """Dynamically resolves the target metadata class wrapper based on kind."""
-        match self.metadata_kind:
+        match self.schema_kind:
             case "structured":
                 return data_index.schema.metadata.StructuredMetadata
             case "unstructured":
                 return data_index.schema.metadata.UnstructuredMetadata
+            case "dead_letter":
+                return data_index.protocols.DeadLetter
             case _:
                 raise ValueError(f"unsupported metadata_kind: {self.metadata_kind}")
 

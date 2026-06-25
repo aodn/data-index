@@ -170,10 +170,9 @@ class MetadataSink(typing.Protocol):
 
     def write(
         self,
-        metadata: list[
-            data_index.schema.metadata.StructuredMetadata
-            | data_index.schema.metadata.UnstructuredMetadata
-        ],
+        metadata: list[data_index.schema.metadata.StructuredMetadata]
+        | list[data_index.schema.metadata.UnstructuredMetadata]
+        | list[DeadLetter],
     ) -> None:
         """Persist data"""
         ...
