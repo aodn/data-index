@@ -36,11 +36,14 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 staged_object=staged_object
             )
             return data_index.protocols.ExtractedObject(
-                structured_metadata=structured_metadata,
-                unstructured_metadata=unstructured_metadata,
+                object_reference=staged_object.object_reference,
+                extraction_result=data_index.protocols.ExtractionResult(
+                    structured_metadata=structured_metadata,
+                    unstructured_metadata=unstructured_metadata,
+                ),
             )
         except Exception as e:
-            data_index.protocols.DeadLetter.from_object_reference(
+            return data_index.protocols.DeadLetter.from_object_reference(
                 object_reference=staged_object.object_reference, error=str(e)
             )
 

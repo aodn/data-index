@@ -16,7 +16,6 @@ def object_reference():
         key="file.nc",
         version_id="v1",
         size=0,
-        xarray_handle=None,
     )
 
 

@@ -7,6 +7,7 @@ import typing
 
 import polars
 import prefect.runtime.flow_run
+import pyarrow
 import xarray
 
 import data_index.schema
@@ -22,10 +23,6 @@ class ObjectReference:
     key: str
     version_id: str | None
     size: int | None
-    xarray_handle: XarrayHandle | None = dataclasses.field(
-        default=None,
-        metadata={"ignore_for_schema": True},
-    )
 
     def as_uri(self) -> str:
         return f"s3://{self.bucket}/{self.key}"
@@ -35,12 +32,6 @@ class ObjectReference:
 
     def as_path(self) -> pathlib.Path:
         return pathlib.Path(f"{self.bucket}/{self.key}/{self.version_id}")
-
-    def with_xarray_handle(self, xarray_handle: XarrayHandle | None) -> typing.Self:
-        """
-        Returns a new ObjectReference with the updated xarray_handle.
-        """
-        return dataclasses.replace(self, xarray_handle=xarray_handle)
 
     @property
     def hash(self) -> str:
@@ -169,6 +160,20 @@ class FileFetcher(typing.Protocol):
 class MetadataExtractor(typing.Protocol):
     def extract(self, staged_object: StagedObject) -> ExtractedObject | DeadLetter:
         """Extract structured and unstructured metadata from an XarrayHandle."""
+        ...
+
+
+@typing.runtime_checkable
+class Sink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
+    def write(
+        self,
+        data: pyarrow.Table,
+    ) -> list[DeadLetter]:
+        """Persist data"""
         ...
 
 

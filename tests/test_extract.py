@@ -46,7 +46,6 @@ def _object_references(df: polars.DataFrame = _df()) -> list[ObjectReference]:
             key=key,
             version_id=version_id,
             size=size,
-            xarray_handle=None,
         )
         for bucket, key, version_id, size in df.select(
             "bucket", "key", "version_id", "size"

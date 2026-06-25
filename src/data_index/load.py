@@ -13,8 +13,8 @@ import data_index.protocols
 )
 def load(
     extracted_objects: list[data_index.protocols.ExtractedObject],
-    structured_sink: data_index.protocols.StructuredSink,
-    unstructured_sink: data_index.protocols.UnstructuredSink,
+    structured_sink: data_index.protocols.Sink,
+    unstructured_sink: data_index.protocols.Sink,
 ) -> list[data_index.protocols.DeadLetter]:
     """Persist structured and unstructured metadata via injected sinks.
 
@@ -29,26 +29,16 @@ def load(
         logger.warning("load called with no extraction results!")
         return list()
 
-    # Split the structured metadata and unstructured metadata
-    structured_metadata = [
-        extracted_object.extraction_result.structured_metadata
-        for extracted_object in extracted_objects
-    ]
-    unstructured_metadata = [
-        extracted_object.extraction_result.unstructured_metadata
-        for extracted_object in extracted_objects
-    ]
-
     # TODO: DLQ
     # Try catch logic here; if the load fails then add all object_references to DLQ
     logger.info("Sinking structued metadata rows...")
-    dead_letters = structured_sink.write(structured_metadata)
-    logger.info(f"Sunk {len(structured_metadata)} structured metadata rows!")
+    dead_letters = structured_sink.write(extracted_objects)
+    logger.info(f"Sunk {len(extracted_objects)} structured metadata rows!")
     # End catch;
 
     # TODO: DLQ
     # Try catch logic here; if the load fails then add all object_references to DLQ
     logger.info("Sinking unstructued metadata rows...")
-    dead_letters = unstructured_sink.write(unstructured_metadata)  # noqa
-    logger.info(f"Sunk {len(unstructured_metadata)} unstructured metadata rows!")
+    dead_letters = unstructured_sink.write(extracted_objects)  # noqa
+    logger.info(f"Sunk {len(extracted_objects)} unstructured metadata rows!")
     # End Catch;

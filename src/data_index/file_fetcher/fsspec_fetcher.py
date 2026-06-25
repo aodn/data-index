@@ -25,11 +25,10 @@ class FSSpecFetcher(pydantic.BaseModel):
     ) -> data_index.protocols.StagedObject | data_index.protocols.DeadLetter:
         # Try to construct a fsspec xarray handle for the object reference
         try:
-            path = self.stream_to_disk(object_reference=object_reference)
             return data_index.protocols.StagedObject(
                 object_reference=object_reference,
                 xarray_handle=data_index.xarray_handle.FSSpecXarrayHandle(
-                    path=path,
+                    s3_uri=object_reference.as_versioned_uri(),
                 ),
             )
         except Exception as e:

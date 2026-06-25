@@ -42,7 +42,6 @@ class GreedyBatchPartitioner(pydantic.BaseModel):
                 key=key,
                 version_id=version_id,
                 size=size,
-                xarray_handle=None,
             )
             for bucket, key, version_id, size in inventory.select(
                 polars.col("bucket"),

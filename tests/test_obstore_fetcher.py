@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import data_index.protocols
 from data_index.file_fetcher import ObstoreFetcher
 
 
@@ -93,38 +94,40 @@ def test_stream_to_disk(fetcher, monkeypatch):
     assert expected_write_path.read_bytes() == b"chunk_one_chunk_two"
 
 
-def test_object_reference_to_disk_xarray_handle(fetcher, monkeypatch):
-    """Verify interaction between stream_to_disk and DiskXarrayHandle instantiation."""
+def test_object_reference_to_staged_object_success(fetcher):
+    """Verify that a successful stream creates a StagedObject with a DiskXarrayHandle."""
+    fake_path = pathlib.Path("/fake/dir/.extract/file.nc")
     mock_ref = MagicMock()
-    fake_disk_path = pathlib.Path("/fake/dir/.extract/file.nc")
 
-    monkeypatch.setattr(
-        ObstoreFetcher, "stream_to_disk", lambda self, object_reference: fake_disk_path
-    )
+    # Patch the class directly to bypass Pydantic's instance __setattr__ validation
+    with (
+        patch.object(
+            ObstoreFetcher, "stream_to_disk", return_value=fake_path
+        ) as mock_stream,
+        patch("data_index.xarray_handle.DiskXarrayHandle") as mock_handle_cls,
+    ):
+        result = fetcher.object_reference_to_staged_object(mock_ref)
 
-    with patch("data_index.xarray_handle.DiskXarrayHandle") as mock_handle_cls:
-        result = fetcher.object_reference_to_disk_xarray_handle(mock_ref)
-        mock_handle_cls.assert_called_once_with(path=fake_disk_path)
-        assert result == mock_handle_cls.return_value
+        # Assertions
+        mock_stream.assert_called_once_with(object_reference=mock_ref)
+        mock_handle_cls.assert_called_once_with(path=fake_path)
+
+        assert isinstance(result, data_index.protocols.StagedObject)
+        assert result.object_reference == mock_ref
+        assert result.xarray_handle == mock_handle_cls.return_value
 
 
-def test_fetch_processes_multiple_references(fetcher, monkeypatch):
-    """Verify fetch loops over all references and updates them sequentially."""
-    mock_ref_1 = MagicMock()
-    mock_ref_2 = MagicMock()
-    fake_handle = MagicMock()
+def test_object_reference_to_staged_object_handles_exception(fetcher):
+    """Verify that any exception during streaming is caught and returns a DeadLetter."""
+    mock_ref = MagicMock()
+    error_message = "Connection to storage dropped unexpectedly"
 
-    monkeypatch.setattr(
-        ObstoreFetcher,
-        "object_reference_to_disk_xarray_handle",
-        lambda self, object_reference: fake_handle,
-    )
+    # Patch the class method to throw the exception safely
+    with patch.object(
+        ObstoreFetcher, "stream_to_disk", side_effect=RuntimeError(error_message)
+    ) as mock_stream:
+        result = fetcher.object_reference_to_staged_object(mock_ref)
 
-    mock_ref_1.with_xarray_handle.return_value = "processed_ref_1"
-    mock_ref_2.with_xarray_handle.return_value = "processed_ref_2"
-
-    results = fetcher.fetch([mock_ref_1, mock_ref_2])
-
-    mock_ref_1.with_xarray_handle.assert_called_once_with(xarray_handle=fake_handle)
-    mock_ref_2.with_xarray_handle.assert_called_once_with(xarray_handle=fake_handle)
-    assert results == ["processed_ref_1", "processed_ref_2"]
+        # Assert
+        mock_stream.assert_called_once_with(object_reference=mock_ref)
+        assert isinstance(result, data_index.protocols.DeadLetter)

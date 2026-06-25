@@ -19,8 +19,6 @@ import data_index.schema.metadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
-_SCHEMA_VERSION_PROPERTY = "schema_version"
-_UNSTRUCTURED_SCHEMA_VERSION = 1
 
 
 class IcebergTableSink(pydantic.BaseModel):
@@ -33,8 +31,8 @@ class IcebergTableSink(pydantic.BaseModel):
     """
 
     type: typing.Literal["s3_table_sink"] = pydantic.Field(default="s3_table_sink")
-    metadata_kind: typing.Literal["unstructured", "structured"] = pydantic.Field(
-        default="unstructured"
+    metadata_kind: typing.Literal["structured", "unstructured"] = pydantic.Field(
+        default="structured"
     )
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
 
@@ -55,22 +53,15 @@ class IcebergTableSink(pydantic.BaseModel):
         )
 
     @property
-    def _metadata_cls(self) -> typing.Any:
+    def _metadata_cls(self) -> typing.Type:
         """Dynamically resolves the target metadata class wrapper based on kind."""
         match self.metadata_kind:
-            case "unstructured":
-                return data_index.schema.metadata.UnstructuredMetadata
             case "structured":
                 return data_index.schema.metadata.StructuredMetadata
+            case "unstructured":
+                return data_index.schema.metadata.UnstructuredMetadata
             case _:
                 raise ValueError(f"unsupported metadata_kind: {self.metadata_kind}")
-
-    @property
-    def _schema_version(self) -> str:
-        """Dynamically resolves the schema version string based on kind."""
-        if self.metadata_kind == "unstructured":
-            return str(_UNSTRUCTURED_SCHEMA_VERSION)
-        return str(data_index.schema.metadata.StructuredMetadata.SCHEMA_VERSION)
 
     def provision(
         self,
@@ -104,37 +95,17 @@ class IcebergTableSink(pydantic.BaseModel):
                 identifier=identifier,
                 schema=self._metadata_cls.as_pyiceberg_schema(),
                 partition_spec=partition_spec or self._default_partition_spec(),
-                properties={_SCHEMA_VERSION_PROPERTY: self._schema_version},
             )
         except pyiceberg.exceptions.TableAlreadyExistsError:
             pass
 
         self._evolve_schema()
-        self._ensure_schema_version_property()
 
     def _evolve_schema(self) -> None:
         desired_schema = self._metadata_cls.as_pyiceberg_schema()
         for attempt in range(_MAX_RETRIES):
             try:
                 self.table.update_schema().union_by_name(desired_schema).commit()
-                return
-            except pyiceberg.exceptions.CommitFailedException:
-                if attempt == _MAX_RETRIES - 1:
-                    raise
-                self.table.refresh()
-                time.sleep(
-                    random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
-                )
-
-    def _ensure_schema_version_property(self) -> None:
-        expected = self._schema_version
-        for attempt in range(_MAX_RETRIES):
-            if self.table.properties.get(_SCHEMA_VERSION_PROPERTY) == expected:
-                return
-            try:
-                self.table.transaction().set_properties(
-                    **{_SCHEMA_VERSION_PROPERTY: expected}
-                ).commit_transaction()
                 return
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
