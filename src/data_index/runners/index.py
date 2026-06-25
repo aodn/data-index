@@ -122,6 +122,7 @@ _structured_metadata_table_config = IcebergTableConfig(
 _structured_table_sink = IcebergTableSink(
     schema_kind="structured",
     iceberg_table_config=_structured_metadata_table_config,
+    partition_column="facility",
 )
 
 _unstructured_metadata_table_config = IcebergTableConfig(
@@ -133,6 +134,7 @@ _unstructured_metadata_table_config = IcebergTableConfig(
 _unstructured_table_sink = IcebergTableSink(
     schema_kind="unstructured",
     iceberg_table_config=_unstructured_metadata_table_config,
+    partition_column="facility",
 )
 
 _dead_letter_table_config = IcebergTableConfig(

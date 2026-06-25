@@ -20,17 +20,19 @@ _BASE_BACKOFF = 0.5
 
 
 class IcebergTableSink(pydantic.BaseModel):
-    """Unified S3TableSink implementation that upserts either Unstructured or Structured
-    Metadata to a pre-provisioned Iceberg table.
+    """Unified IcebergTableSink implementation for upserting metadata and dead letters.
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
     hook. Concurrent upserts from multiple workers are safe — OCC conflicts are retried with
     exponential backoff.
     """
 
-    type: typing.Literal["s3_table_sink"] = pydantic.Field(default="s3_table_sink")
+    type: typing.Literal["iceberg_table_sink"] = pydantic.Field(
+        default="iceberg_table_sink"
+    )
     schema_kind: typing.Literal["structured", "unstructured", "dead_letter"]
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
+    partition_column: str | None = pydantic.Field(default=None)
 
     _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
 
@@ -68,7 +70,6 @@ class IcebergTableSink(pydantic.BaseModel):
 
     def provision(
         self,
-        partition_spec: pyiceberg.partitioning.PartitionSpec | None = None,
         reset: bool = False,
     ) -> None:
         """Create the namespace and table if they don't already exist.
@@ -97,7 +98,9 @@ class IcebergTableSink(pydantic.BaseModel):
             self.catalog.create_table(
                 identifier=identifier,
                 schema=self._metadata_cls.as_pyiceberg_schema(),
-                partition_spec=partition_spec or self._default_partition_spec(),
+                partition_spec=self._partition_spec()
+                if self.partition_column
+                else pyiceberg.partitioning.UNPARTITIONED_PARTITION_SPEC,
             )
         except pyiceberg.exceptions.TableAlreadyExistsError:
             pass
@@ -118,16 +121,18 @@ class IcebergTableSink(pydantic.BaseModel):
                     random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
                 )
 
-    def _default_partition_spec(self) -> pyiceberg.partitioning.PartitionSpec:
+    def _partition_spec(self) -> pyiceberg.partitioning.PartitionSpec:
         facility_field_id = (
-            self._metadata_cls.as_pyiceberg_schema().find_field("facility").field_id
+            self._metadata_cls.as_pyiceberg_schema()
+            .find_field(self.partition_column)
+            .field_id
         )
         return pyiceberg.partitioning.PartitionSpec(
             pyiceberg.partitioning.PartitionField(
                 source_id=facility_field_id,
                 field_id=1000,
                 transform=pyiceberg.transforms.IdentityTransform(),
-                name="facility",
+                name=self.partition_column,
             )
         )
 
