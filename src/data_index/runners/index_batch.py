@@ -6,10 +6,7 @@ from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
 from data_index.protocols import ObjectReference
-from data_index.structured_sink import StructuredS3TableSink
-from data_index.unstructured_sink import (
-    UnstructuredS3TableSink,
-)
+from data_index.sink import IcebergTableSink
 
 
 @prefect.flow
@@ -17,8 +14,8 @@ def index_batch(
     object_reference_batch: list[ObjectReference],
     fetcher: FSSpecFetcher | ObstoreFetcher,
     extractor: AttributeNetCDFExtractor,
-    structured_sink: StructuredS3TableSink,
-    unstructured_sink: UnstructuredS3TableSink,
+    structured_sink: IcebergTableSink,
+    unstructured_sink: IcebergTableSink,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
@@ -26,24 +23,28 @@ def index_batch(
 
     # Extract batch
     logger.info("Extracting batch...")
-    object_references = data_index.extract(
+    staged_objects, dead_letters = data_index.extract(
         object_references=object_reference_batch,
         fetcher=fetcher,
     )
     logger.info("Extracted batch!")
 
+    # TODO: Deal with dead letters
+
     # Transform batch
     logger.info("Transforming batch...")
-    extraction_results = data_index.transform(
-        object_references=object_references,
+    extracted_objects, dead_letters = data_index.transform(
+        staged_objects=staged_objects,
         extractor=extractor,
     )
     logger.info("Transformed batch!")
 
+    # TODO: Deal with dead letters
+
     # Load batch
     logger.info("Loading batch...")
     data_index.load(
-        extraction_results=extraction_results,
+        extracted_objects=extracted_objects,
         structured_sink=structured_sink,
         unstructured_sink=unstructured_sink,
     )

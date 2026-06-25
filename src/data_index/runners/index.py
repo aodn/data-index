@@ -45,8 +45,7 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import (
-    S3TableFacilitySubsetInventorySource,
-    S3TableInventorySource,
+    IcebergTableInventorySource,
 )
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
@@ -65,10 +64,7 @@ from data_index.runners.task_runner import (
     ThreadPoolRunnerConfig,
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
-from data_index.structured_sink import StructuredS3TableSink
-from data_index.unstructured_sink import (
-    UnstructuredS3TableSink,
-)
+from data_index.sink import IcebergTableSink
 
 # --- General config ---
 ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
@@ -91,7 +87,7 @@ _inventory_table_config = IcebergTableConfig(
     table_name="live",
 )
 
-_inventory_source = S3TableInventorySource(
+_inventory_source = IcebergTableInventorySource(
     table_config=_inventory_table_config,
     table_scan_config=IcebergTableScanConfig(
         row_filter="(key LIKE 'IMOS/ANMN/AM/%' OR key LIKE 'IMOS/ANMN/NRS/%' OR key LIKE 'IMOS/ANMN/NSW/%' OR key LIKE 'IMOS/ANMN/QLD/%' OR key LIKE 'IMOS/ANMN/SA/%' OR key LIKE 'IMOS/ANMN/WA/%') AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'",
@@ -123,7 +119,8 @@ _structured_metadata_table_config = IcebergTableConfig(
     table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
 )
 
-_structured_s3_table_sink = StructuredS3TableSink(
+_structured_s3_table_sink = IcebergTableSink(
+    metadata_kind="structured",
     iceberg_table_config=_structured_metadata_table_config,
 )
 
@@ -133,7 +130,8 @@ _unstructured_metadata_table_config = IcebergTableConfig(
     table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
 )
 
-_unstructured_s3_table_sink = UnstructuredS3TableSink(
+_unstructured_s3_table_sink = IcebergTableSink(
+    metadata_kind="unstructured",
     iceberg_table_config=_unstructured_metadata_table_config,
 )
 
@@ -306,13 +304,12 @@ def index_pipeline(
 
 @prefect.flow
 def index(
-    inventory_source: S3TableInventorySource
-    | S3TableFacilitySubsetInventorySource = _inventory_source,
+    inventory_source: IcebergTableInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: FSSpecFetcher | ObstoreFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
-    structured_sink: StructuredS3TableSink = _structured_s3_table_sink,
-    unstructured_sink: UnstructuredS3TableSink = _unstructured_s3_table_sink,
+    structured_sink: IcebergTableSink = _structured_s3_table_sink,
+    unstructured_sink: IcebergTableSink = _unstructured_s3_table_sink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig

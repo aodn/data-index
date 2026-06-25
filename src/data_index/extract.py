@@ -6,7 +6,7 @@ import prefect
 import prefect.artifacts
 import prefect.cache_policies
 
-from data_index.protocols import FileFetcher, ObjectReference
+import data_index.protocols
 
 
 @prefect.task(
@@ -15,9 +15,11 @@ from data_index.protocols import FileFetcher, ObjectReference
     retry_delay_seconds=[5, 13, 35],
 )
 def extract(
-    object_references: list[ObjectReference],
-    fetcher: FileFetcher,
-) -> list[ObjectReference]:
+    object_references: list[data_index.protocols.ObjectReference],
+    fetcher: data_index.protocols.FileFetcher,
+) -> tuple[
+    list[data_index.protocols.StagedObject], list[data_index.protocols.DeadLetter]
+]:
     """
     Sync a batch of S3 NetCDF files to local disk.
 
@@ -57,6 +59,7 @@ def extract(
     logger.info(
         f"Extracting `{len(object_references)}` files (`{(bytes / 1024 / 1024):,.2f}` MB)"
     )
-    object_references = fetcher.fetch(object_references=object_references)
+    staged_objects, dead_letters = fetcher.fetch(object_references=object_references)
     logger.info(f"Extracted `{len(object_references)}` files!")
-    return object_references
+
+    return (staged_objects, dead_letters)

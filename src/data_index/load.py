@@ -3,7 +3,7 @@ from __future__ import annotations
 import prefect
 import prefect.cache_policies
 
-from data_index.protocols import ExtractionResult, StructuredSink, UnstructuredSink
+import data_index.protocols
 
 
 @prefect.task(
@@ -12,10 +12,10 @@ from data_index.protocols import ExtractionResult, StructuredSink, UnstructuredS
     retry_delay_seconds=[5, 13, 35],
 )
 def load(
-    extraction_results: list[ExtractionResult],
-    structured_sink: StructuredSink,
-    unstructured_sink: UnstructuredSink,
-) -> None:
+    extracted_objects: list[data_index.protocols.ExtractedObject],
+    structured_sink: data_index.protocols.StructuredSink,
+    unstructured_sink: data_index.protocols.UnstructuredSink,
+) -> list[data_index.protocols.DeadLetter]:
     """Persist structured and unstructured metadata via injected sinks.
 
     Structured metadata is always written. Unstructured metadata is written only
@@ -25,32 +25,30 @@ def load(
     logger = prefect.get_run_logger()
 
     # Return empty list if no object_references passed in
-    if not extraction_results:
+    if not extracted_objects:
         logger.warning("load called with no extraction results!")
         return list()
 
-    succeeded = [
-        extraction_result
-        for extraction_result in extraction_results
-        if extraction_result.status == "succeeded"
-    ]
-
+    # Split the structured metadata and unstructured metadata
     structured_metadata = [
-        extraction_result.structured_metadata
-        for extraction_result in succeeded
-        if extraction_result.structured_metadata is not None
+        extracted_object.extraction_result.structured_metadata
+        for extracted_object in extracted_objects
     ]
-    logger.info("Sinking structued metadata rows...")
-    structured_sink.write(structured_metadata)
-    logger.info(f"Sunk {len(structured_metadata)} structured metadata rows!")
+    unstructured_metadata = [
+        extracted_object.extraction_result.unstructured_metadata
+        for extracted_object in extracted_objects
+    ]
 
-    # Re-Hydrate unstructured metadata
-    unstructured = [
-        extraction_result.unstructured_metadata
-        for extraction_result in succeeded
-        if extraction_result.unstructured_metadata is not None
-    ]
-    if unstructured:
-        logger.info("Sinking unstructued metadata rows...")
-        unstructured_sink.write(unstructured)
-        logger.info(f"Sunk {len(unstructured)} unstructured metadata rows!")
+    # TODO: DLQ
+    # Try catch logic here; if the load fails then add all object_references to DLQ
+    logger.info("Sinking structued metadata rows...")
+    dead_letters = structured_sink.write(structured_metadata)
+    logger.info(f"Sunk {len(structured_metadata)} structured metadata rows!")
+    # End catch;
+
+    # TODO: DLQ
+    # Try catch logic here; if the load fails then add all object_references to DLQ
+    logger.info("Sinking unstructued metadata rows...")
+    dead_letters = unstructured_sink.write(unstructured_metadata)  # noqa
+    logger.info(f"Sunk {len(unstructured_metadata)} unstructured metadata rows!")
+    # End Catch;

@@ -6,18 +6,26 @@ import pathlib
 import typing
 
 import polars
+import prefect.runtime.flow_run
 import xarray
 
+import data_index.schema
 import data_index.schema.metadata
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
 class ObjectReference:
     bucket: str
     key: str
     version_id: str | None
     size: int | None
-    xarray_handle: XarrayHandle | None
+    xarray_handle: XarrayHandle | None = dataclasses.field(
+        default=None,
+        metadata={"ignore_for_schema": True},
+    )
 
     def as_uri(self) -> str:
         return f"s3://{self.bucket}/{self.key}"
@@ -48,6 +56,62 @@ class ObjectReference:
         return pathlib.Path(f"{self.bucket}/{self.key}")
 
 
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class StagedObject:
+    object_reference: ObjectReference
+    xarray_handle: XarrayHandle
+
+
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class ExtractedObject:
+    object_reference: ObjectReference
+    extraction_result: ExtractionResult
+
+
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class DeadLetter(ObjectReference, data_index.schema.Schema):
+    """
+    DeadLetter row schema and backend schema converters.
+
+    `DeadLetter` is source-of-truth for Polars, PyArrow, and PyIceberg
+    schema generation.
+    """
+
+    SCHEMA_VERSION: typing.ClassVar[int] = 1
+    schema_version: int = SCHEMA_VERSION
+
+    error: str | None
+    index_flow_id: str | None = dataclasses.field(
+        default_factory=lambda: prefect.runtime.flow_run.get_parent_flow_run_id()
+    )
+    batch_flow_id: str | None = dataclasses.field(
+        default_factory=lambda: prefect.runtime.flow_run.get_id()
+    )
+
+    @classmethod
+    def from_object_reference(
+        cls,
+        object_reference: data_index.protocols.ObjectReference,
+        error: str | None,
+    ) -> typing.Self:
+        return cls(
+            bucket=object_reference.bucket,
+            key=object_reference.key,
+            version_id=object_reference.version_id,
+            size=object_reference.size,
+            error=error,
+        )
+
+
 @dataclasses.dataclass
 class ExtractionResult:
     """Final result returned by _transform_single. Unstructured metadata is a persisted
@@ -55,8 +119,6 @@ class ExtractionResult:
 
     structured_metadata: data_index.schema.metadata.StructuredMetadata | None
     unstructured_metadata: data_index.schema.metadata.UnstructuredMetadata | None
-    status: str  # "succeeded" or "failed"
-    error: str | None = None
 
 
 @typing.runtime_checkable
@@ -96,14 +158,16 @@ class BatchPartitioner(typing.Protocol):
 
 @typing.runtime_checkable
 class FileFetcher(typing.Protocol):
-    def fetch(self, object_references: list[ObjectReference]) -> list[ObjectReference]:
+    def fetch(
+        self, object_references: list[ObjectReference]
+    ) -> tuple[list[StagedObject], list[DeadLetter]]:
         """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
         ...
 
 
 @typing.runtime_checkable
 class MetadataExtractor(typing.Protocol):
-    def extract(self, object_reference: ObjectReference) -> ExtractionResult:
+    def extract(self, staged_object: StagedObject) -> ExtractedObject | DeadLetter:
         """Extract structured and unstructured metadata from an XarrayHandle."""
         ...
 
@@ -114,7 +178,10 @@ class StructuredSink(typing.Protocol):
         """Prepare the target store before any writes (e.g. create directories or tables)."""
         ...
 
-    def write(self, data: list[data_index.schema.metadata.StructuredMetadata]) -> None:
+    def write(
+        self,
+        data: list[data_index.schema.metadata.StructuredMetadata],
+    ) -> list[DeadLetter]:
         """Persist Structured Metadata"""
         ...
 
@@ -127,6 +194,6 @@ class UnstructuredSink(typing.Protocol):
 
     def write(
         self, data: list[data_index.schema.metadata.UnstructuredMetadata]
-    ) -> None:
+    ) -> list[DeadLetter]:
         """Persist Unstructured Metadata"""
         ...

@@ -5,10 +5,10 @@ import typing
 import pydantic
 import xarray
 
+import data_index.protocols
+import data_index.schema.metadata
 from data_index._collection import derive_facility
 from data_index.metadata_extractor._sanitize import _serialize_with_orjson
-from data_index.protocols import ExtractionResult, ObjectReference
-from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
 
 
 class AttributeNetCDFExtractor(pydantic.BaseModel):
@@ -18,7 +18,9 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         default="attribute_netcdf_extractor"
     )
 
-    def extract(self, object_reference: ObjectReference) -> ExtractionResult:
+    def extract(
+        self, staged_object: data_index.protocols.StagedObject
+    ) -> data_index.protocols.ExtractedObject | data_index.protocols.DeadLetter:
         """Extract structured and unstructured metadata for one handle.
 
         :param handle: Dataset handle to read from.
@@ -28,22 +30,18 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         unstructured_metadata = None
         try:
             structured_metadata = self._extract_structured(
-                object_reference=object_reference,
+                staged_object=staged_object,
             )
             unstructured_metadata = self._extract_unstructured(
-                object_reference=object_reference
+                staged_object=staged_object
             )
-            return ExtractionResult(
+            return data_index.protocols.ExtractedObject(
                 structured_metadata=structured_metadata,
                 unstructured_metadata=unstructured_metadata,
-                status="succeeded",
             )
         except Exception as e:
-            return ExtractionResult(
-                structured_metadata=structured_metadata,
-                unstructured_metadata=unstructured_metadata,
-                status="failed",
-                error=str(e),
+            data_index.protocols.DeadLetter.from_object_reference(
+                object_reference=staged_object.object_reference, error=str(e)
             )
 
     @staticmethod
@@ -55,8 +53,8 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
 
     def _extract_structured(
         self,
-        object_reference: ObjectReference,
-    ) -> StructuredMetadata:
+        staged_object: data_index.protocols.StagedObject,
+    ) -> data_index.schema.metadata.StructuredMetadata:
         """Build structured metadata row from global attributes and dataset structure.
 
         :param ds: Open xarray dataset.
@@ -69,12 +67,12 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         # For dimensions, capture the sizes of the dimensions not just the names
 
         metadata = {
-            "hash": object_reference.hash,
-            "bucket": object_reference.bucket,
-            "key": object_reference.key,
-            "version_id": object_reference.version_id,
-            "facility": derive_facility(object_reference.key),
-            "file_format": object_reference.xarray_handle.file_format,
+            "hash": staged_object.object_reference.hash,
+            "bucket": staged_object.object_reference.bucket,
+            "key": staged_object.object_reference.key,
+            "version_id": staged_object.object_reference.version_id,
+            "facility": derive_facility(staged_object.object_reference.key),
+            "file_format": staged_object.xarray_handle.file_format,
         }
 
         attributes_map: dict[str, tuple[list[str], type]] = {
@@ -109,7 +107,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         }
 
         errors = {}
-        ds = object_reference.xarray_handle.ds
+        ds = staged_object.xarray_handle.ds
 
         # Convert attribute
         for attribute, (aliases, _type) in attributes_map.items():
@@ -125,12 +123,12 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         metadata["variables"] = self._sorted_or_none(ds.data_vars)
         metadata["standard_names"] = self._extract_standard_names(ds)
 
-        return StructuredMetadata(**metadata)
+        return data_index.schema.metadata.StructuredMetadata(**metadata)
 
     def _extract_unstructured(
         self,
-        object_reference: ObjectReference,
-    ) -> UnstructuredMetadata:
+        staged_object: data_index.protocols.StagedObject,
+    ) -> data_index.schema.metadata.UnstructuredMetadata:
         """Build unstructured metadata payload from dataset contents.
 
         :param ds: Open xarray dataset.
@@ -138,7 +136,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         :returns: JSON-serializable unstructured metadata dict.
         """
 
-        ds = object_reference.xarray_handle.ds
+        ds = staged_object.xarray_handle.ds
 
         unstructured = {
             "global_attrs": dict(ds.attrs),
@@ -152,17 +150,17 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             },
         }
 
-        return UnstructuredMetadata(
-            bucket=object_reference.bucket,
-            key=object_reference.key,
-            version_id=object_reference.version_id,
-            hash=object_reference.hash,
+        return data_index.schema.metadata.UnstructuredMetadata(
+            bucket=staged_object.object_reference.bucket,
+            key=staged_object.object_reference.key,
+            version_id=staged_object.object_reference.version_id,
+            hash=staged_object.object_reference.hash,
             metadata=json.dumps(
                 obj=_serialize_with_orjson(data=unstructured),
                 indent=None,
             ),
-            file_format=object_reference.xarray_handle.file_format,
-            facility=derive_facility(object_reference.key),
+            file_format=staged_object.xarray_handle.file_format,
+            facility=derive_facility(staged_object.object_reference.key),
         )
 
     @staticmethod
