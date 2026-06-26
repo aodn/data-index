@@ -16,7 +16,7 @@ class StructuredMetadata(BaseMetadata):
     """
 
     # Upgrade the schema version when changing the schema
-    SCHEMA_VERSION: typing.ClassVar[int] = 4
+    SCHEMA_VERSION: typing.ClassVar[int] = 5
     schema_version: int = dataclasses.field(default=SCHEMA_VERSION)
 
     geospatial_lat_min: float | None = None
@@ -41,6 +41,6 @@ class StructuredMetadata(BaseMetadata):
     instrument_nominal_depth: float | None = None
     feature_type: str | None = None
     instrument_serial_number: str | None = None
-    dimensions: list[str] | None = None
+    dimensions: dict[str, int] | None = None
     variables: list[str] | None = None
     standard_names: list[str] | None = None

@@ -10,6 +10,8 @@ import data_index.schema.metadata
 from data_index._collection import derive_facility
 from data_index.metadata_extractor._sanitize import _serialize_with_orjson
 
+FrozenDict = type(xarray.Dataset().sizes)
+
 
 class AttributeNetCDFExtractor(pydantic.BaseModel):
     """Metadata extractor for CF-compliant NetCDF datasets via xarray."""
@@ -122,7 +124,11 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 metadata[attribute] = None
                 errors[attribute] = e
 
-        metadata["dimensions"] = self._sorted_or_none(ds.dims)
+        metadata["dimensions"] = self._sorted_or_none(ds.sizes)
+        import rich
+
+        rich.print(ds.sizes)
+        rich.print(metadata["dimensions"])
         metadata["variables"] = self._sorted_or_none(ds.data_vars)
         metadata["standard_names"] = self._extract_standard_names(ds)
 
@@ -200,15 +206,26 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         return None
 
     @staticmethod
-    def _sorted_or_none(values) -> list[str] | None:
+    def _sorted_or_none(
+        values: list[str] | dict[str, int] | None,
+    ) -> list[str] | dict[str, int] | None:
         """Return sorted unique string values, or ``None`` when empty.
 
-        :param values: Iterable-like values to normalize.
+        :param values: Iterable-like values or None to normalize.
         :returns: Sorted unique strings or ``None``.
         """
+        match values:
+            case None:
+                return None
 
-        normalized = sorted({str(value) for value in values})
-        return normalized or None
+            # Check for standard dict, abstract Mapping, OR xarray's Frozen type
+            case dict() | FrozenDict():
+                # Rebuild as a standard sorted dict
+                return {k: values[k] for k in sorted(values.keys(), key=str)} or None
+
+            case _:
+                # Handles list[str] and other general iterables
+                return sorted({str(value) for value in values}) or None
 
     @classmethod
     def _extract_standard_names(cls, ds: xarray.Dataset) -> list[str] | None:
