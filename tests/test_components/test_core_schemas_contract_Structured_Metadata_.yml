@@ -1,0 +1,99 @@
+polars:
+  bucket: String
+  conventions: String
+  crs: String
+  date_created: String
+  deployment_code: String
+  dimensions: 'List(Struct({''key'': String, ''value'': Int64}))'
+  facility: String
+  feature_type: String
+  file_format: String
+  file_version: String
+  geospatial_lat_max: Float64
+  geospatial_lat_min: Float64
+  geospatial_lon_max: Float64
+  geospatial_lon_min: Float64
+  geospatial_vertical_max: Float64
+  geospatial_vertical_min: Float64
+  geospatial_vertical_positive: String
+  hash: String
+  instrument: String
+  instrument_nominal_depth: Float64
+  instrument_serial_number: String
+  key: String
+  keywords: String
+  metadata_uuid: String
+  platform_code: String
+  schema_version: Int64
+  site_code: String
+  standard_names: List(String)
+  time_coverage_end: String
+  time_coverage_start: String
+  variables: List(String)
+  version_id: String
+pyarrow:
+  bucket: string
+  conventions: string
+  crs: string
+  date_created: string
+  deployment_code: string
+  dimensions: map<string, int64>
+  facility: string
+  feature_type: string
+  file_format: string
+  file_version: string
+  geospatial_lat_max: double
+  geospatial_lat_min: double
+  geospatial_lon_max: double
+  geospatial_lon_min: double
+  geospatial_vertical_max: double
+  geospatial_vertical_min: double
+  geospatial_vertical_positive: string
+  hash: string
+  instrument: string
+  instrument_nominal_depth: double
+  instrument_serial_number: string
+  key: string
+  keywords: string
+  metadata_uuid: string
+  platform_code: string
+  schema_version: int64
+  site_code: string
+  standard_names: 'list<item: string not null>'
+  time_coverage_end: string
+  time_coverage_start: string
+  variables: 'list<item: string not null>'
+  version_id: string
+pyiceberg:
+  bucket: id=1, type=string, req=True
+  conventions: id=20, type=string, req=False
+  crs: id=18, type=string, req=False
+  date_created: id=17, type=string, req=False
+  deployment_code: id=25, type=string, req=False
+  dimensions: id=30, type=map<string, long>, req=False
+  facility: id=6, type=string, req=True
+  feature_type: id=28, type=string, req=False
+  file_format: id=5, type=string, req=True
+  file_version: id=21, type=string, req=False
+  geospatial_lat_max: id=9, type=double, req=False
+  geospatial_lat_min: id=8, type=double, req=False
+  geospatial_lon_max: id=11, type=double, req=False
+  geospatial_lon_min: id=10, type=double, req=False
+  geospatial_vertical_max: id=13, type=double, req=False
+  geospatial_vertical_min: id=12, type=double, req=False
+  geospatial_vertical_positive: id=14, type=string, req=False
+  hash: id=4, type=string, req=True
+  instrument: id=26, type=string, req=False
+  instrument_nominal_depth: id=27, type=double, req=False
+  instrument_serial_number: id=29, type=string, req=False
+  key: id=2, type=string, req=True
+  keywords: id=19, type=string, req=False
+  metadata_uuid: id=22, type=string, req=False
+  platform_code: id=23, type=string, req=False
+  schema_version: id=7, type=long, req=True
+  site_code: id=24, type=string, req=False
+  standard_names: id=32, type=list<string>, req=False
+  time_coverage_end: id=16, type=string, req=False
+  time_coverage_start: id=15, type=string, req=False
+  variables: id=31, type=list<string>, req=False
+  version_id: id=3, type=string, req=True

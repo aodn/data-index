@@ -1,0 +1,27 @@
+polars:
+  bucket: String
+  facility: String
+  file_format: String
+  hash: String
+  key: String
+  metadata: String
+  schema_version: Int64
+  version_id: String
+pyarrow:
+  bucket: string
+  facility: string
+  file_format: string
+  hash: string
+  key: string
+  metadata: string
+  schema_version: int64
+  version_id: string
+pyiceberg:
+  bucket: id=1, type=string, req=True
+  facility: id=6, type=string, req=True
+  file_format: id=5, type=string, req=True
+  hash: id=4, type=string, req=True
+  key: id=2, type=string, req=True
+  metadata: id=8, type=string, req=True
+  schema_version: id=7, type=long, req=True
+  version_id: id=3, type=string, req=True

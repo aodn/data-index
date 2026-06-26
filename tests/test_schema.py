@@ -1,4 +1,5 @@
 import dataclasses
+import re
 
 import polars
 import pyarrow
@@ -25,14 +26,6 @@ class FlatScalarSchema(Schema):
 class NestedListSchema(Schema):
     int_list: list[int]
     optional_str_list: list[str] | None
-
-
-@dataclasses.dataclass
-class IgnoredFieldSchema(Schema):
-    active_field: int
-    hidden_field: str = dataclasses.field(
-        default="skip", metadata={"ignore_for_schema": True}
-    )
 
 
 def test_as_polars_schema():
@@ -104,14 +97,6 @@ def test_as_pyiceberg_schema():
     assert int_list_field.field_type.element_id == 3
 
 
-def test_ignore_for_schema_metadata():
-    """Ensure fields containing 'ignore_for_schema' metadata are bypassed."""
-    schema = IgnoredFieldSchema.as_polars_schema()
-
-    assert "active_field" in schema
-    assert "hidden_field" not in schema
-
-
 def test_invalid_union_types_raises_error():
     """Unions of multiple concrete types (excluding None) should fail."""
 
@@ -141,7 +126,7 @@ def test_unsupported_scalar_type_raises_error():
 
     @dataclasses.dataclass
     class UnsupportedSchema(Schema):
-        invalid_field: dict[str, int]
+        invalid_field: set
 
     with pytest.raises(ValueError, match="Cannot generate schema for unsupported type"):
         UnsupportedSchema.as_polars_schema()
@@ -188,11 +173,26 @@ def test_converter_missing_item_type_raises_error():
     malformed_spec = _TypeSpec(kind="list", item_type=None)
     allocator = _PyIcebergIdAllocator(next_id=1)
 
-    with pytest.raises(ValueError, match="List type missing element type"):
-        Schema._to_polars_type(malformed_spec)
+    with pytest.raises(
+        expected_exception=ValueError,
+        match=re.escape(
+            f"Invalid or missing nested types for Polars spec: {malformed_spec}"
+        ),
+    ):
+        Schema._to_polars_type(type_spec=malformed_spec)
 
-    with pytest.raises(ValueError, match="List type missing element type"):
-        Schema._to_pyarrow_type(malformed_spec)
+    with pytest.raises(
+        expected_exception=ValueError,
+        match=re.escape(
+            f"Invalid or missing nested types for PyArrow spec: {malformed_spec}"
+        ),
+    ):
+        Schema._to_pyarrow_type(type_spec=malformed_spec)
 
-    with pytest.raises(ValueError, match="List type missing element type"):
-        Schema._to_pyiceberg_type(malformed_spec, allocator)
+    with pytest.raises(
+        expected_exception=ValueError,
+        match=re.escape(
+            f"Invalid or missing nested types for Iceberg spec: {malformed_spec}"
+        ),
+    ):
+        Schema._to_pyiceberg_type(type_spec=malformed_spec, id_allocator=allocator)

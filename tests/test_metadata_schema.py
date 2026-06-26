@@ -41,4 +41,4 @@ def test_unstructured_schema_version_field_defaults_to_class_var_value(
         facility="",
     )
 
-    assert row.schema_version == StructuredMetadata.SCHEMA_VERSION
+    assert row.schema_version == UnstructuredMetadata.SCHEMA_VERSION
