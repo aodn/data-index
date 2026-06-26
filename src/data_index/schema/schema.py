@@ -1,3 +1,4 @@
+import builtins
 import dataclasses
 import types
 import typing
@@ -12,14 +13,16 @@ import pyiceberg.types
 class _TypeSpec:
     """Normalized internal representation of a field type.
 
-    :param kind: Type category, either ``"scalar"`` or ``"list"``.
+    :param kind: Type category, either ``"scalar"`` or ``"list"`` or ``"map"``.
     :param scalar_type: Python scalar type when ``kind == "scalar"``.
     :param item_type: Nested element type when ``kind == "list"``.
     """
 
-    kind: typing.Literal["scalar", "list"]
+    kind: typing.Literal["scalar", "list", "map"]
     scalar_type: type | None = None
     item_type: "_TypeSpec | None" = None
+    key_type: type | None = None
+    value_type: "_TypeSpec | None" = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,18 +93,47 @@ class Schema:
         :returns: Parsed type spec.
         :raises ValueError: If type is unsupported or malformed.
         """
-
         origin = typing.get_origin(tp=annotation)
-        if origin is list:
-            args = typing.get_args(annotation)
-            if len(args) != 1:
+
+        match (origin, annotation):
+            # Handle List Types
+            case (builtins.list, _):
+                match typing.get_args(annotation):
+                    case (item_type,):  # Matches a tuple of exactly 1 element
+                        return _TypeSpec(
+                            kind="list", item_type=cls._parse_non_union_type(item_type)
+                        )
+                    case _:
+                        raise ValueError(
+                            f"Cannot generate schema for list with zero or multiple element types: {annotation}"
+                        )
+
+            # Handle Map/Dict Types
+            case (builtins.dict, _):
+                match typing.get_args(annotation):
+                    case (
+                        key_type,
+                        value_type,
+                    ):  # Matches a tuple of exactly 2 elements
+                        return _TypeSpec(
+                            kind="map",
+                            key_type=key_type,
+                            value_type=cls._parse_non_union_type(value_type),
+                        )
+                    case _:
+                        raise ValueError(
+                            f"Cannot generate schema for map/dict missing key or value types: {annotation}"
+                        )
+
+            # Handle Scalar Types
+            case (_, scalar) if scalar in (str, float, int, bool):
+                return _TypeSpec(kind="scalar", scalar_type=scalar)
+
+            # Fallback for completely unsupported types
+            case _:
                 raise ValueError(
-                    f"Cannot generate schema for list with zero or multiple element types: {annotation}"
+                    f"Cannot generate schema for unsupported type: {annotation}"
                 )
-            return _TypeSpec(kind="list", item_type=cls._parse_non_union_type(args[0]))
-        if annotation in (str, float, int, bool):
-            return _TypeSpec(kind="scalar", scalar_type=annotation)
-        raise ValueError(f"Cannot generate schema for unsupported type: {annotation}")
 
     @classmethod
     def _field_specs(cls) -> list[_FieldSpec]:
@@ -113,9 +145,6 @@ class Schema:
         field_specs = []
         for field in dataclasses.fields(cls):
             resolved_type = resolved_hints.get(field.name)
-
-            if field.metadata.get("ignore_for_schema", False):
-                continue
 
             type_spec, nullable = cls._parse_annotation(resolved_type)
             field_specs.append(
@@ -129,47 +158,39 @@ class Schema:
 
         :param type_spec: Parsed type spec.
         :returns: Polars dtype for the spec.
-        :raises ValueError: If list type has no element type.
+        :raises ValueError: If nested types are missing or invalid.
         """
+        match type_spec:
+            # Handle Scalars
+            case _TypeSpec(kind="scalar", scalar_type=builtins.str):
+                return polars.String
+            case _TypeSpec(kind="scalar", scalar_type=builtins.float):
+                return polars.Float64
+            case _TypeSpec(kind="scalar", scalar_type=builtins.int):
+                return polars.Int64
+            case _TypeSpec(kind="scalar", scalar_type=builtins.bool):
+                return polars.Boolean
 
-        scalar_map = {
-            str: polars.String,
-            float: polars.Float64,
-            int: polars.Int64,
-            bool: polars.Boolean,
-        }
-        if type_spec.kind == "scalar":
-            return scalar_map[type_spec.scalar_type]
-        if type_spec.item_type is None:
-            raise ValueError("List type missing element type")
-        return polars.List(cls._to_polars_type(type_spec.item_type))
+            # Handle Maps (Represented as List of Structs in Polars)
+            case _TypeSpec(kind="map", value_type=value_type) if value_type is not None:
+                return polars.List(
+                    polars.Struct(
+                        [
+                            polars.Field("key", polars.String),
+                            polars.Field("value", cls._to_polars_type(value_type)),
+                        ]
+                    )
+                )
 
-    @classmethod
-    def _to_pyarrow_type(cls, type_spec: _TypeSpec):
-        """Convert internal type spec to PyArrow type.
+            # Handle Lists
+            case _TypeSpec(kind="list", item_type=item_type) if item_type is not None:
+                return polars.List(cls._to_polars_type(item_type))
 
-        :param type_spec: Parsed type spec.
-        :returns: PyArrow type for the spec.
-        :raises ValueError: If list type has no element type.
-        """
-
-        scalar_map = {
-            str: pyarrow.string(),
-            float: pyarrow.float64(),
-            int: pyarrow.int64(),
-            bool: pyarrow.bool_(),
-        }
-        if type_spec.kind == "scalar":
-            return scalar_map[type_spec.scalar_type]
-        if type_spec.item_type is None:
-            raise ValueError("List type missing element type")
-        return pyarrow.list_(
-            pyarrow.field(
-                "item",
-                cls._to_pyarrow_type(type_spec.item_type),
-                nullable=False,
-            )
-        )
+            # Fallback for invalid/malformed specs
+            case _:
+                raise ValueError(
+                    f"Invalid or missing nested types for Polars spec: {type_spec}"
+                )
 
     @classmethod
     def _to_pyiceberg_type(
@@ -180,23 +201,81 @@ class Schema:
         :param type_spec: Parsed type spec.
         :param id_allocator: Nested field ID allocator.
         :returns: PyIceberg type for the spec.
+        :raises ValueError: If nested types are missing or invalid.
+        """
+        match type_spec:
+            # Handle Scalars
+            case _TypeSpec(kind="scalar", scalar_type=builtins.str):
+                return pyiceberg.types.StringType()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.float):
+                return pyiceberg.types.DoubleType()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.int):
+                return pyiceberg.types.LongType()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.bool):
+                return pyiceberg.types.BooleanType()
+
+            # Handle Maps
+            case _TypeSpec(kind="map", value_type=value_type) if value_type is not None:
+                return pyiceberg.types.MapType(
+                    key_id=id_allocator.next_nested_id(),
+                    key=pyiceberg.types.StringType(),
+                    value_id=id_allocator.next_nested_id(),
+                    value=cls._to_pyiceberg_type(value_type, id_allocator),
+                    value_required=False,
+                )
+
+            # Handle Lists
+            case _TypeSpec(kind="list", item_type=item_type) if item_type is not None:
+                return pyiceberg.types.ListType(
+                    element_id=id_allocator.next_nested_id(),
+                    element=cls._to_pyiceberg_type(item_type, id_allocator),
+                    element_required=True,
+                )
+
+            # Fallback for invalid/malformed specs
+            case _:
+                raise ValueError(
+                    f"Invalid or missing nested types for Iceberg spec: {type_spec}"
+                )
+
+    @classmethod
+    def _to_pyarrow_type(cls, type_spec: _TypeSpec):
+        """Convert internal type spec to PyArrow type.
+
+        :param type_spec: Parsed type spec.
+        :returns: PyArrow type for the spec.
         :raises ValueError: If list type has no element type.
         """
+        match type_spec:
+            # Handle Scalars
+            case _TypeSpec(kind="scalar", scalar_type=builtins.str):
+                return pyarrow.string()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.float):
+                return pyarrow.float64()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.int):
+                return pyarrow.int64()
+            case _TypeSpec(kind="scalar", scalar_type=builtins.bool):
+                return pyarrow.bool_()
 
-        scalar_map = {
-            str: pyiceberg.types.StringType(),
-            float: pyiceberg.types.DoubleType(),
-            int: pyiceberg.types.LongType(),
-            bool: pyiceberg.types.BooleanType(),
-        }
-        if type_spec.kind == "scalar":
-            return scalar_map[type_spec.scalar_type]
-        if type_spec.item_type is None:
-            raise ValueError("List type missing element type")
-        return pyiceberg.types.ListType(
-            element_id=id_allocator.next_nested_id(),
-            element=cls._to_pyiceberg_type(type_spec.item_type, id_allocator),
-        )
+            # Handle Maps
+            case _TypeSpec(kind="map", value_type=value_type) if value_type is not None:
+                return pyarrow.map_(pyarrow.string(), cls._to_pyarrow_type(value_type))
+
+            # Handle Lists
+            case _TypeSpec(kind="list", item_type=item_type) if item_type is not None:
+                return pyarrow.list_(
+                    pyarrow.field(
+                        "item",
+                        cls._to_pyarrow_type(item_type),
+                        nullable=False,
+                    )
+                )
+
+            # Fallback for invalid/malformed specs (e.g., missing item_type)
+            case _:
+                raise ValueError(
+                    f"Invalid or missing nested types for PyArrow spec: {type_spec}"
+                )
 
     @classmethod
     def as_polars_schema(cls) -> polars.Schema:
