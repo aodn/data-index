@@ -125,10 +125,6 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 errors[attribute] = e
 
         metadata["dimensions"] = self._sorted_or_none(ds.sizes)
-        import rich
-
-        rich.print(ds.sizes)
-        rich.print(metadata["dimensions"])
         metadata["variables"] = self._sorted_or_none(ds.data_vars)
         metadata["standard_names"] = self._extract_standard_names(ds)
 
