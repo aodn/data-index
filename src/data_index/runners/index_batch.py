@@ -1,3 +1,5 @@
+import contextlib
+
 import prefect
 
 import data_index
@@ -7,6 +9,17 @@ from data_index.metadata_extractor import (
 )
 from data_index.protocols import DeadLetter, MetadataSink, ObjectReference
 from data_index.sink import IcebergTableSink
+
+
+@contextlib.contextmanager
+def etl_phase(phase_name: str):
+    """Context manager to handle standardized phase logging."""
+    logger = prefect.get_run_logger()
+    logger.info(f"{phase_name.capitalize()}ing batch...")
+
+    yield
+
+    logger.info(f"{phase_name.capitalize()}ed batch!")
 
 
 @prefect.task
@@ -36,36 +49,31 @@ def index_batch(
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
-    logger = prefect.get_run_logger()
-
     # Extract batch
-    logger.info("Extracting batch...")
-    staged_objects, dead_letters = data_index.extract(
-        object_references=object_reference_batch,
-        fetcher=fetcher,
-    )
-    logger.info("Extracted batch!")
+    with etl_phase(phase_name="extract"):
+        staged_objects, dead_letters = data_index.extract(
+            object_references=object_reference_batch,
+            fetcher=fetcher,
+        )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Transform batch
-    logger.info("Transforming batch...")
-    extracted_objects, dead_letters = data_index.transform(
-        staged_objects=staged_objects,
-        extractor=extractor,
-    )
-    logger.info("Transformed batch!")
+    with etl_phase(phase_name="transform"):
+        extracted_objects, dead_letters = data_index.transform(
+            staged_objects=staged_objects,
+            extractor=extractor,
+        )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 
     # Load batch
-    logger.info("Loading batch...")
-    dead_letters = data_index.load(
-        extracted_objects=extracted_objects,
-        structured_sink=structured_sink,
-        unstructured_sink=unstructured_sink,
-    )
-    logger.info("Loaded batch!")
+    with etl_phase(phase_name="load"):
+        dead_letters = data_index.load(
+            extracted_objects=extracted_objects,
+            structured_sink=structured_sink,
+            unstructured_sink=unstructured_sink,
+        )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
 

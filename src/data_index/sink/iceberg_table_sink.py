@@ -34,21 +34,13 @@ class IcebergTableSink(pydantic.BaseModel):
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
     partition_column: str | None = pydantic.Field(default=None)
 
-    _instances: dict = pydantic.PrivateAttr(default_factory=lambda: {})
-
     @property
     def catalog(self) -> pyiceberg.catalog.Catalog:
-        return self._instances.get(
-            "catalog",
-            self.iceberg_table_config.catalog_config.build(),
-        )
+        return self.iceberg_table_config.catalog_config.build()
 
     @property
     def table(self) -> pyiceberg.table.Table:
-        return self._instances.get(
-            "table",
-            self.iceberg_table_config.load(),
-        )
+        return self.iceberg_table_config.load()
 
     @property
     def _metadata_cls(
@@ -92,7 +84,6 @@ class IcebergTableSink(pydantic.BaseModel):
                 self.catalog.drop_table(identifier)
             except pyiceberg.exceptions.NoSuchTableError:
                 pass
-            self._instances.pop("table", None)
 
         try:
             self.catalog.create_table(
@@ -116,7 +107,6 @@ class IcebergTableSink(pydantic.BaseModel):
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise
-                self.table.refresh()
                 time.sleep(
                     random.uniform(_BASE_BACKOFF, _BASE_BACKOFF * 2) * (2**attempt)
                 )
@@ -154,7 +144,6 @@ class IcebergTableSink(pydantic.BaseModel):
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise
-                self.table.refresh()
                 time.sleep(
                     random.uniform(a=_BASE_BACKOFF, b=_BASE_BACKOFF * 2) * (2**attempt)
                 )
