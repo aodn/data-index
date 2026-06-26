@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import typing
 
 import prefect
@@ -31,7 +29,7 @@ def sink(
     # Attempt to sink
     logger.info(f"Sinking {len(extracted_objects)} {metadata_type} rows...")
     sink.write(metadata=metadata)
-    logger.info(f"Sunk {len(extracted_objects)} structured metadata rows!")
+    logger.info(f"Sunk {len(extracted_objects)} {metadata_type} metadata rows!")
 
 
 @prefect.task(

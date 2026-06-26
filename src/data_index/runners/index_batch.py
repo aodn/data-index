@@ -49,6 +49,8 @@ def index_batch(
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
+    total_dead_letters = 0
+
     # Extract batch
     with etl_phase(phase_name="extract"):
         staged_objects, dead_letters = data_index.extract(
@@ -57,6 +59,7 @@ def index_batch(
         )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        total_dead_letters += len(dead_letters)
 
     # Transform batch
     with etl_phase(phase_name="transform"):
@@ -66,6 +69,7 @@ def index_batch(
         )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        total_dead_letters += len(dead_letters)
 
     # Load batch
     with etl_phase(phase_name="load"):
@@ -76,6 +80,12 @@ def index_batch(
         )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        total_dead_letters += len(dead_letters)
+
+    if total_dead_letters:
+        raise RuntimeError(
+            f"Sent {total_dead_letters} dead letters to the dead letter sink!"
+        )
 
 
 if __name__ == "__main__":
