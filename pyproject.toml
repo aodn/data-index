@@ -19,8 +19,8 @@ dependencies = [
     "numpy>=2.4.4",
     "obstore>=0.10.1",
     "polars>=1.40.1",
-    "prefect>=3.6.28",
-    "prefect-aws>=0.7.7",
+    "prefect>=3.7.5",
+    "prefect-aws>=0.7.9",
     "prefect-dask>=0.3.6",
     "pyarrow>=24.0.0",
     "pydantic>=2.13.4",
@@ -34,8 +34,8 @@ dependencies = [
 
 [tool.uv]
 constraint-dependencies = [
-    "prefect==3.6.28",
-    "prefect-aws==0.7.7",
+    "prefect==3.7.5",
+    "prefect-aws==0.7.9",
 ]
 
 [build-system]
