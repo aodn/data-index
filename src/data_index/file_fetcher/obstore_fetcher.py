@@ -14,16 +14,19 @@ import data_index.xarray_handle
 class ObstoreFetcher(pydantic.BaseModel):
     type: typing.Literal["obstore_fetcher"] = pydantic.Field(default="obstore_fetcher")
 
-    extract_path: pathlib.Path = pydantic.Field(
-        default_factory=lambda: pathlib.Path(".extract")
-    )
+    extract_path: pathlib.Path = pydantic.Field(default=pathlib.Path(".extract"))
     bucket: str = pydantic.Field(default="imos-data")
     region: str = pydantic.Field(default="ap-southeast-2")
-    skip_signature: bool = pydantic.Field(default=True)
-    min_chunk_size: int = pydantic.Field(
-        default=100 * 1024**2, description="Defaults to 100MB"
+    skip_signature: bool = pydantic.Field(
+        default=True, description="Whether to sign the S3 requests"
     )
-    override_downloaded_files: bool = pydantic.Field(default=False)
+    min_chunk_size: int = pydantic.Field(
+        default=100 * 1024**2, description="Defaults to 100MiB"
+    )
+    override_downloaded_files: bool = pydantic.Field(
+        default=False,
+        description="Whether to overwrite existing files. Irrelevant for ephemeral compute",
+    )
     _store: obstore.store.S3Store = pydantic.PrivateAttr()
 
     @pydantic.model_validator(mode="after")
@@ -136,7 +139,10 @@ class ConcurrentObstoreFetcher(ObstoreFetcher):
         default="concurrent_obstore_fetcher"
     )
 
-    max_workers: int = pydantic.Field(default=8)
+    max_workers: int = pydantic.Field(
+        default=8,
+        description="Max concurrency of the file fetching. Ensure this is lower than available threads in the flow task runner",
+    )
 
     def fetch(
         self, object_references: list[data_index.protocols.ObjectReference]
