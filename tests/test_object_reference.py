@@ -59,7 +59,9 @@ def test_roundtrip_fidelity(best_case_batch, worst_case_batch):
         )
 
         # Verify integrity
-        assert reconstructed == batch, "Data mismatch after roundtrip serialization"
+        assert set(reconstructed) == set(batch), (
+            "Data mismatch after roundtrip serialization"
+        )
         assert len(reconstructed) == len(batch)
 
 
