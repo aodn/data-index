@@ -4,7 +4,11 @@ import prefect
 import prefect.task_runners
 
 import data_index
-from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
+from data_index.file_fetcher import (
+    ConcurrentObstoreFetcher,
+    FSSpecFetcher,
+    ObstoreFetcher,
+)
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
@@ -46,7 +50,7 @@ def sink_dead_letters(
 )
 def index_batch(
     object_reference_batch: list[ObjectReference],
-    fetcher: FSSpecFetcher | ObstoreFetcher,
+    fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher,
     extractor: AttributeNetCDFExtractor,
     structured_sink: IcebergTableSink,
     unstructured_sink: IcebergTableSink,

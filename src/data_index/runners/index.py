@@ -38,7 +38,11 @@ import prefect.futures
 import prefect.states
 
 from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
+from data_index.file_fetcher import (
+    ConcurrentObstoreFetcher,
+    FSSpecFetcher,
+    ObstoreFetcher,
+)
 from data_index.iceberg_config import (
     IcebergTableConfig,
     IcebergTableScanConfig,
@@ -331,7 +335,7 @@ def index_pipeline(
 def index(
     inventory_source: IcebergTableInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: FSSpecFetcher | ObstoreFetcher = _file_fetcher,
+    fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
     structured_sink: IcebergTableSink = _structured_table_sink,
     unstructured_sink: IcebergTableSink = _unstructured_table_sink,
