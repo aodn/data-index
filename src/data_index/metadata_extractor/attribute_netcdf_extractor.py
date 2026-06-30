@@ -20,8 +20,9 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         default="attribute_netcdf_extractor"
     )
 
+    @classmethod
     def extract(
-        self, staged_object: data_index.protocols.StagedObject
+        cls, staged_object: data_index.protocols.StagedObject
     ) -> data_index.protocols.ExtractedObject | data_index.protocols.DeadLetter:
         """Extract structured and unstructured metadata for one handle.
 
@@ -31,10 +32,10 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         structured_metadata = None
         unstructured_metadata = None
         try:
-            structured_metadata = self._extract_structured(
+            structured_metadata = cls._extract_structured(
                 staged_object=staged_object,
             )
-            unstructured_metadata = self._extract_unstructured(
+            unstructured_metadata = cls._extract_unstructured(
                 staged_object=staged_object
             )
             return data_index.protocols.ExtractedObject(
@@ -56,8 +57,9 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         match = re.search(r"\b(\d{4})\b", value)
         return int(match.group(1)) if match else None
 
+    @classmethod
     def _extract_structured(
-        self,
+        cls,
         staged_object: data_index.protocols.StagedObject,
     ) -> data_index.schema.metadata.StructuredMetadata:
         """Build structured metadata row from global attributes and dataset structure.
@@ -116,7 +118,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
 
         # Convert attribute
         for attribute, (aliases, _type) in attributes_map.items():
-            resolved_key = self._resolve_attribute_key(ds.attrs, aliases)
+            resolved_key = cls._resolve_attribute_key(ds.attrs, aliases)
             val = ds.attrs.get(resolved_key) if resolved_key is not None else None
             try:
                 metadata[attribute] = _type(val) if val is not None else None
@@ -124,14 +126,15 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 metadata[attribute] = None
                 errors[attribute] = e
 
-        metadata["dimensions"] = self._sorted_or_none(ds.sizes)
-        metadata["variables"] = self._sorted_or_none(ds.data_vars)
-        metadata["standard_names"] = self._extract_standard_names(ds)
+        metadata["dimensions"] = cls._sorted_or_none(ds.sizes)
+        metadata["variables"] = cls._sorted_or_none(ds.data_vars)
+        metadata["standard_names"] = cls._extract_standard_names(ds)
 
         return data_index.schema.metadata.StructuredMetadata(**metadata)
 
+    @classmethod
     def _extract_unstructured(
-        self,
+        cls,
         staged_object: data_index.protocols.StagedObject,
     ) -> data_index.schema.metadata.UnstructuredMetadata:
         """Build unstructured metadata payload from dataset contents.
