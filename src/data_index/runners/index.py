@@ -153,7 +153,7 @@ _dead_letter_table_sink = IcebergTableSink(
 )
 
 # --- Runtime Config ---
-_task_runner_config = ProcessPoolRunnerConfig()
+_task_runner_config = ThreadPoolRunnerConfig()
 
 
 @prefect.task(
