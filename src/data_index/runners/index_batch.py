@@ -49,7 +49,7 @@ def sink_dead_letters(
     ),
 )
 def index_batch(
-    object_reference_batch: list[ObjectReference],
+    compressed_object_reference_batch: str,
     fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher,
     extractor: AttributeNetCDFExtractor,
     structured_sink: IcebergTableSink,
@@ -60,6 +60,11 @@ def index_batch(
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
     total_dead_letters = 0
+
+    # Decompress batch
+    object_reference_batch = ObjectReference.from_compressed_base64_table(
+        base64_str=compressed_object_reference_batch,
+    )
 
     # Extract batch
     with etl_phase(phase_name="extract"):
