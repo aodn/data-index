@@ -1,0 +1,22 @@
+name: data-index
+prefect-version: null
+
+pull:
+  - prefect.deployments.steps.git_clone:
+      repository: https://github.com/aodn/data-index.git
+      branch: v0.4.3-rc2
+
+deployments:
+
+
+  - name: index
+    entrypoint: src/data_index/runners/index.py:index
+    work_pool: 
+      name: local
+    schedules: null
+
+  - name: index-batch
+    entrypoint: src/data_index/runners/index_batch.py:index_batch
+    work_pool: 
+      name: local
+    schedules: null

@@ -132,6 +132,10 @@ class ObstoreFetcher(pydantic.BaseModel):
 
 
 class ConcurrentObstoreFetcher(ObstoreFetcher):
+    type: typing.Literal["concurrent_obstore_fetcher"] = pydantic.Field(
+        default="concurrent_obstore_fetcher"
+    )
+
     max_workers: int = pydantic.Field(default=8)
 
     def fetch(
