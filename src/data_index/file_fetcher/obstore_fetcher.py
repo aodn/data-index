@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import pathlib
 import typing
 
@@ -116,6 +117,49 @@ class ObstoreFetcher(pydantic.BaseModel):
             for object_reference in object_references
         ]
 
+        return (
+            [
+                staged_object
+                for staged_object in staged_objects
+                if isinstance(staged_object, data_index.protocols.StagedObject)
+            ],
+            [
+                staged_object
+                for staged_object in staged_objects
+                if isinstance(staged_object, data_index.protocols.DeadLetter)
+            ],
+        )
+
+
+class ConcurrentObstoreFetcher(ObstoreFetcher):
+    max_workers: int = pydantic.Field(default=8)
+
+    def fetch(
+        self, object_references: list[data_index.protocols.ObjectReference]
+    ) -> tuple[
+        list[data_index.protocols.StagedObject], list[data_index.protocols.DeadLetter]
+    ]:
+        """
+        Populate all ObjectReferences with disk xarray handles.
+
+        Causes download of all passed in object_references to `self.extract_path`
+        """
+
+        # Concurrently retrieve objects
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.max_workers
+        ) as executor:
+            futures = [
+                executor.submit(
+                    self.object_reference_to_staged_object, object_reference
+                )
+                for object_reference in object_references
+            ]
+
+        # Collect objects
+        staged_objects = [future.result() for future in futures]
+
+        # Return sorted StagedObject
         return (
             [
                 staged_object

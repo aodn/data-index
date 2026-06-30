@@ -165,6 +165,7 @@ def index_batch(
     structured_sink: MetadataSink,
     unstructured_sink: MetadataSink,
     dead_letter_sink: MetadataSink,
+    max_workers: int | None = None,
 ):
     """
     Submit and monitor a specific sub-batch indexing deployment run.
@@ -209,6 +210,7 @@ def index_batch(
             "structured_sink": structured_sink,
             "unstructured_sink": unstructured_sink,
             "dead_letter_sink": dead_letter_sink,
+            "max_workers": max_workers,
         },
     )
 
@@ -234,6 +236,7 @@ def index_pipeline(
     dead_letter_sink: MetadataSink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
+    batch_max_workers: int | None = None,
 ):
     """
     Execute the core data indexing pipeline by batching and dispatching file inventory.
@@ -299,6 +302,7 @@ def index_pipeline(
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,
             dead_letter_sink=dead_letter_sink,
+            max_workers=batch_max_workers,
         )
         for i, object_reference_batch in enumerate(object_reference_batch_generator)
     ]
@@ -336,6 +340,7 @@ def index(
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig
     | ThreadPoolRunnerConfig = _task_runner_config,
+    batch_max_workers: int | None = None,
 ):
     """
     Orchestrate the end-to-end data indexing pipeline.
@@ -382,6 +387,7 @@ def index(
             dead_letter_sink=dead_letter_sink,
             index_batch_flow_name=index_batch_flow_name,
             index_batch_deployment_name=index_batch_deployment_name,
+            batch_max_workers=batch_max_workers,
         )
     )
     logger.info("Executed pipeline!")
