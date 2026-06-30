@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import dataclasses
 import hashlib
+import io
 import pathlib
 import typing
 
@@ -44,6 +46,45 @@ class ObjectReference:
         if self.version_id:
             return pathlib.Path(f"{self.bucket}/{self.key}:{self.version_id}")
         return pathlib.Path(f"{self.bucket}/{self.key}")
+
+    @staticmethod
+    def to_compressed_base64_table(object_references: list[typing.Self]) -> str:
+        # Define strict schema to handle empty lists and ensure nulls don't break type inference
+        schema = {
+            "bucket": polars.String,
+            "key": polars.String,
+            "version_id": polars.String,
+            "size": polars.Int64,
+        }
+
+        if not object_references:
+            df = polars.DataFrame(schema=schema)
+        else:
+            # dataclasses.asdict is fast and standard
+            data = [dataclasses.asdict(ref) for ref in object_references]
+            df = polars.DataFrame(data, schema=schema)
+
+        buf = io.BytesIO()
+        # write_ipc (Arrow) is extremely fast for in-memory tables and supports native zstd
+        df.write_ipc(buf, compression="zstd")
+
+        # Base64 encode the compressed bytes
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+
+    @staticmethod
+    def from_compressed_base64_table(base64_str: str) -> list[typing.Self]:
+        if not base64_str:
+            return []
+
+        # Decode base64 to bytes
+        compressed_bytes = base64.b64decode(base64_str)
+        buf = io.BytesIO(compressed_bytes)
+
+        # Polars automatically detects and decompresses the zstd IPC stream
+        df = polars.read_ipc(buf)
+
+        # Reconstruct dataclass instances from the rows
+        return [ObjectReference(**row) for row in df.to_dicts()]
 
 
 @dataclasses.dataclass(
