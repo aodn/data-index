@@ -86,7 +86,7 @@ def _concurrent_transform_staged_objects(
     """
 
     # Concurrently retrieve objects
-    with concurrent.futures.ThreadPoolExecutor(
+    with concurrent.futures.ProcessPoolExecutor(
         max_workers=max_workers,
     ) as executor:
         futures = [
