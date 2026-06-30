@@ -16,6 +16,10 @@ class GreedyBatchPartitioner(pydantic.BaseModel):
     then a new batch is started.
     """
 
+    type: typing.Literal["greedy_batch_partitioner"] = pydantic.Field(
+        default="greedy_batch_partitioner"
+    )
+
     max_files: int
     max_bytes: int
 

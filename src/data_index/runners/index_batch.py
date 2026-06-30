@@ -1,9 +1,14 @@
 import contextlib
 
 import prefect
+import prefect.task_runners
 
 import data_index
-from data_index.file_fetcher import FSSpecFetcher, ObstoreFetcher
+from data_index.file_fetcher import (
+    ConcurrentObstoreFetcher,
+    FSSpecFetcher,
+    ObstoreFetcher,
+)
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
@@ -38,14 +43,19 @@ def sink_dead_letters(
     logger.info(f"Wrote {len(dead_letters)} dead letters!")
 
 
-@prefect.flow
+@prefect.flow(
+    task_runner=prefect.task_runners.ThreadPoolTaskRunner(
+        max_workers=16,
+    ),
+)
 def index_batch(
     object_reference_batch: list[ObjectReference],
-    fetcher: FSSpecFetcher | ObstoreFetcher,
+    fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher,
     extractor: AttributeNetCDFExtractor,
     structured_sink: IcebergTableSink,
     unstructured_sink: IcebergTableSink,
     dead_letter_sink: IcebergTableSink,
+    max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
 
@@ -66,6 +76,7 @@ def index_batch(
         extracted_objects, dead_letters = data_index.transform(
             staged_objects=staged_objects,
             extractor=extractor,
+            max_workers=max_workers,
         )
     if dead_letters:
         sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)

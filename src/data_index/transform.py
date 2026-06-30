@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 
 import prefect
@@ -70,10 +71,56 @@ def _transform_staged_objects(
     )
 
 
+def _concurrent_transform_staged_objects(
+    staged_objects: list[data_index.protocols.StagedObject],
+    extractor: data_index.protocols.MetadataExtractor,
+    logger: logging.Logger,
+    max_workers: int = 8,
+) -> tuple[
+    list[data_index.protocols.ExtractedObject, list[data_index.protocols.DeadLetter]]
+]:
+    """
+    Populate all ObjectReferences with disk xarray handles.
+
+    Causes download of all passed in object_references to `self.extract_path`
+    """
+
+    # Concurrently retrieve objects
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=max_workers,
+    ) as executor:
+        futures = [
+            executor.submit(
+                _transform_staged_object,
+                staged_object,
+                extractor,
+                logger,
+            )
+            for staged_object in staged_objects
+        ]
+
+    # Collect objects
+    extracted_objects = [future.result() for future in futures]
+
+    return (
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.ExtractedObject)
+        ],
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.DeadLetter)
+        ],
+    )
+
+
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def transform(
     staged_objects: list[data_index.protocols.StagedObject],
     extractor: data_index.protocols.MetadataExtractor,
+    max_workers: int | None = None,
 ) -> tuple[
     list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
 ]:
@@ -99,12 +146,30 @@ def transform(
 
     logger.info("Running extraction sequentially...")
 
-    extracted_objects, dead_letters = _transform_staged_objects(
-        staged_objects=staged_objects,
-        extractor=extractor,
-        logger=logger,
-    )
-    logger.info("Sequential extraction complete!")
+    # Run sequential or concurrent extraction loop
+    match max_workers:
+        # Non concurrent
+        case None:
+            extracted_objects, dead_letters = _transform_staged_objects(
+                staged_objects=staged_objects,
+                extractor=extractor,
+                logger=logger,
+            )
+            logger.info("Sequential extraction complete!")
+
+        # Concurrent
+        case int(workers) if workers > 0:
+            extracted_objects, dead_letters = _concurrent_transform_staged_objects(
+                staged_objects=staged_objects,
+                extractor=extractor,
+                logger=logger,
+                max_workers=max_workers,
+            )
+            logger.info("Concurrent extraction complete!")
+
+        # Fallback/Catch-all case (e.g., if max_workers is 0, negative, or an invalid type)
+        case _:
+            raise ValueError(f"Invalid value for max_workers: {max_workers}")
 
     logger.info("Transform complete!")
     return (
