@@ -19,7 +19,7 @@ import data_index.schema.metadata
     kw_only=True,
     frozen=True,
 )
-class ObjectReference:
+class ObjectReference(data_index.schema.Schema):
     bucket: str
     key: str
     version_id: str | None
@@ -47,29 +47,44 @@ class ObjectReference:
             return pathlib.Path(f"{self.bucket}/{self.key}:{self.version_id}")
         return pathlib.Path(f"{self.bucket}/{self.key}")
 
-    @staticmethod
-    def to_compressed_base64_table(object_references: list[typing.Self]) -> str:
-        # Define strict schema to handle empty lists and ensure nulls don't break type inference
-        schema = {
-            "bucket": polars.String,
-            "key": polars.String,
-            "version_id": polars.String,
-            "size": polars.Int64,
-        }
+    @classmethod
+    def to_compressed_base64_table(
+        cls,
+        object_references: list[typing.Self],
+    ) -> str:
 
+        # Set up the schema
+        schema = cls.as_polars_schema()
+
+        # Set up df
         if not object_references:
             df = polars.DataFrame(schema=schema)
         else:
-            # dataclasses.asdict is fast and standard
             data = [dataclasses.asdict(ref) for ref in object_references]
-            df = polars.DataFrame(data, schema=schema)
+            df = polars.DataFrame(
+                data=data,
+                schema=cls.as_polars_schema(),
+            )
 
-        buf = io.BytesIO()
-        # write_ipc (Arrow) is extremely fast for in-memory tables and supports native zstd
-        df.write_ipc(buf, compression="zstd")
+        # Write to ipc
+        buffer = io.BytesIO()
+
+        # Sort to best case for compression
+        df = df.sort(
+            by=(
+                polars.col("bucket"),
+                polars.col("version_id"),
+                polars.col("key"),
+            )
+        )
+
+        # Write to buffer
+        df.write_ipc(file=buffer, compression="zstd")
 
         # Base64 encode the compressed bytes
-        return base64.b64encode(buf.getvalue()).decode("ascii")
+        compressed_base64_table = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+        return compressed_base64_table
 
     @staticmethod
     def from_compressed_base64_table(base64_str: str) -> list[typing.Self]:
@@ -78,10 +93,10 @@ class ObjectReference:
 
         # Decode base64 to bytes
         compressed_bytes = base64.b64decode(base64_str)
-        buf = io.BytesIO(compressed_bytes)
+        buffer = io.BytesIO(compressed_bytes)
 
         # Polars automatically detects and decompresses the zstd IPC stream
-        df = polars.read_ipc(buf)
+        df = polars.read_ipc(buffer)
 
         # Reconstruct dataclass instances from the rows
         return [ObjectReference(**row) for row in df.to_dicts()]

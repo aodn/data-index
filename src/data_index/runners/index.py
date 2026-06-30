@@ -156,6 +156,37 @@ _dead_letter_table_sink = IcebergTableSink(
 _task_runner_config = ThreadPoolRunnerConfig()
 
 
+def _split_object_reference_batch(
+    object_reference_batch: list[ObjectReference],
+    max_size_bytes: int = 512 * 1024,
+) -> list[str]:
+    """
+    Recursively splits a list of ObjectReferences until each batch
+    compressed base64 string is under the specified byte limit.
+    """
+    compressed_batch = ObjectReference.to_compressed_base64_table(
+        object_references=object_reference_batch
+    )
+
+    # Check size
+    if len(compressed_batch.encode("utf-8")) <= max_size_bytes:
+        return [compressed_batch]
+
+    # If a single item is already over the limit, we cannot split further
+    if len(object_reference_batch) <= 1:
+        raise ValueError("Single object reference exceeds the 512KB limit.")
+
+    # Split the list in half
+    mid = len(object_reference_batch) // 2
+    left_batch = object_reference_batch[:mid]
+    right_batch = object_reference_batch[mid:]
+
+    # Recurse
+    return _split_object_reference_batch(
+        left_batch, max_size_bytes
+    ) + _split_object_reference_batch(right_batch, max_size_bytes)
+
+
 @prefect.task(
     task_run_name="index-batch-{i}",
 )
@@ -203,12 +234,24 @@ def index_batch(
     :raises Exception: Re-raises any execution exception caught via Prefect's state tracking if the sub-flow fails.
     """
 
+    # Compress the object reference batch
+    compressed_object_reference_batch = ObjectReference.to_compressed_base64_table(
+        object_references=object_reference_batch
+    )
+
+    # Check compression succeeded to the degree necessary
+    max_bytes = 500 * 1024
+    if len(compressed_object_reference_batch) > 500 * 1024:
+        raise RuntimeError(
+            f"compression of ObjectReferences failed to fall under target size; required <= {max_bytes} and got {len(compressed_object_reference_batch)}"
+        )
+
     # Run the index batch
     flow_run = prefect.deployments.run_deployment(
         name=f"{index_batch_flow_name}/{index_batch_deployment_name}",
         flow_run_name=f"process-batch-{i}",
         parameters={
-            "object_reference_batch": object_reference_batch,
+            "compressed_object_reference_batch": compressed_object_reference_batch,
             "fetcher": fetcher,
             "extractor": extractor,
             "structured_sink": structured_sink,
