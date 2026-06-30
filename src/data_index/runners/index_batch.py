@@ -44,7 +44,7 @@ def sink_dead_letters(
 
 
 @prefect.flow(
-    task_runner=prefect.task_runners.ThreadPoolTaskRunner(
+    task_runner=prefect.task_runners.ProcessPoolTaskRunner(
         max_workers=16,
     ),
 )
