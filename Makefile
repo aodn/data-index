@@ -1,5 +1,5 @@
 # Define all abstract commands here
-.PHONY: test test-image init lint
+.PHONY: test test-image init lint deploy
 
 # Lint
 lint:
@@ -28,3 +28,6 @@ test-image:
 	--no-cache-filter test --no-cache-filter app \
 	--progress=plain \
 	-o type=cacheonly .
+
+deploy: 
+	uv run prefect deploy --all

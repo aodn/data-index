@@ -1,0 +1,31 @@
+# Deployment Testing
+# Must set up a process work pool called local
+
+name: data-index
+prefect-version: null
+
+# Set the flow source
+pull:
+  - prefect.deployments.steps.git_clone:
+
+      # Repository is probably static
+      repository: https://github.com/aodn/data-index.git
+
+      # Set the release as the branch
+      branch: v0.4.3-rc2
+
+deployments:
+
+  # Index
+  - name: index
+    entrypoint: src/data_index/runners/index.py:index
+    work_pool: 
+      name: local
+    schedules: null
+
+  # Index Batch
+  - name: index-batch
+    entrypoint: src/data_index/runners/index_batch.py:index_batch
+    work_pool: 
+      name: local
+    schedules: null
