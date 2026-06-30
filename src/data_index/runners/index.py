@@ -94,7 +94,7 @@ _inventory_table_config = IcebergTableConfig(
 _inventory_source = IcebergTableInventorySource(
     table_config=_inventory_table_config,
     table_scan_config=IcebergTableScanConfig(
-        row_filter="(key LIKE 'IMOS/ANMN/AM/%' OR key LIKE 'IMOS/ANMN/NRS/%' OR key LIKE 'IMOS/ANMN/NSW/%' OR key LIKE 'IMOS/ANMN/QLD/%' OR key LIKE 'IMOS/ANMN/SA/%' OR key LIKE 'IMOS/ANMN/WA/%') AND NOT key LIKE 'IMOS/ANMN/NRS/REAL_TIME/%'",
+        row_filter="key LIKE 'IMOS/SOOP/%' OR key LIKE 'IMOS/AATAMS/%' OR key LIKE 'IMOS/ANMN/%' OR key LIKE 'IMOS/FAIMMS/%' OR key LIKE 'IMOS/OceanCurrent/%' OR key LIKE 'IMOS/DWM/%' OR key LIKE 'IMOS/AUV/%' OR key LIKE 'IMOS/COASTAL-WAVE-BUOYS/%' OR key LIKE 'IMOS/NTP/%' OR key LIKE 'IMOS/ANFOG/%' OR key LIKE 'IMOS/eMII/%'",
         selected_fields=["bucket", "key", "version_id", "size"],
     ),
 )
