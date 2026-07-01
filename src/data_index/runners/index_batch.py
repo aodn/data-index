@@ -25,6 +25,8 @@ def etl_phase(phase_name: str):
 
 
 @prefect.flow(
+    retries=2,
+    retry_delay_seconds=60,
     task_runner=prefect.task_runners.ProcessPoolTaskRunner(
         max_workers=16,
     ),
