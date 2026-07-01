@@ -5,6 +5,7 @@ import prefect.task_runners
 
 import data_index
 import data_index.protocols
+import data_index.runners.helpers
 from data_index.runners.types import (
     FileFetcher,
     MetadataExtractor,
@@ -21,22 +22,6 @@ def etl_phase(phase_name: str):
     yield
 
     logger.info(f"{phase_name.capitalize()}ed batch!")
-
-
-@prefect.task
-def sink_dead_letters(
-    dead_letters: list[data_index.protocols.DeadLetter],
-    dead_letter_sink: data_index.protocols.MetadataSink,
-) -> None:
-
-    if not dead_letters:
-        return
-
-    logger = prefect.get_run_logger()
-    logger.error(f"Found {len(dead_letters)} dead letters!")
-    logger.info(f"writing {len(dead_letters)} dead letters...")
-    dead_letter_sink.write(metadata=dead_letters)
-    logger.info(f"Wrote {len(dead_letters)} dead letters!")
 
 
 @prefect.flow(
@@ -71,7 +56,9 @@ def index_batch(
             fetcher=fetcher,
         )
     if dead_letters:
-        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        data_index.runners.helpers.sink_dead_letters(
+            dead_letters=dead_letters, dead_letter_sink=dead_letter_sink
+        )
         total_dead_letters += len(dead_letters)
 
     # Transform batch
@@ -82,7 +69,9 @@ def index_batch(
             max_workers=max_workers,
         )
     if dead_letters:
-        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        data_index.runners.helpers.sink_dead_letters(
+            dead_letters=dead_letters, dead_letter_sink=dead_letter_sink
+        )
         total_dead_letters += len(dead_letters)
 
     # Load batch
@@ -93,7 +82,9 @@ def index_batch(
             unstructured_sink=unstructured_sink,
         )
     if dead_letters:
-        sink_dead_letters(dead_letters=dead_letters, dead_letter_sink=dead_letter_sink)
+        data_index.runners.helpers.sink_dead_letters(
+            dead_letters=dead_letters, dead_letter_sink=dead_letter_sink
+        )
         total_dead_letters += len(dead_letters)
 
     if total_dead_letters:
