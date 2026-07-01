@@ -1,3 +1,6 @@
+from .delta_iceberg_table import (
+    DeltaIcebergTableInventorySource,
+)
 from .iceberg_table import (
     IcebergTableFacilitySubsetInventorySource,
     IcebergTableInventorySource,
@@ -6,4 +9,5 @@ from .iceberg_table import (
 __all__ = [
     "IcebergTableInventorySource",
     "IcebergTableFacilitySubsetInventorySource",
+    "DeltaIcebergTableInventorySource",
 ]

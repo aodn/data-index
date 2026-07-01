@@ -12,7 +12,7 @@ pull:
       repository: https://github.com/aodn/data-index.git
 
       # Set the release as the branch
-      branch: v0.4.3-rc2
+      branch: main
 
 deployments:
 

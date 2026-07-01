@@ -31,12 +31,14 @@ Design & Constraints
 """
 
 import pathlib
+import typing
 
 import prefect
 import prefect.deployments
 import prefect.futures
 import prefect.states
 
+import data_index.protocols
 from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import (
     ConcurrentObstoreFetcher,
@@ -49,26 +51,31 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import (
+    DeltaIcebergTableInventorySource,
     IcebergTableInventorySource,
 )
 from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
-)
-from data_index.protocols import (
-    BatchPartitioner,
-    DeadLetter,
-    FileFetcher,
-    InventorySource,
-    MetadataExtractor,
-    MetadataSink,
-    ObjectReference,
 )
 from data_index.runners.task_runner import (
     ProcessPoolRunnerConfig,
     ThreadPoolRunnerConfig,
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
-from data_index.sink import IcebergTableSink
+from data_index.sink import (
+    DummySink,
+    IcebergTableSink,
+)
+
+InventorySource: typing.TypeAlias = (
+    DeltaIcebergTableInventorySource | IcebergTableInventorySource
+)
+BatchPartitioner: typing.TypeAlias = GreedyBatchPartitioner
+FileFetcher: typing.TypeAlias = (
+    FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher
+)
+MetadataExtractor: typing.TypeAlias = AttributeNetCDFExtractor
+MetadataSink: typing.TypeAlias = IcebergTableSink | DummySink
 
 # --- General config ---
 ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
@@ -144,7 +151,7 @@ _unstructured_table_sink = IcebergTableSink(
 _dead_letter_table_config = IcebergTableConfig(
     catalog_config=_data_index_catalog_config,
     namespace="data_index",
-    table_name=f"dead_letter_v{DeadLetter.SCHEMA_VERSION}",
+    table_name=f"dead_letter_v{data_index.protocols.DeadLetter.SCHEMA_VERSION}",
 )
 
 _dead_letter_table_sink = IcebergTableSink(
@@ -157,14 +164,14 @@ _task_runner_config = ThreadPoolRunnerConfig()
 
 
 def _split_object_reference_batch(
-    object_reference_batch: list[ObjectReference],
+    object_reference_batch: list[data_index.protocols.ObjectReference],
     max_size_bytes: int = 512 * 1024,
 ) -> list[str]:
     """
-    Recursively splits a list of ObjectReferences until each batch
+    Recursively splits a list of data_index.protocols.ObjectReferences until each batch
     compressed base64 string is under the specified byte limit.
     """
-    compressed_batch = ObjectReference.to_compressed_base64_table(
+    compressed_batch = data_index.protocols.ObjectReference.to_compressed_base64_table(
         object_references=object_reference_batch
     )
 
@@ -194,13 +201,13 @@ def index_batch(
     i: int,
     index_batch_flow_name: str,
     index_batch_deployment_name: str,
-    object_reference_batch: list[ObjectReference],
-    fetcher: FileFetcher,
-    extractor: MetadataExtractor,
-    structured_sink: MetadataSink,
-    unstructured_sink: MetadataSink,
-    dead_letter_sink: MetadataSink,
-    max_workers: int | None = None,
+    object_reference_batch: list[data_index.protocols.ObjectReference],
+    fetcher: data_index.protocols.FileFetcher,
+    extractor: data_index.protocols.MetadataExtractor,
+    structured_sink: data_index.protocols.MetadataSink,
+    unstructured_sink: data_index.protocols.MetadataSink,
+    dead_letter_sink: data_index.protocols.MetadataSink,
+    max_workers: int | None = 8,
 ):
     """
     Submit and monitor a specific sub-batch indexing deployment run.
@@ -217,7 +224,7 @@ def index_batch(
     :param index_batch_deployment_name: Name of the deployment associated with the batch flow.
     :type index_batch_deployment_name: str
     :param object_reference_batch: A collection of data objects to be processed within this batch.
-    :type object_reference_batch: list[ObjectReference]
+    :type object_reference_batch: list[data_index.protocols.ObjectReference]
     :param fetcher: File transfer interface to pull files for processing.
     :type fetcher: FileFetcher
     :param extractor: Interface used to pull targeted metadata out of fetched files.
@@ -235,15 +242,17 @@ def index_batch(
     """
 
     # Compress the object reference batch
-    compressed_object_reference_batch = ObjectReference.to_compressed_base64_table(
-        object_references=object_reference_batch
+    compressed_object_reference_batch = (
+        data_index.protocols.ObjectReference.to_compressed_base64_table(
+            object_references=object_reference_batch
+        )
     )
 
     # Check compression succeeded to the degree necessary
     max_bytes = 500 * 1024
     if len(compressed_object_reference_batch) > 500 * 1024:
         raise RuntimeError(
-            f"compression of ObjectReferences failed to fall under target size; required <= {max_bytes} and got {len(compressed_object_reference_batch)}"
+            f"compression of data_index.protocols.ObjectReferences failed to fall under target size; required <= {max_bytes} and got {len(compressed_object_reference_batch)}"
         )
 
     # Run the index batch
@@ -274,13 +283,13 @@ def index_batch(
 
 @prefect.flow
 def index_pipeline(
-    inventory_source: InventorySource,
-    partitioner: BatchPartitioner,
-    fetcher: FileFetcher,
-    extractor: MetadataExtractor,
-    structured_sink: MetadataSink,
-    unstructured_sink: MetadataSink,
-    dead_letter_sink: MetadataSink,
+    inventory_source: data_index.protocols.InventorySource,
+    partitioner: data_index.protocols.BatchPartitioner,
+    fetcher: data_index.protocols.FileFetcher,
+    extractor: data_index.protocols.MetadataExtractor,
+    structured_sink: data_index.protocols.MetadataSink,
+    unstructured_sink: data_index.protocols.MetadataSink,
+    dead_letter_sink: data_index.protocols.MetadataSink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     batch_max_workers: int | None = None,
@@ -376,13 +385,13 @@ def index_pipeline(
 
 @prefect.flow
 def index(
-    inventory_source: IcebergTableInventorySource = _inventory_source,
-    partitioner: GreedyBatchPartitioner = _greedy_partitioner,
-    fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher = _file_fetcher,
-    extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
-    structured_sink: IcebergTableSink = _structured_table_sink,
-    unstructured_sink: IcebergTableSink = _unstructured_table_sink,
-    dead_letter_sink: IcebergTableSink = _dead_letter_table_sink,
+    inventory_source: InventorySource = _inventory_source,
+    partitioner: BatchPartitioner = _greedy_partitioner,
+    fetcher: FileFetcher = _file_fetcher,
+    extractor: MetadataExtractor = _attribute_netcdf_extractor,
+    structured_sink: MetadataSink = _structured_table_sink,
+    unstructured_sink: MetadataSink = _unstructured_table_sink,
+    dead_letter_sink: MetadataSink = _dead_letter_table_sink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig
