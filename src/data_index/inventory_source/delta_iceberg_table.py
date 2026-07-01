@@ -45,7 +45,9 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
     )
 
     source: iceberg_table.IcebergTableInventorySource
-    sink: iceberg_table.IcebergTableInventorySource
+    sinks: list[iceberg_table.IcebergTableInventorySource] = pydantic.Field(
+        min_length=1
+    )
     lookback_config: LookbackConfig | None = pydantic.Field(
         default=None,
         description="The number of hours to look back from the current time in the given column",
@@ -69,11 +71,16 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
     def inventory(
         self,
     ) -> polars.DataFrame:
-        source_df = self.source.inventory()
-        sink_df = self.sink.inventory()
 
+        # Get the sinks deltas
+        source_df = self.source.inventory()
+        sinks_df = polars.concat(
+            items=[sink.inventory().select(self.right_on) for sink in self.sinks],
+        ).unique()
+
+        # Find the delta
         delta_df = source_df.join(
-            other=sink_df,
+            other=sinks_df,
             left_on=self.left_on,
             right_on=self.right_on,
             how="anti",
@@ -111,19 +118,34 @@ if __name__ == "__main__":
                 row_filter=f"last_modified_date >= '{get_lookback_timestamp(time_delta=datetime.timedelta(days=10))}'",
             ),
         ),
-        sink=iceberg_table.IcebergTableInventorySource(
-            table_config=data_index.iceberg_config.IcebergTableConfig(
-                catalog_config=data_index.iceberg_config.S3TablesCatalogConfig(
-                    region="ap-southeast-2",
-                    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
+        sinks=[
+            iceberg_table.IcebergTableInventorySource(
+                table_config=data_index.iceberg_config.IcebergTableConfig(
+                    catalog_config=data_index.iceberg_config.S3TablesCatalogConfig(
+                        region="ap-southeast-2",
+                        arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
+                    ),
+                    namespace="data_index",
+                    table_name="structured_metadata_v5",
                 ),
-                namespace="data_index",
-                table_name="structured_metadata_v5",
+                table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
+                    selected_fields=("bucket", "key", "version_id"),
+                ),
             ),
-            table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
-                selected_fields=("bucket", "key", "version_id"),
+            iceberg_table.IcebergTableInventorySource(
+                table_config=data_index.iceberg_config.IcebergTableConfig(
+                    catalog_config=data_index.iceberg_config.S3TablesCatalogConfig(
+                        region="ap-southeast-2",
+                        arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
+                    ),
+                    namespace="data_index",
+                    table_name="unstructured_metadata_v4",
+                ),
+                table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
+                    selected_fields=("bucket", "key", "version_id"),
+                ),
             ),
-        ),
+        ],
     )
 
     rich.print(inventory_source)
