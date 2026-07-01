@@ -4,7 +4,9 @@ from unittest.mock import MagicMock
 import freezegun
 import polars as pl
 
+import data_index.iceberg_config
 import data_index.inventory_source.delta_iceberg_table
+import data_index.inventory_source.iceberg_table
 
 
 def test_delta_iceberg_table_inventory_anti_join():
@@ -132,62 +134,96 @@ def test_lookback_config_time_generation():
 
 
 @freezegun.freeze_time("2026-07-01T12:00:00+00:00")
-def test_delta_iceberg_inventory_appends_lookback_filters():
-    # Arrange Mock DataFrames and Table Sources
-    mock_source_df = pl.DataFrame(
-        {"bucket": ["b1"], "key": ["k1"], "version_id": ["v1"]},
-        schema={"bucket": pl.String, "key": pl.String, "version_id": pl.String},
+def test_delta_iceberg_inventory_appends_lookback_filters_with_real_objects():
+    # -------------------------------------------------------------------------
+    # Setup Shared Sink and Lookback Configurations
+    # -------------------------------------------------------------------------
+    dummy_sink = data_index.inventory_source.iceberg_table.IcebergTableInventorySource(
+        type="iceberg_table",
+        table_config=data_index.iceberg_config.IcebergTableConfig(
+            catalog_config=data_index.iceberg_config.SqliteCatalogConfig(
+                uri="",
+                warehouse="",
+            ),
+            namespace="data_index",
+            table_name="structured_metadata_v5",
+        ),
+        table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
+            row_filter=None,
+            selected_fields=("bucket", "key", "version_id"),
+            case_sensitive=True,
+            snapshot_id=None,
+            limit=None,
+        ),
     )
 
-    # Explicitly enforce schema
-    mock_sink_df = pl.DataFrame(
-        {"bucket": [], "key": [], "version_id": []},
-        schema={"bucket": pl.String, "key": pl.String, "version_id": pl.String},
-    )
-
-    # Create Mock Iceberg Sources
-    mock_source = MagicMock()
-    mock_source.inventory.return_value = mock_source_df
-    # Initialize table_scan_config with no row_filter initially
-    mock_source.table_scan_config = MagicMock()
-    mock_source.table_scan_config.row_filter = None
-
-    mock_sink = MagicMock()
-    mock_sink.inventory.return_value = mock_sink_df
-
-    # Configure a 1 day, 2 hour lookback config -> target time: 2026-06-30T10:00:00+00:00
     lookback_config = data_index.inventory_source.delta_iceberg_table.LookbackConfig(
         days=1, hours=2, column_name="last_modified"
     )
     expected_lookback_filter = "last_modified >= '2026-06-30T10:00:00+00:00'"
 
+    # -------------------------------------------------------------------------
     # Case A: Verify it writes directly when there is NO existing filter
-    inventory_source_no_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource.model_construct(
-        source=mock_source,
-        sink=mock_sink,
+    # -------------------------------------------------------------------------
+    source_no_filter = (
+        data_index.inventory_source.iceberg_table.IcebergTableInventorySource(
+            type="iceberg_table",
+            table_config=data_index.iceberg_config.IcebergTableConfig(
+                catalog_config=data_index.iceberg_config.SqliteCatalogConfig(
+                    uri="",
+                    warehouse="",
+                ),
+                namespace="inventory",
+                table_name="live",
+            ),
+            table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
+                row_filter=None
+            ),  # No existing filter
+        )
+    )
+
+    model_no_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource(
+        source=source_no_filter,
+        sink=dummy_sink,
         lookback_config=lookback_config,
     )
 
-    # Trigger the inventory call
-    inventory_source_no_filter.inventory()
+    assert (
+        model_no_filter.source.table_scan_config.row_filter == expected_lookback_filter
+    )
 
-    assert mock_source.table_scan_config.row_filter == expected_lookback_filter
-
+    # -------------------------------------------------------------------------
     # Case B: Verify it appends using AND when there IS an existing filter
-    mock_source.table_scan_config.row_filter = "status = 'active'"
+    # -------------------------------------------------------------------------
+    source_with_filter = (
+        data_index.inventory_source.iceberg_table.IcebergTableInventorySource(
+            type="iceberg_table",
+            table_config=data_index.iceberg_config.IcebergTableConfig(
+                catalog_config=data_index.iceberg_config.SqliteCatalogConfig(
+                    uri="",
+                    warehouse="",
+                ),
+                namespace="inventory",
+                table_name="live",
+            ),
+            # Existing filter provided
+            table_scan_config=data_index.iceberg_config.IcebergTableScanConfig(
+                row_filter="last_modified_date >= '2026-06-21T00:00:00'",
+                selected_fields=("bucket", "key", "version_id", "size"),
+            ),
+        )
+    )
 
-    inventory_source_with_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource.model_construct(
-        source=mock_source,
-        sink=mock_sink,
+    model_with_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource(
+        source=source_with_filter,
+        sink=dummy_sink,
         lookback_config=lookback_config,
     )
 
-    # Trigger the inventory call again
-    result_df = inventory_source_with_filter.inventory()
-
-    expected_combined_filter = f"(status = 'active') AND {expected_lookback_filter}"
-    assert mock_source.table_scan_config.row_filter == expected_combined_filter
-
-    # Verify the anti-join executed correctly (mock_source_df elements remain)
-    assert result_df.shape == (1, 3)
-    assert result_df.equals(mock_source_df)
+    expected_combined_filter = (
+        f"(last_modified_date >= '2026-06-21T00:00:00') AND {expected_lookback_filter}"
+    )
+    assert (
+        model_with_filter.source.table_scan_config.row_filter
+        == expected_combined_filter
+    )

@@ -30,4 +30,7 @@ test-image:
 	-o type=cacheonly .
 
 deploy: 
+	@echo "Deploying all to local Prefect..."
+	cat prefect.yaml
 	uv run prefect deploy --all
+	@echo "Deployed all to local Prefect!"

@@ -12,7 +12,7 @@ from data_index.inventory_source import iceberg_table
 class LookbackConfig(pydantic.BaseModel):
     days: int = pydantic.Field(default=0)
     hours: int = pydantic.Field(default=0)
-    column_name: str
+    column_name: str = pydantic.Field(default="last_modified_date")
 
     @property
     def lookback_timestamp(self):
@@ -40,22 +40,22 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
     left_on: list[str] = pydantic.Field(default=["bucket", "key", "version_id"])
     right_on: list[str] = pydantic.Field(default=["bucket", "key", "version_id"])
 
-    def inventory(
-        self,
-    ) -> polars.DataFrame:
-
-        # Set the lookback configuration filters on the source
+    @pydantic.model_validator(mode="after")
+    def apply_lookback_config(self) -> typing.Self:
+        """Applies the lookback configuration filters to the source table scan config."""
         if self.lookback_config:
-            # Append
             if self.source.table_scan_config.row_filter:
                 self.source.table_scan_config.row_filter = f"({self.source.table_scan_config.row_filter}) AND {self.lookback_config.lookback_filter}"
-
-            # Write
             else:
                 self.source.table_scan_config.row_filter = (
                     self.lookback_config.lookback_filter
                 )
 
+        return self
+
+    def inventory(
+        self,
+    ) -> polars.DataFrame:
         source_df = self.source.inventory()
         sink_df = self.sink.inventory()
 
