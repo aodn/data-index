@@ -5,6 +5,7 @@ import prefect.task_runners
 
 import data_index
 import data_index.protocols
+import data_index.runners.defaults
 import data_index.runners.helpers
 from data_index.runners.types import (
     FileFetcher,
@@ -28,7 +29,7 @@ def etl_phase(phase_name: str):
     retries=1,
     retry_delay_seconds=120,
     task_runner=prefect.task_runners.ProcessPoolTaskRunner(
-        max_workers=16,
+        max_workers=data_index.runners.defaults.BATCH_MAX_WORKERS,
     ),
 )
 def index_batch(
