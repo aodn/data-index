@@ -127,10 +127,10 @@ def test_lookback_config_time_generation():
         days=1, hours=2, column_name="last_modified"
     )
 
-    expected_iso = "2026-06-30T10:00:00+00:00"
+    expected_iso = "2026-06-30T10:00:00"
 
     assert config.lookback_timestamp == expected_iso
-    assert config.lookback_filter == "last_modified >= '2026-06-30T10:00:00+00:00'"
+    assert config.lookback_filter == "last_modified >= '2026-06-30T10:00:00'"
 
 
 @freezegun.freeze_time("2026-07-01T12:00:00+00:00")
@@ -160,7 +160,7 @@ def test_delta_iceberg_inventory_appends_lookback_filters_with_real_objects():
     lookback_config = data_index.inventory_source.delta_iceberg_table.LookbackConfig(
         days=1, hours=2, column_name="last_modified"
     )
-    expected_lookback_filter = "last_modified >= '2026-06-30T10:00:00+00:00'"
+    expected_lookback_filter = "last_modified >= '2026-06-30T10:00:00'"
 
     # -------------------------------------------------------------------------
     # Case A: Verify it writes directly when there is NO existing filter

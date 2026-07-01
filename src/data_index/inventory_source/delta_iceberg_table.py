@@ -16,10 +16,23 @@ class LookbackConfig(pydantic.BaseModel):
 
     @property
     def lookback_timestamp(self):
+        """Calculate the lookback timestamp floored to the current hour.
+
+        The current UTC time is truncated to the beginning of the hour before
+        the configured `days` and `hours` offsets are subtracted.
+
+        Returns:
+            str: An ISO-8601 formatted timestamp string truncated to seconds,
+                excluding the timezone offset (e.g., '2026-06-30T10:00:00').
+        """
         return (
-            datetime.datetime.now(tz=datetime.timezone.utc)
-            - datetime.timedelta(days=self.days, hours=self.hours)
-        ).isoformat()
+            (
+                datetime.datetime.now(tz=datetime.timezone.utc)
+                - datetime.timedelta(days=self.days, hours=self.hours)
+            )
+            .replace(minute=0, second=0, microsecond=0)
+            .strftime(format="%Y-%m-%dT%H:%M:%S")
+        )
 
     @property
     def lookback_filter(self):
