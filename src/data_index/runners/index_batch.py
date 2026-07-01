@@ -1,4 +1,5 @@
 import contextlib
+import typing
 
 import prefect
 import prefect.task_runners
@@ -13,7 +14,12 @@ from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
 from data_index.protocols import DeadLetter, MetadataSink, ObjectReference
-from data_index.sink import IcebergTableSink
+from data_index.sink import DummySink, IcebergTableSink
+
+# Wire type alias
+Fetcher: typing.TypeAlias = FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher
+Extractor: typing.TypeAlias = AttributeNetCDFExtractor
+Sink: typing.TypeAlias = IcebergTableSink | DummySink
 
 
 @contextlib.contextmanager
@@ -50,11 +56,11 @@ def sink_dead_letters(
 )
 def index_batch(
     compressed_object_reference_batch: str,
-    fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher,
-    extractor: AttributeNetCDFExtractor,
-    structured_sink: IcebergTableSink,
-    unstructured_sink: IcebergTableSink,
-    dead_letter_sink: IcebergTableSink,
+    fetcher: Fetcher,
+    extractor: Extractor,
+    structured_sink: Sink,
+    unstructured_sink: Sink,
+    dead_letter_sink: Sink,
     max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
