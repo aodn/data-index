@@ -140,13 +140,17 @@ def index_batch(
 
         # Fail
         case state:
-            logger.error(
+            error = (
                 f"Batch {i} ended in terminal state ({state.name}). Routing to DLQ..."
             )
+            logger.error(error)
             data_index.runners.helpers.sink_dead_letters(
-                data_index.protocols.DeadLetter.from_object_references(
-                    object_references=object_reference_batch,
-                )
+                dead_letters=[
+                    data_index.protocols.DeadLetter.from_object_reference(
+                        object_references=object_reference_batch,
+                        error=error,
+                    )
+                ],
             )
             prefect.states.raise_state_exception(state=state)
 

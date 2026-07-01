@@ -164,20 +164,6 @@ class DeadLetter(data_index.schema.Schema):
             error=error,
         )
 
-    @classmethod
-    def from_object_references(
-        cls,
-        object_references: list[ObjectReference],
-        error: str | None,
-    ) -> list[typing.Self]:
-        [
-            cls.from_object_reference(
-                object_reference=object_reference,
-                error=error,
-            )
-            for object_reference in object_references
-        ]
-
 
 @dataclasses.dataclass
 class ExtractionResult:
