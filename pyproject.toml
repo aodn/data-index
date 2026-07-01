@@ -65,6 +65,7 @@ home = ".prefect"
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
+    "freezegun>=1.5.5",
     "pre-commit>=4.6.0",
     "prefect-docker>=0.7.1",
     "pytest>=9.0.3",
