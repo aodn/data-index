@@ -42,7 +42,7 @@ def test_delta_iceberg_table_inventory_anti_join():
     mock_sink.inventory.return_value = sink_data
 
     delta_source = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource.model_construct(
-        source=mock_source, sink=mock_sink
+        source=mock_source, sinks=[mock_sink]
     )
     result_df = delta_source.inventory()
 
@@ -77,7 +77,7 @@ def test_delta_iceberg_table_inventory_custom_join_keys():
 
     delta_source = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource.model_construct(
         source=mock_source,
-        sink=mock_sink,
+        sinks=[mock_sink],
         left_on=["src_key"],
         right_on=["snk_key"],
     )
@@ -97,7 +97,7 @@ def test_delta_iceberg_table_pydantic_defaults():
     mock_sink = MagicMock()
 
     delta_source = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource.model_construct(
-        source=mock_source, sink=mock_sink
+        source=mock_source, sinks=[mock_sink]
     )
 
     assert delta_source.type == "delta_iceberg_table"
@@ -184,7 +184,7 @@ def test_delta_iceberg_inventory_appends_lookback_filters_with_real_objects():
 
     model_no_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource(
         source=source_no_filter,
-        sink=dummy_sink,
+        sinks=[dummy_sink],
         lookback_config=lookback_config,
     )
 
@@ -216,7 +216,7 @@ def test_delta_iceberg_inventory_appends_lookback_filters_with_real_objects():
 
     model_with_filter = data_index.inventory_source.delta_iceberg_table.DeltaIcebergTableInventorySource(
         source=source_with_filter,
-        sink=dummy_sink,
+        sinks=[dummy_sink],
         lookback_config=lookback_config,
     )
 
