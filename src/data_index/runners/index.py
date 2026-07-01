@@ -37,6 +37,7 @@ import prefect.states
 
 import data_index.protocols
 import data_index.runners.defaults
+import data_index.runners.helpers
 from data_index.runners.task_runner import (
     ProcessPoolRunnerConfig,
     ThreadPoolRunnerConfig,
@@ -131,26 +132,23 @@ def index_batch(
         },
     )
 
-    # Match flow run states using convenience methods
+    # Manage end state
     match flow_run.state:
+        # Success
         case state if state.is_completed():
             logger.info(f"Batch {i} processed successfully.")
 
-        case state if state.is_failed():
-            logger.error(f"Batch {i} failed. Writing payload to DLQ...")
-            prefect.states.raise_state_exception()
-
-        case state if state.is_crashed():
-            logger.error(f"Batch {i} crashed. Routing to DLQ...")
-
-        case _:
+        # Fail
+        case state:
             logger.error(
-                f"Batch {i} ended in an unhandled state: {flow_run.state.name}"
+                f"Batch {i} ended in terminal state ({state.name}). Routing to DLQ..."
             )
-
-    # Raise the exception if it failed
-    prefect.states.raise_state_exception(state=flow_run.state)
-    return
+            data_index.runners.helpers.sink_dead_letters(
+                data_index.protocols.DeadLetter.from_object_references(
+                    object_references=object_reference_batch,
+                )
+            )
+            prefect.states.raise_state_exception(state=state)
 
 
 @prefect.flow
