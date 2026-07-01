@@ -49,6 +49,7 @@ from data_index.iceberg_config import (
     S3TablesCatalogConfig,
 )
 from data_index.inventory_source import (
+    DeltaIcebergTableInventorySource,
     IcebergTableInventorySource,
 )
 from data_index.metadata_extractor import (
@@ -68,7 +69,10 @@ from data_index.runners.task_runner import (
     ThreadPoolRunnerConfig,
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
-from data_index.sink import IcebergTableSink
+from data_index.sink import (
+    DummySink,
+    IcebergTableSink,
+)
 
 # --- General config ---
 ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
@@ -376,13 +380,14 @@ def index_pipeline(
 
 @prefect.flow
 def index(
-    inventory_source: IcebergTableInventorySource = _inventory_source,
+    inventory_source: IcebergTableInventorySource
+    | DeltaIcebergTableInventorySource = _inventory_source,
     partitioner: GreedyBatchPartitioner = _greedy_partitioner,
     fetcher: FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher = _file_fetcher,
     extractor: AttributeNetCDFExtractor = _attribute_netcdf_extractor,
-    structured_sink: IcebergTableSink = _structured_table_sink,
-    unstructured_sink: IcebergTableSink = _unstructured_table_sink,
-    dead_letter_sink: IcebergTableSink = _dead_letter_table_sink,
+    structured_sink: IcebergTableSink | DummySink = _structured_table_sink,
+    unstructured_sink: IcebergTableSink | DummySink = _unstructured_table_sink,
+    dead_letter_sink: IcebergTableSink | DummySink = _dead_letter_table_sink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig

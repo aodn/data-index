@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import typing
 
 import polars
 import pydantic
 
-import data_index.inventory_source.iceberg_table
+from data_index.inventory_source import iceberg_table
 
 
 class DeltaIcebergTableInventorySource(pydantic.BaseModel):
@@ -11,8 +13,8 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
         default="delta_iceberg_table"
     )
 
-    source: data_index.inventory_source.iceberg_table.IcebergTableInventorySource
-    sink: data_index.inventory_source.iceberg_table.IcebergTableInventorySource
+    source: iceberg_table.IcebergTableInventorySource
+    sink: iceberg_table.IcebergTableInventorySource
     left_on: tuple[str] = pydantic.Field(default=("bucket", "key", "version_id"))
     right_on: tuple[str] = pydantic.Field(default=("bucket", "key", "version_id"))
 
@@ -48,7 +50,7 @@ if __name__ == "__main__":
         ).isoformat()
 
     inventory_source = DeltaIcebergTableInventorySource(
-        source=data_index.inventory_source.iceberg_table.IcebergTableInventorySource(
+        source=iceberg_table.IcebergTableInventorySource(
             table_config=data_index.iceberg_config.IcebergTableConfig(
                 catalog_config=data_index.iceberg_config.S3TablesCatalogConfig(
                     region="ap-southeast-2",
@@ -62,7 +64,7 @@ if __name__ == "__main__":
                 row_filter=f"last_modified_date >= '{get_lookback_timestamp(time_delta=datetime.timedelta(days=10))}'",
             ),
         ),
-        sink=data_index.inventory_source.iceberg_table.IcebergTableInventorySource(
+        sink=iceberg_table.IcebergTableInventorySource(
             table_config=data_index.iceberg_config.IcebergTableConfig(
                 catalog_config=data_index.iceberg_config.S3TablesCatalogConfig(
                     region="ap-southeast-2",
