@@ -1,3 +1,5 @@
+import typing
+
 import polars
 import pydantic
 
@@ -5,6 +7,10 @@ import data_index.inventory_source.iceberg_table
 
 
 class DeltaIcebergTableInventorySource(pydantic.BaseModel):
+    type: typing.Literal["delta_iceberg_table"] = pydantic.Field(
+        default="delta_iceberg_table"
+    )
+
     source: data_index.inventory_source.iceberg_table.IcebergTableInventorySource
     sink: data_index.inventory_source.iceberg_table.IcebergTableInventorySource
     left_on: tuple[str] = pydantic.Field(default=("bucket", "key", "version_id"))
