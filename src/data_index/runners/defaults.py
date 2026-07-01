@@ -17,7 +17,7 @@ from data_index.metadata_extractor import (
     AttributeNetCDFExtractor,
 )
 from data_index.runners.task_runner import (
-    ThreadPoolRunnerConfig,
+    ProcessPoolRunnerConfig,
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
 from data_index.sink import (
@@ -106,4 +106,7 @@ DEAD_LETTER_TABLE_SINK = IcebergTableSink(
 )
 
 # --- Runtime Config ---
-TASK_RUNNER_CONFIG = ThreadPoolRunnerConfig()
+TASK_RUNNER_CONFIG = ProcessPoolRunnerConfig(
+    max_workers=8,
+)
+BATCH_MAX_WORKERS = 16
