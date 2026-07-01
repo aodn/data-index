@@ -30,15 +30,14 @@ class IcebergTableInventorySource(pydantic.BaseModel):
             }
         )
 
-    def _scan(self, selected_fields: tuple[str, ...]) -> polars.DataFrame:
+    def _scan(self) -> polars.DataFrame:
         scan_kwargs = self.table_scan_config.model_dump(exclude_none=True)
-        scan_kwargs["selected_fields"] = selected_fields
 
         table = self.table_config.load()
         return table.scan(**scan_kwargs).to_polars()
 
     def inventory(self) -> polars.DataFrame:
-        df = self._scan(selected_fields=("bucket", "key", "version_id", "size"))
+        df = self._scan()
         if df.is_empty():
             return self._empty_inventory()
         return df
