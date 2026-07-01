@@ -5,7 +5,7 @@ import prefect.task_runners
 
 import data_index
 import data_index.protocols
-from data_index.runners.index import (
+from data_index.runners.types import (
     FileFetcher,
     MetadataExtractor,
     MetadataSink,

@@ -30,139 +30,27 @@ Design & Constraints
   formats or network protocol topologies.
 """
 
-import pathlib
-import typing
-
 import prefect
 import prefect.deployments
 import prefect.futures
 import prefect.states
 
 import data_index.protocols
-from data_index.batch_partitioner import GreedyBatchPartitioner
-from data_index.file_fetcher import (
-    ConcurrentObstoreFetcher,
-    FSSpecFetcher,
-    ObstoreFetcher,
-)
-from data_index.iceberg_config import (
-    IcebergTableConfig,
-    IcebergTableScanConfig,
-    S3TablesCatalogConfig,
-)
-from data_index.inventory_source import (
-    DeltaIcebergTableInventorySource,
-    IcebergTableInventorySource,
-)
-from data_index.metadata_extractor import (
-    AttributeNetCDFExtractor,
-)
+import data_index.runners.defaults
 from data_index.runners.task_runner import (
     ProcessPoolRunnerConfig,
     ThreadPoolRunnerConfig,
 )
-from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
-from data_index.sink import (
-    DummySink,
-    IcebergTableSink,
+from data_index.runners.types import (
+    BatchPartitioner,
+    FileFetcher,
+    InventorySource,
+    MetadataExtractor,
+    MetadataSink,
 )
 
-InventorySource: typing.TypeAlias = (
-    DeltaIcebergTableInventorySource | IcebergTableInventorySource
-)
-BatchPartitioner: typing.TypeAlias = GreedyBatchPartitioner
-FileFetcher: typing.TypeAlias = (
-    FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher
-)
-MetadataExtractor: typing.TypeAlias = AttributeNetCDFExtractor
-MetadataSink: typing.TypeAlias = IcebergTableSink | DummySink
 
-# --- General config ---
-ECR_REGISTRY = "704910415367.dkr.ecr.ap-southeast-2.amazonaws.com"
-REGION = "ap-southeast-2"
-BATCH_SIZE = 1_000
-OUT_DIR = pathlib.Path(".load/orchestrate-fargate")
-THRESHOLD_BYTES = 10 * 1024**2 * 10  # 100 MB
-S5CMD_WORKERS = 8
-
-
-# --- Live Inventory Source config
-_s3_metadata_catalog_config = S3TablesCatalogConfig(
-    region=REGION,
-    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/imos-data-inventory",
-)
-
-_inventory_table_config = IcebergTableConfig(
-    catalog_config=_s3_metadata_catalog_config,
-    namespace="inventory",
-    table_name="live",
-)
-
-_inventory_source = IcebergTableInventorySource(
-    table_config=_inventory_table_config,
-    table_scan_config=IcebergTableScanConfig(
-        row_filter="key LIKE 'IMOS/SOOP/%' OR key LIKE 'IMOS/AATAMS/%' OR key LIKE 'IMOS/ANMN/%' OR key LIKE 'IMOS/FAIMMS/%' OR key LIKE 'IMOS/OceanCurrent/%' OR key LIKE 'IMOS/DWM/%' OR key LIKE 'IMOS/AUV/%' OR key LIKE 'IMOS/COASTAL-WAVE-BUOYS/%' OR key LIKE 'IMOS/NTP/%' OR key LIKE 'IMOS/ANFOG/%' OR key LIKE 'IMOS/eMII/%'",
-        selected_fields=["bucket", "key", "version_id", "size"],
-    ),
-)
-
-# --- Partitioner config ---
-_greedy_partitioner = GreedyBatchPartitioner(
-    max_files=BATCH_SIZE,
-    max_bytes=10 * 1024**3,
-)
-
-# --- File fetcher ---
-_file_fetcher = ObstoreFetcher()
-
-# --- Metadata extractor ---
-_attribute_netcdf_extractor = AttributeNetCDFExtractor()
-
-# --- Sink config ---
-_data_index_catalog_config = S3TablesCatalogConfig(
-    region=REGION,
-    arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/data-index",
-)
-
-_structured_metadata_table_config = IcebergTableConfig(
-    catalog_config=_data_index_catalog_config,
-    namespace="data_index",
-    table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
-)
-
-_structured_table_sink = IcebergTableSink(
-    schema_kind="structured",
-    iceberg_table_config=_structured_metadata_table_config,
-    partition_column="facility",
-)
-
-_unstructured_metadata_table_config = IcebergTableConfig(
-    catalog_config=_data_index_catalog_config,
-    namespace="data_index",
-    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
-)
-
-_unstructured_table_sink = IcebergTableSink(
-    schema_kind="unstructured",
-    iceberg_table_config=_unstructured_metadata_table_config,
-    partition_column="facility",
-)
-
-_dead_letter_table_config = IcebergTableConfig(
-    catalog_config=_data_index_catalog_config,
-    namespace="data_index",
-    table_name=f"dead_letter_v{data_index.protocols.DeadLetter.SCHEMA_VERSION}",
-)
-
-_dead_letter_table_sink = IcebergTableSink(
-    schema_kind="dead_letter",
-    iceberg_table_config=_dead_letter_table_config,
-)
-
-# --- Runtime Config ---
-_task_runner_config = ThreadPoolRunnerConfig()
-
-
+# --- Helpers ---
 def _split_object_reference_batch(
     object_reference_batch: list[data_index.protocols.ObjectReference],
     max_size_bytes: int = 512 * 1024,
@@ -194,19 +82,38 @@ def _split_object_reference_batch(
     ) + _split_object_reference_batch(right_batch, max_size_bytes)
 
 
+@prefect.task
+def sink_dead_letters(
+    dead_letters: list[data_index.protocols.DeadLetter],
+    dead_letter_sink: MetadataSink,
+) -> None:
+
+    if not dead_letters:
+        return
+
+    logger = prefect.get_run_logger()
+    logger.error(f"Found {len(dead_letters)} dead letters!")
+    logger.info(f"writing {len(dead_letters)} dead letters...")
+    dead_letter_sink.write(metadata=dead_letters)
+    logger.info(f"Wrote {len(dead_letters)} dead letters!")
+
+
 @prefect.task(
     task_run_name="index-batch-{i}",
+    retries=2,
+    retry_delay_seconds=60,
+    retry_jitter_factor=2,
 )
 def index_batch(
     i: int,
     index_batch_flow_name: str,
     index_batch_deployment_name: str,
     object_reference_batch: list[data_index.protocols.ObjectReference],
-    fetcher: data_index.protocols.FileFetcher,
-    extractor: data_index.protocols.MetadataExtractor,
-    structured_sink: data_index.protocols.MetadataSink,
-    unstructured_sink: data_index.protocols.MetadataSink,
-    dead_letter_sink: data_index.protocols.MetadataSink,
+    fetcher: FileFetcher,
+    extractor: MetadataExtractor,
+    structured_sink: MetadataSink,
+    unstructured_sink: MetadataSink,
+    dead_letter_sink: MetadataSink,
     max_workers: int | None = 8,
 ):
     """
@@ -241,6 +148,8 @@ def index_batch(
     :raises Exception: Re-raises any execution exception caught via Prefect's state tracking if the sub-flow fails.
     """
 
+    logger = prefect.get_run_logger()
+
     # Compress the object reference batch
     compressed_object_reference_batch = (
         data_index.protocols.ObjectReference.to_compressed_base64_table(
@@ -270,26 +179,37 @@ def index_batch(
         },
     )
 
-    # Raise unknown state error
-    if flow_run.state is None:
-        raise RuntimeError(
-            f"Flow run process-batch-{i} finalised with unknown state (`flow_run.state` == None)!"
-        )
+    # Match flow run states using convenience methods
+    match flow_run.state:
+        case state if state.is_completed():
+            logger.info(f"Batch {i} processed successfully.")
+
+        case state if state.is_failed():
+            logger.error(f"Batch {i} failed. Writing payload to DLQ...")
+            prefect.states.raise_state_exception()
+
+        case state if state.is_crashed():
+            logger.error(f"Batch {i} crashed. Routing to DLQ...")
+
+        case _:
+            logger.error(
+                f"Batch {i} ended in an unhandled state: {flow_run.state.name}"
+            )
 
     # Raise the exception if it failed
-    prefect.states.raise_state_exception(flow_run.state)
+    prefect.states.raise_state_exception(state=flow_run.state)
     return
 
 
 @prefect.flow
 def index_pipeline(
-    inventory_source: data_index.protocols.InventorySource,
-    partitioner: data_index.protocols.BatchPartitioner,
-    fetcher: data_index.protocols.FileFetcher,
-    extractor: data_index.protocols.MetadataExtractor,
-    structured_sink: data_index.protocols.MetadataSink,
-    unstructured_sink: data_index.protocols.MetadataSink,
-    dead_letter_sink: data_index.protocols.MetadataSink,
+    inventory_source: InventorySource,
+    partitioner: BatchPartitioner,
+    fetcher: FileFetcher,
+    extractor: MetadataExtractor,
+    structured_sink: MetadataSink,
+    unstructured_sink: MetadataSink,
+    dead_letter_sink: MetadataSink,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     batch_max_workers: int | None = None,
@@ -363,39 +283,34 @@ def index_pipeline(
         for i, object_reference_batch in enumerate(object_reference_batch_generator)
     ]
 
-    #  Stream results
-    logger.info(
-        f"All {len(futures)} batches internally scheduled... Streaming results..."
-    )
-    failed = []
-    for future in prefect.futures.as_completed(futures=futures):
-        logger.info(future.state)
-        try:
-            prefect.states.raise_state_exception(future.state)
-        except Exception as e:
-            logger.error(f"Batch failed: {e}")
-            failed.append(e)
+    # Await futures
+    done, not_done = prefect.futures.wait(futures=futures)
 
-    # Report overall status
-    if failed:
-        raise RuntimeError(f"{len(failed)} batch(es) failed. See logs for details.")
-    else:
-        logger.info("All batches completed successfully!")
+    # Collect failed batches
+    failed = [future.state for future in done if not future.state.is_completed()]
+
+    # Report and raise if failed or not done batches
+    if failed or not_done:
+        logger.error(f"Failed to process {len(failed)} batches")
+        logger.error(f"Failed to complete {len(not_done)} batches")
+        raise RuntimeError(
+            f"{len(failed) + len(not_done)} batch(es) failed. See logs for details."
+        )
 
 
 @prefect.flow
 def index(
-    inventory_source: InventorySource = _inventory_source,
-    partitioner: BatchPartitioner = _greedy_partitioner,
-    fetcher: FileFetcher = _file_fetcher,
-    extractor: MetadataExtractor = _attribute_netcdf_extractor,
-    structured_sink: MetadataSink = _structured_table_sink,
-    unstructured_sink: MetadataSink = _unstructured_table_sink,
-    dead_letter_sink: MetadataSink = _dead_letter_table_sink,
+    inventory_source: InventorySource = data_index.runners.defaults.INVENTORY_SOURCE,
+    partitioner: BatchPartitioner = data_index.runners.defaults.BATCH_PARTITIONER,
+    fetcher: FileFetcher = data_index.runners.defaults.FILE_FETCHER,
+    extractor: MetadataExtractor = data_index.runners.defaults.METADATA_EXTRACTOR,
+    structured_sink: MetadataSink = data_index.runners.defaults.STRUCTURED_TABLE_SINK,
+    unstructured_sink: MetadataSink = data_index.runners.defaults.UNSTRUCTURED_TABLE_SINK,
+    dead_letter_sink: MetadataSink = data_index.runners.defaults.DEAD_LETTER_TABLE_SINK,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig
-    | ThreadPoolRunnerConfig = _task_runner_config,
+    | ThreadPoolRunnerConfig = data_index.runners.defaults.TASK_RUNNER_CONFIG,
     batch_max_workers: int | None = None,
 ):
     """
