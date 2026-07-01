@@ -15,8 +15,8 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
 
     source: iceberg_table.IcebergTableInventorySource
     sink: iceberg_table.IcebergTableInventorySource
-    left_on: tuple[str] = pydantic.Field(default=("bucket", "key", "version_id"))
-    right_on: tuple[str] = pydantic.Field(default=("bucket", "key", "version_id"))
+    left_on: list[str] = pydantic.Field(default=("bucket", "key", "version_id"))
+    right_on: list[str] = pydantic.Field(default=("bucket", "key", "version_id"))
 
     def inventory(
         self,
@@ -80,5 +80,6 @@ if __name__ == "__main__":
     )
 
     rich.print(inventory_source)
-    inventory = inventory_source.inventory()
-    rich.print(inventory)
+    rich.print(inventory_source.model_dump_json(indent=4))
+    # inventory = inventory_source.inventory()
+    # rich.print(inventory)

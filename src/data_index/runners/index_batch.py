@@ -1,25 +1,15 @@
 import contextlib
-import typing
 
 import prefect
 import prefect.task_runners
 
 import data_index
-from data_index.file_fetcher import (
-    ConcurrentObstoreFetcher,
-    FSSpecFetcher,
-    ObstoreFetcher,
+import data_index.protocols
+from data_index.runners.index import (
+    FileFetcher,
+    MetadataExtractor,
+    MetadataSink,
 )
-from data_index.metadata_extractor import (
-    AttributeNetCDFExtractor,
-)
-from data_index.protocols import DeadLetter, MetadataSink, ObjectReference
-from data_index.sink import DummySink, IcebergTableSink
-
-# Wire type alias
-Fetcher: typing.TypeAlias = FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher
-Extractor: typing.TypeAlias = AttributeNetCDFExtractor
-Sink: typing.TypeAlias = IcebergTableSink | DummySink
 
 
 @contextlib.contextmanager
@@ -35,8 +25,8 @@ def etl_phase(phase_name: str):
 
 @prefect.task
 def sink_dead_letters(
-    dead_letters: list[DeadLetter],
-    dead_letter_sink: MetadataSink,
+    dead_letters: list[data_index.protocols.DeadLetter],
+    dead_letter_sink: data_index.protocols.MetadataSink,
 ) -> None:
 
     if not dead_letters:
@@ -56,11 +46,11 @@ def sink_dead_letters(
 )
 def index_batch(
     compressed_object_reference_batch: str,
-    fetcher: Fetcher,
-    extractor: Extractor,
-    structured_sink: Sink,
-    unstructured_sink: Sink,
-    dead_letter_sink: Sink,
+    fetcher: FileFetcher,
+    extractor: MetadataExtractor,
+    structured_sink: MetadataSink,
+    unstructured_sink: MetadataSink,
+    dead_letter_sink: MetadataSink,
     max_workers: int | None = None,
 ) -> None:
     """Full ETL pipeline for a single Batch, dispatched as a worker task."""
@@ -68,8 +58,10 @@ def index_batch(
     total_dead_letters = 0
 
     # Decompress batch
-    object_reference_batch = ObjectReference.from_compressed_base64_table(
-        base64_str=compressed_object_reference_batch,
+    object_reference_batch = (
+        data_index.protocols.ObjectReference.from_compressed_base64_table(
+            base64_str=compressed_object_reference_batch,
+        )
     )
 
     # Extract batch
