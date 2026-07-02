@@ -49,7 +49,7 @@ INVENTORY_SOURCE = IcebergTableInventorySource(
     table_config=_INVENTORY_TABLE_CONFIG,
     table_scan_config=IcebergTableScanConfig(
         row_filter="key LIKE 'IMOS/SOOP/%' OR key LIKE 'IMOS/AATAMS/%' OR key LIKE 'IMOS/ANMN/%' OR key LIKE 'IMOS/FAIMMS/%' OR key LIKE 'IMOS/OceanCurrent/%' OR key LIKE 'IMOS/DWM/%' OR key LIKE 'IMOS/AUV/%' OR key LIKE 'IMOS/COASTAL-WAVE-BUOYS/%' OR key LIKE 'IMOS/NTP/%' OR key LIKE 'IMOS/ANFOG/%' OR key LIKE 'IMOS/eMII/%'",
-        selected_fields=["bucket", "key", "version_id", "size"],
+        selected_fields=("bucket", "key", "version_id", "size"),
     ),
 )
 
