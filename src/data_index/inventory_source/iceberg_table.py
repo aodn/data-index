@@ -52,9 +52,7 @@ class IcebergTableFacilitySubsetInventorySource(IcebergTableInventorySource):
     subset_per_facility: int = pydantic.Field(default=10_000, ge=1)
 
     def inventory(self) -> polars.DataFrame:
-        df = self._scan(
-            selected_fields=("bucket", "key", "version_id", "size", "facility")
-        )
+        df = self._scan()
         if df.is_empty():
             return self._empty_inventory()
 

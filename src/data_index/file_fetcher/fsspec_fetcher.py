@@ -39,7 +39,7 @@ class FSSpecFetcher(pydantic.BaseModel):
     def fetch(
         self, object_references: list[data_index.protocols.ObjectReference]
     ) -> tuple[
-        list[data_index.protocols.StagedObject, list[data_index.protocols.DeadLetter]]
+        list[data_index.protocols.StagedObject], list[data_index.protocols.DeadLetter]
     ]:
 
         staged_objects = [

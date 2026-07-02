@@ -10,6 +10,9 @@ import pydantic
 import data_index.protocols
 import data_index.xarray_handle
 
+if typing.TYPE_CHECKING:
+    from obstore import GetOptions
+
 
 class ObstoreFetcher(pydantic.BaseModel):
     type: typing.Literal["obstore_fetcher"] = pydantic.Field(default="obstore_fetcher")
@@ -93,7 +96,7 @@ class ObstoreFetcher(pydantic.BaseModel):
         Convert an ObjectReference into a stream generator.
         """
 
-        options = dict()
+        options: GetOptions = dict()
 
         # If version id
         if object_reference.version_id:
@@ -107,7 +110,7 @@ class ObstoreFetcher(pydantic.BaseModel):
     def fetch(
         self, object_references: list[data_index.protocols.ObjectReference]
     ) -> tuple[
-        list[data_index.protocols.StagedObject, list[data_index.protocols.DeadLetter]]
+        list[data_index.protocols.StagedObject], list[data_index.protocols.DeadLetter]
     ]:
         """
         Populate all ObjectReferences with disk xarray handles.
