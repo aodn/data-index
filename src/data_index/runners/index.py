@@ -265,7 +265,9 @@ def index(
     index_batch_deployment_name: str = "index-batch",
     task_runner_config: ProcessPoolRunnerConfig
     | ThreadPoolRunnerConfig = data_index.runners.defaults.TASK_RUNNER_CONFIG,
-    batch_max_workers: int | None = max_workers if (max_workers := data_index.runners.defaults.BATCH_MAX_WORKERS - 4) > 0 else None
+    batch_max_workers: int | None = max_workers
+    if (max_workers := data_index.runners.defaults.BATCH_MAX_WORKERS - 4) > 0
+    else None,
 ):
     """
     Orchestrate the end-to-end data indexing pipeline.
