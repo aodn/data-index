@@ -86,8 +86,11 @@ class ObjectReference(data_index.schema.Schema):
 
         return compressed_base64_table
 
-    @staticmethod
-    def from_compressed_base64_table(base64_str: str) -> list[typing.Self]:
+    @classmethod
+    def from_compressed_base64_table(
+        cls,
+        base64_str: str,
+    ) -> list[typing.Self]:
         if not base64_str:
             return []
 
@@ -99,7 +102,7 @@ class ObjectReference(data_index.schema.Schema):
         df = polars.read_ipc(buffer)
 
         # Reconstruct dataclass instances from the rows
-        return [ObjectReference(**row) for row in df.to_dicts()]
+        return [cls(**row) for row in df.to_dicts()]
 
 
 @dataclasses.dataclass(

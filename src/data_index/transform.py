@@ -12,7 +12,7 @@ import data_index.protocols
 def _transform_staged_object(
     staged_object: data_index.protocols.StagedObject,
     extractor: data_index.protocols.MetadataExtractor,
-    logger: logging.Logger,
+    logger: logging.Logger | logging.LoggerAdapter,
 ) -> data_index.protocols.ExtractedObject | data_index.protocols.DeadLetter:
 
     # Attempt to extract the metadata from the object
@@ -38,9 +38,9 @@ def _transform_staged_object(
 def _transform_staged_objects(
     staged_objects: list[data_index.protocols.StagedObject],
     extractor: data_index.protocols.MetadataExtractor,
-    logger: logging.Logger,
+    logger: logging.Logger | logging.LoggerAdapter,
 ) -> tuple[
-    list[data_index.protocols.ExtractedObject, list[data_index.protocols.DeadLetter]]
+    list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
 ]:
     """
     Populate all ObjectReferences with disk xarray handles.
@@ -74,10 +74,10 @@ def _transform_staged_objects(
 def _concurrent_transform_staged_objects(
     staged_objects: list[data_index.protocols.StagedObject],
     extractor: data_index.protocols.MetadataExtractor,
-    logger: logging.Logger,
+    logger: logging.Logger | logging.LoggerAdapter,
     max_workers: int = 8,
 ) -> tuple[
-    list[data_index.protocols.ExtractedObject, list[data_index.protocols.DeadLetter]]
+    list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
 ]:
     """
     Populate all ObjectReferences with disk xarray handles.
@@ -142,7 +142,7 @@ def transform(
     # Return empty list if no object_references passed in
     if not staged_objects:
         logger.warning("transform called with no staged objects!")
-        return list()
+        return (list(), list())
 
     logger.info("Running extraction sequentially...")
 
