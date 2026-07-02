@@ -179,7 +179,6 @@ class ExtractionResult:
 
 @typing.runtime_checkable
 class XarrayHandle(typing.Protocol):
-    object_ref: ObjectReference
     file_format: str | None
 
     @property
