@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import time
 import typing
 
 import polars
@@ -74,9 +75,14 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
 
         # Get the sinks deltas
         source_df = self.source.inventory()
-        sinks_df = polars.concat(
-            items=[sink.inventory().select(self.right_on) for sink in self.sinks],
-        ).unique()
+
+        sink_dfs = list()
+        for sink in self.sinks:
+            sink_df = sink.inventory()
+            sink_df = sink_df.select(self.right_on)
+            sink_dfs.append(sink_df)
+
+        sinks_df = polars.concat(items=sink_dfs)
 
         # Find the delta
         delta_df = source_df.join(
@@ -150,5 +156,5 @@ if __name__ == "__main__":
 
     rich.print(inventory_source)
     rich.print(inventory_source.model_dump_json(indent=4))
-    # inventory = inventory_source.inventory()
-    # rich.print(inventory)
+    inventory = inventory_source.inventory()
+    rich.print(inventory)
