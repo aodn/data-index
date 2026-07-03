@@ -144,7 +144,7 @@ def transform(
         logger.warning("transform called with no staged objects!")
         return (list(), list())
 
-    logger.info("Running extraction sequentially...")
+    logger.info(f"Extracting {len(staged_objects)} staged_objects...")
 
     # Run sequential or concurrent extraction loop
     match max_workers:
@@ -155,7 +155,6 @@ def transform(
                 extractor=extractor,
                 logger=logger,
             )
-            logger.info("Sequential extraction complete!")
 
         # Concurrent
         case int(workers) if workers > 0:
@@ -165,11 +164,12 @@ def transform(
                 logger=logger,
                 max_workers=max_workers,
             )
-            logger.info("Concurrent extraction complete!")
 
         # Fallback/Catch-all case (e.g., if max_workers is 0, negative, or an invalid type)
         case _:
             raise ValueError(f"Invalid value for max_workers: {max_workers}")
+    
+    logger.info(f"Extracted {len(staged_objects)} staged_objects!")
 
     logger.info("Transform complete!")
     return (

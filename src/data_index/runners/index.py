@@ -30,6 +30,8 @@ Design & Constraints
   formats or network protocol topologies.
 """
 
+import re
+
 import prefect
 import prefect.deployments
 import prefect.futures
@@ -138,7 +140,20 @@ def index_batch(
         case state if state.is_completed():
             logger.info(f"Batch {i} processed successfully.")
 
-        # Fail
+        # Dead letters routed
+        case state if (
+            state.is_failed()
+            and state.message
+            and re.search(
+                pattern=r"Sent \d+ dead letters to the dead letter sink!",
+                string=state.message,
+            )
+        ):
+            logger.info(f"Batch {i} had dead letters!")
+            prefect.states.raise_state_exception(state=state)
+
+
+        # Fail for unknown reason, assume dead letter sinking failed
         case state:
             error = (
                 f"Batch {i} ended in terminal state ({state.name}). Routing to DLQ..."
@@ -147,12 +162,15 @@ def index_batch(
             data_index.runners.helpers.sink_dead_letters(
                 dead_letters=[
                     data_index.protocols.DeadLetter.from_object_reference(
-                        object_references=object_reference_batch,
+                        object_reference=object_reference,
                         error=error,
                     )
+                    for object_reference in object_reference_batch
                 ],
+                dead_letter_sink=dead_letter_sink,
             )
             prefect.states.raise_state_exception(state=state)
+    
 
 
 @prefect.flow
@@ -216,8 +234,8 @@ def index_pipeline(
     # Dispatch
     # Note: Scheduler has to be able to hold all the dispatch
     # data; that includes all S3 keys and version_ids, so could have a large memory footprint
-    logger.info(f"Dispatching ({len(inventory)} files total)")
     logger.info(f"Batch workers: `{partitioner}, `{fetcher}`, `{extractor}`")
+    logger.info(f"Dispatching ({len(inventory)} files total)...")
 
     object_reference_batch_generator = partitioner.partition(inventory=inventory)
 
@@ -236,6 +254,7 @@ def index_pipeline(
         )
         for i, object_reference_batch in enumerate(object_reference_batch_generator)
     ]
+    logger.info(f"Dispatched `{len(futures)}` batches!")
 
     # Await futures
     done, not_done = prefect.futures.wait(futures=futures)
