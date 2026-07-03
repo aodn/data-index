@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import time
 import typing
 
 import polars
