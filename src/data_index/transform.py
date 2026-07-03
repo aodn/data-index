@@ -168,7 +168,7 @@ def transform(
         # Fallback/Catch-all case (e.g., if max_workers is 0, negative, or an invalid type)
         case _:
             raise ValueError(f"Invalid value for max_workers: {max_workers}")
-    
+
     logger.info(f"Extracted {len(staged_objects)} staged_objects!")
 
     logger.info("Transform complete!")

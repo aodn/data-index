@@ -152,7 +152,6 @@ def index_batch(
             logger.info(f"Batch {i} had dead letters!")
             prefect.states.raise_state_exception(state=state)
 
-
         # Fail for unknown reason, assume dead letter sinking failed
         case state:
             error = (
@@ -170,7 +169,6 @@ def index_batch(
                 dead_letter_sink=dead_letter_sink,
             )
             prefect.states.raise_state_exception(state=state)
-    
 
 
 @prefect.flow
