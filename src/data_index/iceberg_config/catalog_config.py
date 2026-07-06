@@ -10,6 +10,8 @@ from pyiceberg.catalog.sql import SqlCatalog
 class CatalogConfig(typing.Protocol):
     def build(self) -> Catalog: ...
 
+    def duckdb_setup_sql(self, *, catalog_alias: str) -> list[str]: ...
+
 
 class S3TablesCatalogConfig(pydantic.BaseModel):
     """Builds an AWS S3 Tables REST catalog."""
@@ -24,7 +26,6 @@ class S3TablesCatalogConfig(pydantic.BaseModel):
         return f"https://s3tables.{self.region}.amazonaws.com/iceberg"
 
     def build(self) -> Catalog:
-
         return load_catalog(
             "s3tables_catalog",
             **{
@@ -37,6 +38,23 @@ class S3TablesCatalogConfig(pydantic.BaseModel):
             },
         )
 
+    def duckdb_setup_sql(self, *, catalog_alias: str) -> list[str]:
+        escaped_arn = self.arn.replace("'", "''")
+        escaped_region = self.region.replace("'", "''")
+        escaped_alias = catalog_alias.replace('"', '""')
+        secret_name = f"{catalog_alias}_secret".replace('"', '""')
+
+        return [
+            "INSTALL aws",
+            "INSTALL httpfs",
+            "INSTALL iceberg",
+            "LOAD aws",
+            "LOAD httpfs",
+            "LOAD iceberg",
+            f"CREATE OR REPLACE SECRET \"{secret_name}\" (TYPE s3, PROVIDER credential_chain, REGION '{escaped_region}')",
+            f'ATTACH \'{escaped_arn}\' AS "{escaped_alias}" (TYPE iceberg, ENDPOINT_TYPE s3_tables, SECRET "{secret_name}")',
+        ]
+
 
 class SqliteCatalogConfig(pydantic.BaseModel):
     """Builds a local SQLite-backed Iceberg catalog. Useful for local runs and tests."""
@@ -47,3 +65,8 @@ class SqliteCatalogConfig(pydantic.BaseModel):
 
     def build(self) -> Catalog:
         return SqlCatalog(self.name, uri=self.uri, warehouse=self.warehouse)
+
+    def duckdb_setup_sql(self, *, catalog_alias: str) -> list[str]:
+        raise NotImplementedError(
+            "DuckDB Iceberg writes are supported only for S3TablesCatalogConfig."
+        )

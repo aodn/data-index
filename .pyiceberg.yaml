@@ -1,2 +1,2 @@
 # Set to limit concurrency related issues
-max-workers: 4
+max-workers: 8

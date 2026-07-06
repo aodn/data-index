@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import random
+import re
 import time
 import typing
 
+import duckdb
+import polars
+import pyarrow
 import pydantic
 import pyiceberg.catalog
 import pyiceberg.exceptions
@@ -17,6 +21,7 @@ import data_index.schema.metadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
+_MIN_DUCKDB_VERSION = (1, 5, 3)
 
 
 class IcebergTableSink(pydantic.BaseModel):
@@ -33,6 +38,9 @@ class IcebergTableSink(pydantic.BaseModel):
     schema_kind: typing.Literal["structured", "unstructured", "dead_letter"]
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
     partition_column: str | None = pydantic.Field(default=None)
+    write_engine: typing.Literal["pyiceberg", "duckdb"] = pydantic.Field(
+        default="pyiceberg"
+    )
 
     @property
     def catalog(self) -> pyiceberg.catalog.Catalog:
@@ -45,10 +53,11 @@ class IcebergTableSink(pydantic.BaseModel):
     @property
     def _metadata_cls(
         self,
-    ) -> (
+    ) -> type[
         data_index.schema.metadata.StructuredMetadata
         | data_index.schema.metadata.UnstructuredMetadata
-    ):
+        | data_index.protocols.DeadLetter
+    ]:
         """Dynamically resolves the target metadata class wrapper based on kind."""
         match self.schema_kind:
             case "structured":
@@ -58,7 +67,7 @@ class IcebergTableSink(pydantic.BaseModel):
             case "dead_letter":
                 return data_index.protocols.DeadLetter
             case _:
-                raise ValueError(f"unsupported metadata_kind: {self.metadata_kind}")
+                raise ValueError(f"unsupported schema_kind: {self.schema_kind}")
 
     def provision(
         self,
@@ -131,19 +140,122 @@ class IcebergTableSink(pydantic.BaseModel):
         metadata: list[
             data_index.schema.metadata.StructuredMetadata
             | data_index.schema.metadata.UnstructuredMetadata
+            | data_index.protocols.DeadLetter
         ],
     ) -> None:
-
-        # Fixed: passing extracted_objects positionally to avoid signature mismatch
         table = self._metadata_cls.to_arrow(metadata=metadata)
+        if table.num_rows == 0:
+            return
 
+        match self.write_engine:
+            case "pyiceberg":
+                self._write_pyiceberg(table=table)
+            case "duckdb":
+                self._write_duckdb(table=table)
+            case _:
+                raise ValueError(f"unsupported write_engine: {self.write_engine}")
+
+    def _write_pyiceberg(self, table: pyarrow.Table) -> None:
         for attempt in range(_MAX_RETRIES):
             try:
                 self.table.upsert(df=table, join_cols=["hash"])
-                return list()
+                return
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise
                 time.sleep(
                     random.uniform(a=_BASE_BACKOFF, b=_BASE_BACKOFF * 2) * (2**attempt)
                 )
+
+    @staticmethod
+    def _quote_identifier(value: str) -> str:
+        escaped = value.replace('"', '""')
+        return f'"{escaped}"'
+
+    @staticmethod
+    def _version_tuple(version: str) -> tuple[int, int, int]:
+        parts = [int(item) for item in re.findall(r"\d+", version)[:3]]
+        if not parts:
+            return (0, 0, 0)
+        if len(parts) == 1:
+            return (parts[0], 0, 0)
+        if len(parts) == 2:
+            return (parts[0], parts[1], 0)
+        return (parts[0], parts[1], parts[2])
+
+    def _ensure_supported_duckdb_version(self) -> None:
+        current = self._version_tuple(duckdb.__version__)
+        if current < _MIN_DUCKDB_VERSION:
+            required = ".".join(str(part) for part in _MIN_DUCKDB_VERSION)
+            raise RuntimeError(
+                f"write_engine='duckdb' requires duckdb>={required}; found {duckdb.__version__}"
+            )
+
+    @staticmethod
+    def _duckdb_retryable_error(exc: duckdb.Error) -> bool:
+        message = str(exc).lower()
+        return any(
+            token in message
+            for token in (
+                "commit failed",
+                "write-write conflict",
+                "transaction conflict",
+                "concurrent",
+            )
+        )
+
+    def _duckdb_merge_sql(self, column_names: list[str]) -> str:
+        update_columns = [name for name in column_names if name != "hash"]
+        if not update_columns:
+            raise ValueError("DuckDB upsert requires at least one non-hash column")
+
+        update_set = ", ".join(
+            f"target.{self._quote_identifier(name)} = upserts.{self._quote_identifier(name)}"
+            for name in update_columns
+        )
+
+        return (
+            f"MERGE INTO {self.iceberg_table_config.duckdb_table_identifier} AS target "
+            "USING upserts AS upserts "
+            f'ON target."hash" = upserts."hash" '
+            f"WHEN MATCHED THEN UPDATE SET {update_set} "
+            "WHEN NOT MATCHED THEN INSERT BY NAME"
+        )
+
+    def _dedupe_last_by_hash(self, table: pyarrow.Table) -> pyarrow.Table:
+        frame = polars.from_arrow(table)
+        frame = frame.unique(subset=["hash"], keep="last", maintain_order=True)
+        return frame.to_arrow()
+
+    def _write_duckdb(self, table: pyarrow.Table) -> None:
+        self._ensure_supported_duckdb_version()
+        table = self._dedupe_last_by_hash(table=table)
+
+        for attempt in range(_MAX_RETRIES):
+            connection = self.iceberg_table_config.build_duckdb_connection()
+            try:
+                connection.register("upserts", table)
+                connection.execute(
+                    self._duckdb_merge_sql(column_names=table.column_names)
+                )
+                return
+            except duckdb.Error as exc:
+                if (
+                    "merge" in str(exc).lower()
+                    and "not implemented" in str(exc).lower()
+                ):
+                    required = ".".join(str(part) for part in _MIN_DUCKDB_VERSION)
+                    raise RuntimeError(
+                        f"DuckDB MERGE INTO is unavailable. Requires duckdb>={required}."
+                    ) from exc
+                if attempt == _MAX_RETRIES - 1 or not self._duckdb_retryable_error(exc):
+                    raise
+                time.sleep(
+                    random.uniform(a=_BASE_BACKOFF, b=_BASE_BACKOFF * 2) * (2**attempt)
+                )
+            finally:
+                try:
+                    connection.unregister("upserts")
+                except duckdb.Error:
+                    pass
+                connection.close()

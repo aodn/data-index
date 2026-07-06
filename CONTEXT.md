@@ -97,6 +97,10 @@ _Avoid_: writer, exporter
 A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) partitioned by `facility`, with rows upserted by hash join key (latest write wins).
 _Avoid_: writer, exporter
 
+**Write Engine**:
+The backend selected by `IcebergTableSink.write()` to apply upserts (`pyiceberg` by default, `duckdb` as an opt-in for S3 Tables). This is independent of the catalog type.
+_Avoid_: sink type, catalog type
+
 ## Constraints
 
 - `XarrayHandle.cleanup()` is called after `transform` completes; implementations decide what cleanup means (e.g. `DiskXarrayHandle` deletes the local file, `S3XarrayHandle` is a no-op)
@@ -163,6 +167,7 @@ _Avoid_: build pipeline, validation pipeline
 - "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
 - "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.
 - "Should sink joins use composite identity or hash?" — resolved: use **Object Reference Hash** for joins/upserts, while keeping explicit **Object Version Identity** fields required everywhere.
+- "sink backend" was used ambiguously to mean both catalog and write path — resolved: use **Write Engine** for write backend (`pyiceberg` vs `duckdb`) and **Catalog** for table discovery/auth.
 - "Missing facility handling (fail vs nullable vs sentinel)" — resolved: use sentinel `UNKNOWN`.
 - "Batch partitioner naming used `collection`" — resolved: rename to `FacilityGroupedBatchPartitioner`.
 - "Should transform/load exchange Arrow tables instead of domain rows?" — deferred: keep typed domain-row contracts for now; revisit later.
