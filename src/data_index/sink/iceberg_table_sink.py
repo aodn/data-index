@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import random
-import re
 import time
 import typing
 
 import duckdb
-import polars
 import pyarrow
 import pydantic
 import pyiceberg.catalog
@@ -21,7 +19,6 @@ import data_index.schema.metadata
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
-_MIN_DUCKDB_VERSION = (1, 5, 3)
 
 
 class IcebergTableSink(pydantic.BaseModel):
@@ -39,7 +36,7 @@ class IcebergTableSink(pydantic.BaseModel):
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
     partition_column: str | None = pydantic.Field(default=None)
     write_engine: typing.Literal["pyiceberg", "duckdb"] = pydantic.Field(
-        default="pyiceberg"
+        default="pyiceberg",
     )
 
     @property
@@ -173,25 +170,6 @@ class IcebergTableSink(pydantic.BaseModel):
         return f'"{escaped}"'
 
     @staticmethod
-    def _version_tuple(version: str) -> tuple[int, int, int]:
-        parts = [int(item) for item in re.findall(r"\d+", version)[:3]]
-        if not parts:
-            return (0, 0, 0)
-        if len(parts) == 1:
-            return (parts[0], 0, 0)
-        if len(parts) == 2:
-            return (parts[0], parts[1], 0)
-        return (parts[0], parts[1], parts[2])
-
-    def _ensure_supported_duckdb_version(self) -> None:
-        current = self._version_tuple(duckdb.__version__)
-        if current < _MIN_DUCKDB_VERSION:
-            required = ".".join(str(part) for part in _MIN_DUCKDB_VERSION)
-            raise RuntimeError(
-                f"write_engine='duckdb' requires duckdb>={required}; found {duckdb.__version__}"
-            )
-
-    @staticmethod
     def _duckdb_retryable_error(exc: duckdb.Error) -> bool:
         message = str(exc).lower()
         return any(
@@ -210,7 +188,7 @@ class IcebergTableSink(pydantic.BaseModel):
             raise ValueError("DuckDB upsert requires at least one non-hash column")
 
         update_set = ", ".join(
-            f"target.{self._quote_identifier(name)} = upserts.{self._quote_identifier(name)}"
+            f"{self._quote_identifier(name)} = upserts.{self._quote_identifier(name)}"
             for name in update_columns
         )
 
@@ -222,31 +200,22 @@ class IcebergTableSink(pydantic.BaseModel):
             "WHEN NOT MATCHED THEN INSERT BY NAME"
         )
 
-    def _dedupe_last_by_hash(self, table: pyarrow.Table) -> pyarrow.Table:
-        frame = polars.from_arrow(table)
-        frame = frame.unique(subset=["hash"], keep="last", maintain_order=True)
-        return frame.to_arrow()
-
     def _write_duckdb(self, table: pyarrow.Table) -> None:
-        self._ensure_supported_duckdb_version()
-        table = self._dedupe_last_by_hash(table=table)
+        merge_sql = self._duckdb_merge_sql(column_names=table.column_names)
 
         for attempt in range(_MAX_RETRIES):
             connection = self.iceberg_table_config.build_duckdb_connection()
             try:
                 connection.register("upserts", table)
-                connection.execute(
-                    self._duckdb_merge_sql(column_names=table.column_names)
-                )
+                connection.execute(merge_sql)
                 return
             except duckdb.Error as exc:
                 if (
                     "merge" in str(exc).lower()
                     and "not implemented" in str(exc).lower()
                 ):
-                    required = ".".join(str(part) for part in _MIN_DUCKDB_VERSION)
                     raise RuntimeError(
-                        f"DuckDB MERGE INTO is unavailable. Requires duckdb>={required}."
+                        "DuckDB MERGE INTO is unavailable. Check DuckDB version 1.5.3 or higher."
                     ) from exc
                 if attempt == _MAX_RETRIES - 1 or not self._duckdb_retryable_error(exc):
                     raise
