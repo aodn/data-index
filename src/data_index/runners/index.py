@@ -40,16 +40,16 @@ import prefect.states
 import data_index.protocols
 import data_index.runners.defaults
 import data_index.runners.helpers
-from data_index.runners.task_runner import (
-    ProcessPoolRunnerConfig,
-    ThreadPoolRunnerConfig,
-)
-from data_index.runners.types import (
+from data_index.runners._types import (
     BatchPartitioner,
     FileFetcher,
     InventorySource,
     MetadataExtractor,
     MetadataSink,
+)
+from data_index.runners.task_runner import (
+    ProcessPoolRunnerConfig,
+    ThreadPoolRunnerConfig,
 )
 
 
