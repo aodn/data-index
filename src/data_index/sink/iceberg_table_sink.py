@@ -165,11 +165,6 @@ class IcebergTableSink(pydantic.BaseModel):
                 )
 
     @staticmethod
-    def _quote_identifier(value: str) -> str:
-        escaped = value.replace('"', '""')
-        return f'"{escaped}"'
-
-    @staticmethod
     def _duckdb_retryable_error(exc: duckdb.Error) -> bool:
         message = str(exc).lower()
         return any(
@@ -187,17 +182,13 @@ class IcebergTableSink(pydantic.BaseModel):
         if not update_columns:
             raise ValueError("DuckDB upsert requires at least one non-hash column")
 
-        update_set = ", ".join(
-            f"{self._quote_identifier(name)} = upserts.{self._quote_identifier(name)}"
-            for name in update_columns
-        )
-
         return (
+            "SET threads = 4;"
             f"MERGE INTO {self.iceberg_table_config.duckdb_table_identifier} AS target "
             "USING upserts AS upserts "
-            f'ON target."hash" = upserts."hash" '
-            f"WHEN MATCHED THEN UPDATE SET {update_set} "
-            "WHEN NOT MATCHED THEN INSERT BY NAME"
+            "ON target.hash = upserts.hash "
+            "WHEN MATCHED THEN UPDATE "
+            "WHEN NOT MATCHED THEN INSERT;"
         )
 
     def _write_duckdb(self, table: pyarrow.Table) -> None:

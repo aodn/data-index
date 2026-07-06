@@ -278,6 +278,45 @@ class Schema:
                 )
 
     @classmethod
+    def _to_duckdb_type(cls, type_spec: _TypeSpec) -> str:
+        """Convert internal type spec to DuckDB SQL type.
+
+        :param type_spec: Parsed type spec.
+        :returns: DuckDB SQL type for the spec.
+        :raises ValueError: If nested types are missing or invalid.
+        """
+        match type_spec:
+            # Handle Scalars
+            case _TypeSpec(kind="scalar", scalar_type=builtins.str):
+                return "VARCHAR"
+            case _TypeSpec(kind="scalar", scalar_type=builtins.float):
+                return "DOUBLE"
+            case _TypeSpec(kind="scalar", scalar_type=builtins.int):
+                return "BIGINT"
+            case _TypeSpec(kind="scalar", scalar_type=builtins.bool):
+                return "BOOLEAN"
+
+            # Handle Maps
+            case _TypeSpec(
+                kind="map",
+                key_type=builtins.str,
+                value_type=value_type,
+            ) if value_type is not None:
+                return f"MAP(VARCHAR, {cls._to_duckdb_type(value_type)})"
+            case _TypeSpec(kind="map", key_type=key_type):
+                raise ValueError(f"DuckDB map keys must be strings, got: {key_type}")
+
+            # Handle Lists
+            case _TypeSpec(kind="list", item_type=item_type) if item_type is not None:
+                return f"{cls._to_duckdb_type(item_type)}[]"
+
+            # Fallback for invalid/malformed specs (e.g., missing item_type)
+            case _:
+                raise ValueError(
+                    f"Invalid or missing nested types for DuckDB spec: {type_spec}"
+                )
+
+    @classmethod
     def as_polars_schema(cls) -> polars.Schema:
         """Build Polars schema from ``StructuredMetadata`` annotations.
 
@@ -331,6 +370,23 @@ class Schema:
                 for index, field in enumerate(field_specs, start=1)
             ]
         )
+
+    @classmethod
+    def as_duckdb_schema(cls) -> list[tuple[str, str, bool]]:
+        """Build DuckDB schema tuples from annotations.
+
+        :returns: Ordered ``(name, duckdb_type, nullable)`` schema tuples.
+        """
+
+        field_specs = cls._field_specs()
+        return [
+            (
+                field.name,
+                cls._to_duckdb_type(field.type_spec),
+                field.nullable,
+            )
+            for field in field_specs
+        ]
 
     @classmethod
     def to_arrow(

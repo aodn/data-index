@@ -28,6 +28,12 @@ class NestedListSchema(Schema):
     optional_str_list: list[str] | None
 
 
+@dataclasses.dataclass
+class NestedMapSchema(Schema):
+    dimensions: dict[str, int] | None
+    variables: list[str]
+
+
 def test_as_polars_schema():
     """Verify Polars schema generation maps types accurately."""
     schema = FlatScalarSchema.as_polars_schema()
@@ -95,6 +101,22 @@ def test_as_pyiceberg_schema():
     int_list_field = list_schema.find_field(1)
     assert isinstance(int_list_field.field_type, pyiceberg.types.ListType)
     assert int_list_field.field_type.element_id == 3
+
+
+def test_as_duckdb_schema():
+    schema = FlatScalarSchema.as_duckdb_schema()
+    assert schema == [
+        ("a_str", "VARCHAR", False),
+        ("an_int", "BIGINT", True),
+        ("a_float", "DOUBLE", False),
+        ("a_bool", "BOOLEAN", True),
+    ]
+
+    nested_schema = NestedMapSchema.as_duckdb_schema()
+    assert nested_schema == [
+        ("dimensions", "MAP(VARCHAR, BIGINT)", True),
+        ("variables", "VARCHAR[]", False),
+    ]
 
 
 def test_invalid_union_types_raises_error():
@@ -196,3 +218,12 @@ def test_converter_missing_item_type_raises_error():
         ),
     ):
         Schema._to_pyiceberg_type(type_spec=malformed_spec, id_allocator=allocator)
+
+
+def test_as_duckdb_schema_requires_string_map_keys():
+    @dataclasses.dataclass
+    class InvalidMapKeySchema(Schema):
+        attributes: dict[int, str]
+
+    with pytest.raises(ValueError, match="DuckDB map keys must be strings"):
+        InvalidMapKeySchema.as_duckdb_schema()

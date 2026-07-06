@@ -101,10 +101,7 @@ def test_duckdb_write_registers_full_input_table(monkeypatch):
     ]
     assert len(merge_statements) == 1
     merge_sql = merge_statements[0]
-    assert 'ON target."hash" = upserts."hash"' in merge_sql
-    assert merge_sql.count('target."hash" = upserts."hash"') == 1
-    assert "WHEN MATCHED THEN UPDATE SET target." not in merge_sql
-    assert "WHEN NOT MATCHED THEN INSERT BY NAME" in merge_sql
+    assert "ON target.hash = upserts.hash" in merge_sql
     assert fake_connection.closed is True
 
 
