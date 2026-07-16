@@ -33,7 +33,7 @@ def load_table(
     # Setup AWS credentials from the current environment or IAM role
     session = boto3.Session()
     credentials = session.get_credentials()
-    
+
     if credentials is None:
         raise RuntimeError(
             "Unable to locate AWS credentials. Please configure credentials via:\n"
@@ -41,15 +41,15 @@ def load_table(
             "  - Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY\n"
             "  - IAM role (if running on EC2 or ECS)"
         )
-    
+
     frozen = credentials.get_frozen_credentials()
-    
+
     # Set environment variables for pyiceberg
     os.environ["AWS_ACCESS_KEY_ID"] = frozen.access_key
     os.environ["AWS_SECRET_ACCESS_KEY"] = frozen.secret_key
     if frozen.token:
         os.environ["AWS_SESSION_TOKEN"] = frozen.token
-    
+
     catalog_config = S3TablesCatalogConfig(region=region, arn=arn)
     table_config = IcebergTableConfig(
         catalog_config=catalog_config,
@@ -67,13 +67,13 @@ def query_with_filter(
 ):
     """
     Query table with optional S3 prefix filter and column pruning.
-    
+
     Args:
         table: Iceberg table object
         s3_prefix: S3 prefix to filter by (e.g., 'IMOS/ANFOG/%')
         row_filter: Additional row filter predicate
         selected_fields: Fields to retrieve (column pruning)
-    
+
     Returns:
         Polars DataFrame
     """
@@ -83,9 +83,9 @@ def query_with_filter(
         filters.append(f"key like '{s3_prefix}'")
     if row_filter:
         filters.append(f"({row_filter})")
-    
+
     combined_filter = " AND ".join(filters) if filters else None
-    
+
     scan = table.scan(
         row_filter=combined_filter,
         selected_fields=selected_fields,
@@ -116,71 +116,83 @@ def analyze_schema_variance(df: pl.DataFrame, group_by: str = None):
             return str(sorted(eval(variables)))
         else:
             return str(sorted(variables))
-    
+
     df_normalized = df.with_columns(
         pl.col("variables")
         .map_elements(normalize_schema, return_dtype=pl.Utf8)
         .alias("normalized_schema")
     )
-    
+
     # Count records per normalized schema
     schema_counts = df_normalized["normalized_schema"].value_counts(sort=True)
-    
+
     # For each normalized schema, find the associated prefixes and collect variables
     schema_prefixes = []
     all_variables = set()
-    
+
     for schema_row in schema_counts.rows(named=True):
         normalized_schema = schema_row["normalized_schema"]
         count = schema_row["count"]
-        
+
         # Find records with this normalized schema
-        records_with_schema = df_normalized.filter(pl.col("normalized_schema") == normalized_schema)
-        
+        records_with_schema = df_normalized.filter(
+            pl.col("normalized_schema") == normalized_schema
+        )
+
         # Extract directory path from keys by removing the filename
         records_with_schema = records_with_schema.with_columns(
-            pl.col("key")
-            .str.replace(r'/[^/]*$', '/')
-            .alias("dir_prefix")
+            pl.col("key").str.replace(r"/[^/]*$", "/").alias("dir_prefix")
         )
-        
+
         # Get unique prefixes for this schema, sorted
         prefixes = records_with_schema["dir_prefix"].unique().sort().to_list()
-        
+
         # Get actual variables from the original data (unsorted)
         sample_vars = records_with_schema["variables"].to_list()[0]
         if isinstance(sample_vars, str):
             sample_vars = eval(sample_vars)
-        
+
         # Collect all variables
         all_variables.update(sample_vars)
-        
-        schema_prefixes.append({
-            "schema": str(sorted(sample_vars)),
-            "schema_display": str(sample_vars),
-            "sorted_variables": sorted(sample_vars),
-            "count": count,
-            "prefixes": prefixes,
-            "num_prefixes": len(prefixes)
-        })
-    
+
+        schema_prefixes.append(
+            {
+                "schema": str(sorted(sample_vars)),
+                "schema_display": str(sample_vars),
+                "sorted_variables": sorted(sample_vars),
+                "count": count,
+                "prefixes": prefixes,
+                "num_prefixes": len(prefixes),
+            }
+        )
+
     # Analyze which variables are common/unique to each schema
     variable_analysis = []
     for idx, schema_info in enumerate(schema_prefixes):
         schema_vars = set(schema_info["sorted_variables"])
-        
+
         # Find variables unique to this schema
-        other_vars = set().union(*[set(s["sorted_variables"]) for i, s in enumerate(schema_prefixes) if i != idx]) if len(schema_prefixes) > 1 else set()
+        other_vars = (
+            set().union(
+                *[
+                    set(s["sorted_variables"])
+                    for i, s in enumerate(schema_prefixes)
+                    if i != idx
+                ]
+            )
+            if len(schema_prefixes) > 1
+            else set()
+        )
         unique_vars = schema_vars - other_vars
-        
+
         # Find variables missing from this schema
         missing_vars = all_variables - schema_vars
-        
+
         schema_info["unique_variables"] = sorted(unique_vars)
         schema_info["missing_variables"] = sorted(missing_vars)
-        
+
         variable_analysis.append(schema_info)
-    
+
     results["schema_variance"] = variable_analysis
     results["total_schemas"] = len(variable_analysis)
     results["total_records"] = len(df)
@@ -192,88 +204,91 @@ def analyze_schema_variance(df: pl.DataFrame, group_by: str = None):
 def save_results(results: dict, s3_prefix: str = None):
     """
     Save analysis results to a timestamped output file.
-    
+
     Args:
         results: Analysis results dictionary
         s3_prefix: S3 prefix that was queried (used in filename)
-    
+
     Returns:
         Path to the output file
     """
     # Generate timestamp and filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    prefix_part = s3_prefix.replace("/", "_").replace("%", "wildcard") if s3_prefix else "all"
+    prefix_part = (
+        s3_prefix.replace("/", "_").replace("%", "wildcard") if s3_prefix else "all"
+    )
     output_file = f"netcdf_schema_analysis_{prefix_part}_{timestamp}.txt"
-    
+
     # Write results
     with open(output_file, "w") as f:
         f.write("=" * 80 + "\n")
         f.write("NetCDF Schema Variance Analysis\n")
         f.write("=" * 80 + "\n\n")
-        
+
         f.write(f"Timestamp: {datetime.now().isoformat()}\n")
         f.write(f"Query Prefix: {s3_prefix or 'All data'}\n")
         f.write(f"Total Records: {results['total_records']}\n")
         f.write(f"Total Distinct Schemas: {results['total_schemas']}\n")
         f.write(f"Total Unique Variables: {len(results['all_variables'])}\n\n")
-        
+
         f.write("=" * 80 + "\n")
         f.write("All Variables Found\n")
         f.write("=" * 80 + "\n")
         for var in results["all_variables"]:
             f.write(f"  - {var}\n")
         f.write("\n")
-        
+
         f.write("=" * 80 + "\n")
         f.write("Schema Variance Details\n")
         f.write("=" * 80 + "\n\n")
-        
+
         for idx, schema_info in enumerate(results["schema_variance"], 1):
             f.write(f"Schema #{idx}\n")
-            f.write(f"  Variables ({len(schema_info['sorted_variables'])}): {schema_info['schema_display']}\n")
+            f.write(
+                f"  Variables ({len(schema_info['sorted_variables'])}): {schema_info['schema_display']}\n"
+            )
             f.write(f"  Record Count: {schema_info['count']}\n")
-            
+
             if schema_info["unique_variables"]:
                 f.write("  Variables Unique to This Schema:\n")
                 for var in schema_info["unique_variables"]:
                     f.write(f"    + {var}\n")
-            
+
             if schema_info["missing_variables"]:
                 f.write("  Variables Missing from This Schema:\n")
                 for var in schema_info["missing_variables"]:
                     f.write(f"    - {var}\n")
-            
+
             f.write(f"  Associated Prefixes ({schema_info['num_prefixes']}):\n")
             for prefix in schema_info["prefixes"]:
                 f.write(f"    - {prefix}\n")
             f.write("\n")
-    
+
     return output_file
 
 
 @app.command()
 def analyse(
     s3_prefix: Optional[str] = typer.Argument(
-        None,
-        help="S3 prefix to analyse (e.g., 'IMOS/ANFOG/%', 'IMOS/SOOP/SOOP-CO2%')"
+        None, help="S3 prefix to analyse (e.g., 'IMOS/ANFOG/%', 'IMOS/SOOP/SOOP-CO2%')"
     ),
     output_dir: Optional[Path] = typer.Option(
         None,
         "--output-dir",
         "-o",
-        help="Output directory for results (default: current directory)"
-    )
+        help="Output directory for results (default: current directory)",
+    ),
 ):
     """
     Analyze NetCDF schema variance in S3 Tables.
-    
+
     Examines the structure of NetCDF datasets and identifies schema inconsistencies
     across collections and facilities.
     """
     try:
         console.print("[bold blue]Loading S3 Table...[/bold blue]")
         table = load_table()
-        
+
         console.print("\n[bold]=== Querying Data ===[/bold]")
         df_all = query_with_filter(
             table,
@@ -283,13 +298,17 @@ def analyse(
         console.print(f"Total records: [green]{len(df_all)}[/green]")
         if s3_prefix:
             console.print(f"Prefix: [cyan]{s3_prefix}[/cyan]")
-        
+
         console.print("\n[bold]=== Analyzing Schema Variance ===[/bold]")
         results = analyze_schema_variance(df_all)
-        
-        console.print(f"Total distinct schemas: [yellow]{results['total_schemas']}[/yellow]")
-        console.print(f"Total unique variables: [yellow]{len(results['all_variables'])}[/yellow]")
-        
+
+        console.print(
+            f"Total distinct schemas: [yellow]{results['total_schemas']}[/yellow]"
+        )
+        console.print(
+            f"Total unique variables: [yellow]{len(results['all_variables'])}[/yellow]"
+        )
+
         # Display top 10 schemas in a table
         console.print("[bold]Top 10 schemas by record count:[/bold]")
         table_display = Table(title="Schema Summary")
@@ -297,16 +316,18 @@ def analyse(
         table_display.add_column("Records", justify="right")
         table_display.add_column("Prefixes", justify="right")
         table_display.add_column("Variables", style="cyan")
-        
+
         for idx, schema_info in enumerate(results["schema_variance"][:10], 1):
             table_display.add_row(
                 str(idx),
-                str(schema_info['count']),
-                str(schema_info['num_prefixes']),
-                schema_info['schema'][:60] + "..." if len(schema_info['schema']) > 60 else schema_info['schema']
+                str(schema_info["count"]),
+                str(schema_info["num_prefixes"]),
+                schema_info["schema"][:60] + "..."
+                if len(schema_info["schema"]) > 60
+                else schema_info["schema"],
             )
         console.print(table_display)
-        
+
         console.print("\n[bold]=== Saving Results ===[/bold]")
         # Change to output directory if specified
         if output_dir:
@@ -321,9 +342,9 @@ def analyse(
         else:
             output_file = save_results(results, s3_prefix)
             output_path = Path(output_file)
-        
+
         console.print(f"Results saved to: [green]{output_path.absolute()}[/green]")
-        
+
     except RuntimeError as e:
         console.print(f"[bold red]Error:[/bold red] {e}")
         raise typer.Exit(code=1)
