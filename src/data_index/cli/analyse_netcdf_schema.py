@@ -6,16 +6,18 @@ Analyzes the structure and variance of NetCDF datasets stored in S3 Tables Icebe
 Identifies schema inconsistencies across collections and facilities.
 """
 
-from data_index.iceberg_config import S3TablesCatalogConfig, IcebergTableConfig
-import polars as pl
-import boto3
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+import boto3
+import polars as pl
 import typer
 from rich.console import Console
 from rich.table import Table
+
+from data_index.iceberg_config import IcebergTableConfig, S3TablesCatalogConfig
 
 app = typer.Typer(help="Analyze NetCDF schema variance in S3 Tables")
 console = Console()
@@ -232,12 +234,12 @@ def save_results(results: dict, s3_prefix: str = None):
             f.write(f"  Record Count: {schema_info['count']}\n")
             
             if schema_info["unique_variables"]:
-                f.write(f"  Variables Unique to This Schema:\n")
+                f.write("  Variables Unique to This Schema:\n")
                 for var in schema_info["unique_variables"]:
                     f.write(f"    + {var}\n")
             
             if schema_info["missing_variables"]:
-                f.write(f"  Variables Missing from This Schema:\n")
+                f.write("  Variables Missing from This Schema:\n")
                 for var in schema_info["missing_variables"]:
                     f.write(f"    - {var}\n")
             
@@ -289,7 +291,7 @@ def analyse(
         console.print(f"Total unique variables: [yellow]{len(results['all_variables'])}[/yellow]")
         
         # Display top 10 schemas in a table
-        console.print(f"\n[bold]Top 10 schemas by record count:[/bold]")
+        console.print("[bold]Top 10 schemas by record count:[/bold]")
         table_display = Table(title="Schema Summary")
         table_display.add_column("#", style="dim")
         table_display.add_column("Records", justify="right")
