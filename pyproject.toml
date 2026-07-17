@@ -49,6 +49,7 @@ source = "vcs"
 data-index = "data_index.component_testing:main"
 cluster-local = "data_index.cluster.run_local:main"
 cluster-fargate = "data_index.cluster.run_fargate:main"
+analyse-netcdf-schema = "data_index.cli.analyse_netcdf_schema:app"
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore:Logger 'prefect.*' attempted to send logs"]
@@ -81,4 +82,8 @@ analysis = [
     "jupyterlab>=4",
     "natsort>=8.4.0",
     "rich>=13",
+]
+cli = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
 ]
