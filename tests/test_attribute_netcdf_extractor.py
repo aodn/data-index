@@ -164,13 +164,18 @@ def test_extract_derives_dimensions_variables_and_standard_names(
     }
 
 
-
 @pytest.mark.parametrize(argnames="ds", argvalues=[xarray.Dataset()], indirect=True)
 def test_extract_sets_derived_lists_to_none_when_empty(staged_object, extractor):
     extracted_object = extractor.extract(staged_object=staged_object)
-    assert extracted_object.extraction_result.structured_metadata.dimension_sizes is None
-    assert extracted_object.extraction_result.structured_metadata.variable_schema is None
-    assert extracted_object.extraction_result.structured_metadata.coordinate_schema is None
+    assert (
+        extracted_object.extraction_result.structured_metadata.dimension_sizes is None
+    )
+    assert (
+        extracted_object.extraction_result.structured_metadata.variable_schema is None
+    )
+    assert (
+        extracted_object.extraction_result.structured_metadata.coordinate_schema is None
+    )
     assert extracted_object.extraction_result.structured_metadata.standard_names is None
 
 

@@ -136,8 +136,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             for coordinate in sorted(ds.coords)
         } or None
         dimension_sizes = {
-            dimension: ds.sizes[dimension]
-            for dimension in sorted(ds.sizes)
+            dimension: ds.sizes[dimension] for dimension in sorted(ds.sizes)
         } or None
         standard_names = {
             variable: ds.variables[variable].attrs.get("standard_name")
