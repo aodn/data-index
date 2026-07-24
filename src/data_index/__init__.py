@@ -4,6 +4,6 @@ from .transform import transform
 
 __all__ = [
     "extract",
-    "transform",
     "load",
+    "transform",
 ]

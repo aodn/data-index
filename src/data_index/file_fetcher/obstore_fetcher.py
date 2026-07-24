@@ -33,7 +33,7 @@ class ObstoreFetcher(pydantic.BaseModel):
     _store: obstore.store.S3Store = pydantic.PrivateAttr()
 
     @pydantic.model_validator(mode="after")
-    def _initialize_store(self) -> "ObstoreFetcher":
+    def _initialize_store(self) -> ObstoreFetcher:
         self._store = obstore.store.S3Store(
             bucket=self.bucket, region=self.region, skip_signature=self.skip_signature
         )
@@ -84,8 +84,7 @@ class ObstoreFetcher(pydantic.BaseModel):
         # Stream the path to disk and return the path
         write_path.parent.mkdir(parents=True, exist_ok=True)
         with open(write_path, "wb") as f:
-            for chunk in self.get_stream(object_reference=object_reference):
-                f.write(chunk)
+            f.writelines(self.get_stream(object_reference=object_reference))
         return write_path
 
     def get_stream(

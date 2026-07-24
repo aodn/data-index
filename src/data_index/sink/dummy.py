@@ -11,7 +11,6 @@ class DummySink(pydantic.BaseModel):
 
     def provision(self) -> None:
         """Prepare the target store before any writes (e.g. create directories or tables)."""
-        ...
 
     def write(
         self,
@@ -20,4 +19,3 @@ class DummySink(pydantic.BaseModel):
         | list[data_index.protocols.DeadLetter],
     ) -> None:
         """Persist data"""
-        ...

@@ -41,7 +41,7 @@ def test_core_schemas_contract(dataclass_cls, data_regression):
         "pyarrow": {field.name: str(field.type) for field in arrow_schema},
         "polars": {name: str(dtype) for name, dtype in polars_schema.items()},
         "pyiceberg": {
-            field.name: f"id={field.field_id}, type={str(field.field_type)}, req={field.required}"
+            field.name: f"id={field.field_id}, type={field.field_type!s}, req={field.required}"
             for field in iceberg_schema.fields
         },
     }
