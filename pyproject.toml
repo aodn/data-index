@@ -63,6 +63,8 @@ ignore = [
     "E722",   # Ignore bare `except:` errors
     "BLE001", # Ignore blind `except Exception:` errors (if needed)
 ]
+[tool.ruff.lint.per-file-ignores]
+"src/data_index/cli/*.py" = ["B008"]
 
 [tool.prefect]
 home = ".prefect"

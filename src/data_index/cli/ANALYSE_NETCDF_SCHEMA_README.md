@@ -111,9 +111,7 @@ table = load_table()
 
 # Query with S3 prefix filter
 df = query_with_filter(
-    table,
-    s3_prefix="IMOS/ANFOG/%",
-    selected_fields=("key", "variables")
+    table, s3_prefix="IMOS/ANFOG/%", selected_fields=("key", "variables")
 )
 
 # Analyze variance
@@ -176,12 +174,12 @@ Saves analysis results to a timestamped output file.
 
 1. **Use field pruning** - Select only the fields you need:
    ```python
-   selected_fields=("key", "variables")
+   selected_fields = ("key", "variables")
    ```
 
 2. **Apply row filters** - Filter at scan time to reduce data transfer:
    ```python
-   row_filter="key like 'IMOS/ANFOG/%'"
+   row_filter = "key like 'IMOS/ANFOG/%'"
    ```
 
 3. **Use Polars** - The script returns Polars DataFrames for efficient in-memory operations
@@ -269,9 +267,7 @@ High variance (many unique schemas) indicates inconsistent data collection or pr
 
 ```python
 df = query_with_filter(
-    table,
-    s3_prefix="IMOS/ANFOG/%",
-    selected_fields=("key", "facility", "variables")
+    table, s3_prefix="IMOS/ANFOG/%", selected_fields=("key", "facility", "variables")
 )
 print(df["variables"].value_counts(sort=True).head(10))
 ```

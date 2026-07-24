@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 NetCDF Schema Variance Analysis CLI Tool
 
@@ -9,7 +8,6 @@ Identifies schema inconsistencies across collections and facilities.
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import boto3
 import polars as pl
@@ -61,9 +59,9 @@ def load_table(
 
 def query_with_filter(
     table,
-    s3_prefix: str = None,
-    row_filter: str = None,
-    selected_fields: tuple = None,
+    s3_prefix: str | None = None,
+    row_filter: str | None = None,
+    selected_fields: tuple | None = None,
 ):
     """
     Query table with optional S3 prefix filter and column pruning.
@@ -93,7 +91,7 @@ def query_with_filter(
     return scan.to_polars()
 
 
-def analyze_schema_variance(df: pl.DataFrame, group_by: str = None):
+def analyze_schema_variance(df: pl.DataFrame, group_by: str | None = None):
     """
     Analyze schema variance by examining variables column.
     Schemas with the same variables (in any order) are considered equivalent.
@@ -201,7 +199,7 @@ def analyze_schema_variance(df: pl.DataFrame, group_by: str = None):
     return results
 
 
-def save_results(results: dict, s3_prefix: str = None):
+def save_results(results: dict, s3_prefix: str | None = None):
     """
     Save analysis results to a timestamped output file.
 
@@ -213,7 +211,7 @@ def save_results(results: dict, s3_prefix: str = None):
         Path to the output file
     """
     # Generate timestamp and filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
     prefix_part = (
         s3_prefix.replace("/", "_").replace("%", "wildcard") if s3_prefix else "all"
     )
@@ -225,7 +223,7 @@ def save_results(results: dict, s3_prefix: str = None):
         f.write("NetCDF Schema Variance Analysis\n")
         f.write("=" * 80 + "\n\n")
 
-        f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+        f.write(f"Timestamp: {datetime.now(tz=datetime.UTC).isoformat()}\n")
         f.write(f"Query Prefix: {s3_prefix or 'All data'}\n")
         f.write(f"Total Records: {results['total_records']}\n")
         f.write(f"Total Distinct Schemas: {results['total_schemas']}\n")
@@ -234,8 +232,7 @@ def save_results(results: dict, s3_prefix: str = None):
         f.write("=" * 80 + "\n")
         f.write("All Variables Found\n")
         f.write("=" * 80 + "\n")
-        for var in results["all_variables"]:
-            f.write(f"  - {var}\n")
+        f.writelines(f"  - {var}\n" for var in results["all_variables"])
         f.write("\n")
 
         f.write("=" * 80 + "\n")
@@ -251,17 +248,18 @@ def save_results(results: dict, s3_prefix: str = None):
 
             if schema_info["unique_variables"]:
                 f.write("  Variables Unique to This Schema:\n")
-                for var in schema_info["unique_variables"]:
-                    f.write(f"    + {var}\n")
+                f.writelines(
+                    f"    + {var}\n" for var in schema_info["unique_variables"]
+                )
 
             if schema_info["missing_variables"]:
                 f.write("  Variables Missing from This Schema:\n")
-                for var in schema_info["missing_variables"]:
-                    f.write(f"    - {var}\n")
+                f.writelines(
+                    f"    - {var}\n" for var in schema_info["missing_variables"]
+                )
 
             f.write(f"  Associated Prefixes ({schema_info['num_prefixes']}):\n")
-            for prefix in schema_info["prefixes"]:
-                f.write(f"    - {prefix}\n")
+            f.writelines(f"    - {prefix}\n" for prefix in schema_info["prefixes"])
             f.write("\n")
 
     return output_file
@@ -269,10 +267,10 @@ def save_results(results: dict, s3_prefix: str = None):
 
 @app.command()
 def analyse(
-    s3_prefix: Optional[str] = typer.Argument(
+    s3_prefix: str | None = typer.Argument(
         None, help="S3 prefix to analyse (e.g., 'IMOS/ANFOG/%', 'IMOS/SOOP/SOOP-CO2%')"
     ),
-    output_dir: Optional[Path] = typer.Option(
+    output_dir: Path | None = typer.Option(
         None,
         "--output-dir",
         "-o",
