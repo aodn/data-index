@@ -130,20 +130,20 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         variable_schema = {
             variable: str(ds.variables[variable].dtype)
             for variable in sorted(ds.data_vars)
-        }
+        } or None
         coordinate_schema = {
             coordinate: str(ds.coords[coordinate].dtype)
             for coordinate in sorted(ds.coords)
-        }
+        } or None
         dimension_sizes = {
-            dimension: str(ds.sizes[dimension])
+            dimension: ds.sizes[dimension]
             for dimension in sorted(ds.sizes)
-        }
+        } or None
         standard_names = {
             variable: ds.variables[variable].attrs.get("standard_name")
             for variable in sorted(ds.variables)
             if ds.variables[variable].attrs.get("standard_name")
-        }
+        } or None
         metadata["variable_schema"] = variable_schema
         metadata["coordinate_schema"] = coordinate_schema
         metadata["dimension_sizes"] = dimension_sizes

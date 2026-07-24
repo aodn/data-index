@@ -144,28 +144,33 @@ def test_extract_derives_dimensions_variables_and_standard_names(
     staged_object, extractor
 ):
     extracted_object = extractor.extract(staged_object=staged_object)
-    assert extracted_object.extraction_result.structured_metadata.dimensions == {
+    assert extracted_object.extraction_result.structured_metadata.variable_schema == {
+        "salinity": "float64",
+        "temp": "float64",
+    }
+    assert extracted_object.extraction_result.structured_metadata.coordinate_schema == {
+        "lat": "float64",
+        "time": "int64",
+    }
+    assert extracted_object.extraction_result.structured_metadata.dimension_sizes == {
         "lat": 2,
         "time": 1,
     }
+    assert extracted_object.extraction_result.structured_metadata.standard_names == {
+        "lat": "latitude",
+        "salinity": "sea_water_salinity",
+        "temp": "sea_water_temperature",
+        "time": "time",
+    }
 
-    assert extracted_object.extraction_result.structured_metadata.variables == [
-        "salinity",
-        "temp",
-    ]
-    assert extracted_object.extraction_result.structured_metadata.standard_names == [
-        "latitude",
-        "sea_water_salinity",
-        "sea_water_temperature",
-        "time",
-    ]
 
 
 @pytest.mark.parametrize(argnames="ds", argvalues=[xarray.Dataset()], indirect=True)
 def test_extract_sets_derived_lists_to_none_when_empty(staged_object, extractor):
     extracted_object = extractor.extract(staged_object=staged_object)
-    assert extracted_object.extraction_result.structured_metadata.dimensions is None
-    assert extracted_object.extraction_result.structured_metadata.variables is None
+    assert extracted_object.extraction_result.structured_metadata.dimension_sizes is None
+    assert extracted_object.extraction_result.structured_metadata.variable_schema is None
+    assert extracted_object.extraction_result.structured_metadata.coordinate_schema is None
     assert extracted_object.extraction_result.structured_metadata.standard_names is None
 
 
