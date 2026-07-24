@@ -19,6 +19,7 @@ def _patch_prefect_runtime():
     ):
         yield
 
+
 TEST_DF = polars.DataFrame(
     data=[
         {

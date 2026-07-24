@@ -92,7 +92,9 @@ def classify_coord(coord: xr.DataArray) -> str:
             return "other"
 
 
-def nc_to_item(nc_file_path: str, collection: str, item_id: str | None = None) -> pystac.Item:
+def nc_to_item(
+    nc_file_path: str, collection: str, item_id: str | None = None
+) -> pystac.Item:
     """
     Converts a NetCDF file to a STAC Item.
     Parameters:

@@ -1,4 +1,3 @@
-
 from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import (
     ConcurrentObstoreFetcher,
