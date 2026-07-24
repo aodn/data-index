@@ -1,3 +1,5 @@
+import typing
+
 from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import (
     ConcurrentObstoreFetcher,
@@ -17,10 +19,12 @@ from data_index.sink import (
 )
 
 # --- Type Routing ---
-type InventorySourceType = type[
+InventorySource: typing.TypeAlias = (
     DeltaIcebergTableInventorySource | IcebergTableInventorySource
-]
-type BatchPartitionerType = type[GreedyBatchPartitioner]
-type FileFetcherType = type[FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher]
-type MetadataExtractorType = type[AttributeNetCDFExtractor]
-type MetadataSinkType = type[IcebergTableSink | DummySink]
+)
+BatchPartitioner: typing.TypeAlias = GreedyBatchPartitioner
+FileFetcher: typing.TypeAlias = (
+    FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher
+)
+MetadataExtractor: typing.TypeAlias = AttributeNetCDFExtractor
+MetadataSink: typing.TypeAlias = IcebergTableSink | DummySink
