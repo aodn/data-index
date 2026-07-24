@@ -19,27 +19,25 @@ def _patch_prefect_runtime():
     ):
         yield
 
-
-def _df() -> polars.DataFrame:
-    return polars.DataFrame(
-        data=[
-            {
-                "bucket": "bucket-a",
-                "key": "path/a.nc",
-                "version_id": "v1",
-                "size": 10,
-            },
-            {
-                "bucket": "bucket-b",
-                "key": "path/b.nc",
-                "version_id": "v2",
-                "size": 20,
-            },
-        ]
-    )
+TEST_DF = polars.DataFrame(
+    data=[
+        {
+            "bucket": "bucket-a",
+            "key": "path/a.nc",
+            "version_id": "v1",
+            "size": 10,
+        },
+        {
+            "bucket": "bucket-b",
+            "key": "path/b.nc",
+            "version_id": "v2",
+            "size": 20,
+        },
+    ]
+)
 
 
-def _object_references(df: polars.DataFrame = _df()) -> list[ObjectReference]:
+def _object_references(df: polars.DataFrame = TEST_DF) -> list[ObjectReference]:
     return [
         ObjectReference(
             bucket=bucket,

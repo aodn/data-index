@@ -92,7 +92,7 @@ def classify_coord(coord: xr.DataArray) -> str:
             return "other"
 
 
-def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pystac.Item:
+def nc_to_item(nc_file_path: str, collection: str, item_id: str | None = None) -> pystac.Item:
     """
     Converts a NetCDF file to a STAC Item.
     Parameters:
@@ -185,11 +185,14 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         # TODO: work out 3D geometries
 
         if bbox[0] == bbox[2] and bbox[1] == bbox[3]:
-            geometry = dict(type="Point", coordinates=[bbox[0], bbox[1]])
+            geometry = {
+                "type": "Point",
+                "coordinates": [bbox[0], bbox[1]],
+            }
         else:
-            geometry = dict(
-                type="Polygon",
-                coordinates=[
+            geometry = {
+                "type": "Polygon",
+                "coordinates": [
                     [
                         [bbox[0], bbox[1]],
                         [bbox[2], bbox[1]],
@@ -198,7 +201,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
                         [bbox[0], bbox[1]],
                     ]
                 ],
-            )
+            }
 
         start_datetime = ds[time].min(skipna=True)
         if hasattr(start_datetime, "dt"):
@@ -241,7 +244,7 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         #   https://github.com/radiantearth/stac-spec/blob/v1.0.0/item-spec/common-metadata.md#instrument
         # - any other metadata that is not already covered by the STAC spec
 
-        assets = dict()  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
+        assets = {}  # Dictionary of Asset objects, keys have no predefined meaning according to STAC
         assets["data"] = pystac.Asset(
             href=f"s3://{nc_file_path}",  # We could use a different URI if we process the file locally
             media_type="application/netcdf",
@@ -266,10 +269,10 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
         # DataCube extension for netcdf/zarr attributes and variables
         item.ext.add("cube")
 
-        dimensions = dict()
+        dimensions = {}
 
         for dim in ds.dims:
-            dim_info = dict()
+            dim_info = {}
             if dim == time:
                 dim_info["type"] = "temporal"
             elif dim == lon:
@@ -314,11 +317,11 @@ def nc_to_item(nc_file_path: str, collection: str, item_id: str = None) -> pysta
 
             dimensions[dim] = Dimension(json_type_conversion(dim_info))
 
-        variables = dict()
+        variables = {}
 
         all_vars = list(ds.data_vars) + [c for c in ds.coords if c not in ds.dims]
         for var in all_vars:
-            var_info = dict()
+            var_info = {}
             var_info["dimensions"] = list(ds[var].dims)
             if var in ds.coords:
                 var_info["type"] = "auxiliary"

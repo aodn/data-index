@@ -95,7 +95,7 @@ class ObstoreFetcher(pydantic.BaseModel):
         Convert an ObjectReference into a stream generator.
         """
 
-        options: GetOptions = dict()
+        options: GetOptions = {}
 
         # If version id
         if object_reference.version_id:
