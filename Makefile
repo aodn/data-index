@@ -11,6 +11,8 @@ test:
 
 # Initialise pre-commit
 init:
+	@echo "Installing .venv..."
+	uv sync --group dev
 	@echo "Installing pre-commit..."
 	uv pip install pre-commit
 	@echo "Configuring git hook stages..."
