@@ -126,9 +126,28 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 metadata[attribute] = None
                 errors[attribute] = e
 
-        metadata["dimensions"] = cls._sorted_or_none(ds.sizes)
-        metadata["variables"] = cls._sorted_or_none(ds.data_vars)
-        metadata["standard_names"] = cls._extract_standard_names(ds)
+        # Extract netCDF Shape Metadata
+        variable_schema = {
+            variable: str(ds.variables[variable].dtype)
+            for variable in sorted(ds.data_vars)
+        }
+        coordinate_schema = {
+            coordinate: str(ds.coords[coordinate].dtype)
+            for coordinate in sorted(ds.coords)
+        }
+        dimension_sizes = {
+            dimension: str(ds.sizes[dimension])
+            for dimension in sorted(ds.sizes)
+        }
+        standard_names = {
+            variable: ds.variables[variable].attrs.get("standard_name")
+            for variable in sorted(ds.variables)
+            if ds.variables[variable].attrs.get("standard_name")
+        }
+        metadata["variable_schema"] = variable_schema
+        metadata["coordinate_schema"] = coordinate_schema
+        metadata["dimension_sizes"] = dimension_sizes
+        metadata["standard_names"] = standard_names
 
         return data_index.schema.metadata.StructuredMetadata(**metadata)
 
@@ -203,40 +222,3 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 ):
                     return key
         return None
-
-    @staticmethod
-    def _sorted_or_none(
-        values: list[str] | dict[str, int] | None,
-    ) -> list[str] | dict[str, int] | None:
-        """Return sorted unique string values, or ``None`` when empty.
-
-        :param values: Iterable-like values or None to normalize.
-        :returns: Sorted unique strings or ``None``.
-        """
-        match values:
-            case None:
-                return None
-
-            # Check for standard dict, abstract Mapping, OR xarray's Frozen type
-            case dict() | FrozenDict():
-                # Rebuild as a standard sorted dict
-                return {k: values[k] for k in sorted(values.keys(), key=str)} or None
-
-            case _:
-                # Handles list[str] and other general iterables
-                return sorted({str(value) for value in values}) or None
-
-    @classmethod
-    def _extract_standard_names(cls, ds: xarray.Dataset) -> list[str] | None:
-        """Collect unique ``standard_name`` values from vars and coords.
-
-        :param ds: Open xarray dataset.
-        :returns: Sorted unique standard names or ``None``.
-        """
-
-        standard_names = set()
-        for variable in list(ds.data_vars.values()) + list(ds.coords.values()):
-            value = variable.attrs.get("standard_name")
-            if isinstance(value, str) and value.strip():
-                standard_names.add(value)
-        return cls._sorted_or_none(standard_names)
