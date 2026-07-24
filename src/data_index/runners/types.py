@@ -17,8 +17,10 @@ from data_index.sink import (
 )
 
 # --- Type Routing ---
-InventorySource: type[DeltaIcebergTableInventorySource | IcebergTableInventorySource]
-BatchPartitioner: type[GreedyBatchPartitioner]
-FileFetcher: type[FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher]
-MetadataExtractor: type[AttributeNetCDFExtractor]
-MetadataSink: type[IcebergTableSink | DummySink]
+type InventorySourceType = type[
+    DeltaIcebergTableInventorySource | IcebergTableInventorySource
+]
+type BatchPartitionerType = type[GreedyBatchPartitioner]
+type FileFetcherType = type[FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher]
+type MetadataExtractorType = type[AttributeNetCDFExtractor]
+type MetadataSinkType = type[IcebergTableSink | DummySink]
