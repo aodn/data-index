@@ -18,7 +18,11 @@ init:
 	@echo "Configuring git hook stages..."
 	uv run pre-commit install --hook-type pre-commit
 	uv run pre-commit install --hook-type pre-push
-	@echo "✓ Setup complete! Hooks will run on commit and push."
+	@echo "✓ Pre-commit setup complete! Hooks will run on commit and push."
+	@echo "Creating local prefect work pool..."
+	uv run prefect work-pool create --type process local --overwrite
+	@echo "✓ Local prefect work pool created!"
+	$(MAKE) deploy
 
 # Build the package and test on the docker image
 test-image:
