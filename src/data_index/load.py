@@ -53,7 +53,7 @@ def load(
     # Return empty list if no object_references passed in
     if not extracted_objects:
         logger.warning("load called with no extraction results!")
-        return list()
+        return []
 
     # Sink structured metadata
     state = sink(
@@ -91,4 +91,4 @@ def load(
         ]
 
     # Return empty list if no dead letters
-    return list()
+    return []

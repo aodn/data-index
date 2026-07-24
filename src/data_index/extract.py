@@ -32,7 +32,7 @@ def extract(
     # Return empty list if no object_references passed in
     if not object_references:
         logger.warning("extract called with no object references!")
-        return (list(), list())
+        return ([], [])
 
     # Count occurrences using the built-in versioned URI generator
     uri_counts = collections.Counter(

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def csv_to_item(
-    csv_file_path: str, collection: str, item_id: str = None
+    csv_file_path: str, collection: str, item_id: str | None = None
 ) -> pystac.Item:
     """
     Converts a CSV file to a STAC item.
@@ -110,7 +110,7 @@ def csv_to_item(
     columns = []
 
     for column in df.columns:
-        columns.append(Column(dict(name=column, col_type=str(df[column].dtype))))
+        columns.append(Column({"name": column, "col_type": str(df[column].dtype)}))
         # We could add min/max values for each column here
 
     item.ext.table.columns = columns

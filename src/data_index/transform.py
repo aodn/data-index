@@ -142,7 +142,7 @@ def transform(
     # Return empty list if no object_references passed in
     if not staged_objects:
         logger.warning("transform called with no staged objects!")
-        return (list(), list())
+        return ([], [])
 
     logger.info(f"Extracting {len(staged_objects)} staged_objects...")
 

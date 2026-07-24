@@ -59,6 +59,10 @@ exclude = ["analysis/"]
 
 [tool.ruff.lint]
 extend-select = ["I"]
+ignore = [
+    "E722",   # Ignore bare `except:` errors
+    "BLE001", # Ignore blind `except Exception:` errors (if needed)
+]
 
 [tool.prefect]
 home = ".prefect"

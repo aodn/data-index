@@ -7,7 +7,7 @@ from .iceberg_table import (
 )
 
 __all__ = [
-    "IcebergTableInventorySource",
-    "IcebergTableFacilitySubsetInventorySource",
     "DeltaIcebergTableInventorySource",
+    "IcebergTableFacilitySubsetInventorySource",
+    "IcebergTableInventorySource",
 ]

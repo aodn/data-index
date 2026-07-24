@@ -47,11 +47,11 @@ Peak thread count is now `MAX_WORKERS × TRANSFORM_WORKERS` — explicit and tun
 ## Current Config (`run_local.py`)
 
 ```python
-LIMIT = 16_000          # total files to process
-BATCH_SIZE = 1_000      # files per batch
-MAX_WORKERS = 8         # concurrent batches (ThreadPoolTaskRunner)
-S5CMD_WORKERS = 8       # s5cmd --numworkers per batch
-TRANSFORM_WORKERS = 4   # transform ThreadPoolExecutor threads per batch
+LIMIT = 16_000  # total files to process
+BATCH_SIZE = 1_000  # files per batch
+MAX_WORKERS = 8  # concurrent batches (ThreadPoolTaskRunner)
+S5CMD_WORKERS = 8  # s5cmd --numworkers per batch
+TRANSFORM_WORKERS = 4  # transform ThreadPoolExecutor threads per batch
 # Peak threads: MAX_WORKERS × TRANSFORM_WORKERS = 32
 # Peak s5cmd workers: MAX_WORKERS × S5CMD_WORKERS = 64
 ```

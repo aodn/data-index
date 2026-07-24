@@ -1,4 +1,5 @@
 import datetime
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import freezegun
@@ -113,7 +114,7 @@ class MockDatetime:
         return self
 
     def now(self, tz=None):
-        return datetime.datetime(2026, 7, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+        return datetime.datetime(2026, 7, 1, 12, 0, 0, tzinfo=UTC)
 
     @property
     def timezone(self):

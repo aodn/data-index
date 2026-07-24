@@ -27,7 +27,7 @@ class LookbackConfig(pydantic.BaseModel):
         """
         return (
             (
-                datetime.datetime.now(tz=datetime.timezone.utc)
+                datetime.datetime.now(tz=datetime.UTC)
                 - datetime.timedelta(days=self.days, hours=self.hours)
             )
             .replace(minute=0, second=0, microsecond=0)
@@ -75,7 +75,7 @@ class DeltaIcebergTableInventorySource(pydantic.BaseModel):
         # Get the sinks deltas
         source_df = self.source.inventory()
 
-        sink_dfs = list()
+        sink_dfs = []
         for sink in self.sinks:
             sink_df = sink.inventory()
             sink_df = sink_df.select(self.right_on)
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # Instead of a lambda, a named function makes your code much easier to read and debug:
     def get_lookback_timestamp(time_delta: datetime.timedelta) -> str:
         return datetime.datetime.combine(
-            date=datetime.date.today() - time_delta,
+            date=datetime.datetime.now(tz=datetime.UTC).date() - time_delta,
             time=datetime.time.min,
         ).isoformat()
 
