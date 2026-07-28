@@ -7,7 +7,7 @@ import data_index
 import data_index.protocols
 import data_index.runners.defaults
 import data_index.runners.helpers
-from data_index.runners.types import (
+from data_index.runners._types import (
     FileFetcher,
     MetadataExtractor,
     MetadataSink,
