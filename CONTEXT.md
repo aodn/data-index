@@ -13,7 +13,7 @@ A single item within a **Batch** — (`bucket`, `key`, `version_id`) paired with
 _Avoid_: row, record, file
 
 **Object Version Identity**:
-The canonical identity of an S3 object version: (`bucket`, `key`, `version_id`), where all three fields are required and non-null.
+The canonical identity tuple for a source object: (`bucket`, `key`, `version_id`), where all three fields are required and non-null. For S3 sources, `version_id` is the real S3 object version. For local filesystem sources, `bucket` is a stable logical source label, `version_id` is the sentinel `__LOCAL__`, and `key` is a resolved absolute source file path.
 _Avoid_: object key, uri-only identity, `s3_uri`-only identity
 
 **Object Reference**:
@@ -64,7 +64,7 @@ The Prefect flow that reads an **InventorySource**, partitions it into **Batches
 _Avoid_: coordinator, driver, master, controller
 
 **InventorySource**:
-A pluggable component that provides the full corpus inventory as a DataFrame with required columns `bucket`, `key`, `version_id`, and `size` (extra columns allowed). Two implementations: `ParquetInventorySource` (reads a pre-materialized local or S3 Parquet file — used for re-running from a cached snapshot) and `LiveS3InventorySource` (runs the s3_metadata ETL — `extract()` → `transform()` → `load()` — to materialise the live S3 inventory table to disk, then reads it back; accepts `S3TablesConfig`, `TableScanConfig`, `path`, and `skip_if_exists: bool = True`).
+A pluggable component that provides the full corpus inventory as a DataFrame with required columns `bucket`, `key`, `version_id`, and `size` (extra columns allowed). For local filesystem sources, inventory discovery is path-based and uses a configured `root_path` plus a glob pattern relative to that root, with an optional deterministic `max_files` cap applied after sorting by `key`.
 _Avoid_: file list, manifest, catalogue
 
 **BatchPartitioner**:
@@ -109,7 +109,22 @@ _Avoid_: writer, exporter
 - Pipeline stages fail fast if any identity field (`bucket`, `key`, `version_id`) is null/empty
 - Structured and Unstructured sink contracts stay consistent on identity model and upsert key semantics
 - Missing/invalid facility derivations are coerced to sentinel `UNKNOWN` (not null)
-- File fetch/read operations are pinned to `version_id`; extraction must read the exact requested object version
+- File fetch/read operations are pinned to `version_id`; extraction must read the exact requested source identity (`S3 version_id` for S3, `__LOCAL__` sentinel for local files)
+- Local filesystem fetchers must reject non-`__LOCAL__` version IDs as invalid identity for local-path fetching
+- Local filesystem inventory sources must emit `version_id = __LOCAL__` and a configured logical source `bucket`
+- Local filesystem inventory sources expose `local_version_id` config with default `__LOCAL__`
+- Local filesystem inventory sources must emit resolved absolute filesystem paths in `key`
+- Local filesystem inventory sources must stat each discovered file and emit byte `size`
+- Local filesystem inventory sources must return deterministic order (sorted by `key`)
+- Local filesystem inventory sources may apply an optional deterministic `max_files` cap after sorting by `key`
+- Local filesystem inventory sources must deduplicate canonical (`bucket`, `key`, `version_id`) identities before returning
+- Local filesystem inventory sources must fail fast on invalid `root_path` configuration (missing/non-directory)
+- Local filesystem inventory sources must fail fast if discovered paths become unreadable during scan/stat
+- Local filesystem inventory sources must reject symlink-resolved paths that escape `root_path`
+- Local filesystem inventory sources include only regular files; non-file glob matches are skipped
+- Local filesystem fetchers require `key` to be an absolute file path
+- Local filesystem fetchers must enforce that `bucket` matches the configured logical local source label
+- File fetchers support partial success: valid entries return staged objects while invalid entries return per-entry dead letters
 - Legacy inventory sources are out-of-scope for this contract shift; only active orchestrated sources must satisfy the new identity contract
 - `ExtractionResult` is the single carrier of identity and unstructured payload between transform and load
 - Logs/artifacts/manifests emit identity as explicit `bucket`, `key`, `version_id` fields
@@ -157,8 +172,13 @@ _Avoid_: build pipeline, validation pipeline
 - "file format" was initially derived from xarray private internals (`_file_obj._ds.file_format`) — resolved: always read from magic bytes via `XarrayHandle.file_format`.
 - "`s3_uri` was used as a complete identity" — resolved: canonical identity is **Object Version Identity** (`bucket`, `key`, `version_id`).
 - "`version_id` could be null" — resolved: identity fields are required and non-null; data/contracts must enforce this.
+- "Could local files omit `version_id`?" — resolved: local filesystem inputs use `version_id = __LOCAL__` (non-null sentinel).
+- "Should local fetchers accept arbitrary `version_id` values?" — resolved: no; local fetchers require `version_id = __LOCAL__`.
+- "Should local fetchers ignore `bucket`?" — resolved: no; local fetchers enforce a configured logical local source label.
 - "`s3_uri` was treated as a required pipeline identifier" — resolved: remove `s3_uri` from pipeline contracts and use **Object Version Identity** only.
 - "S3 identity field names were ambiguous (`s3_*` vs unprefixed)" — resolved: use `bucket`, `key`, `version_id` consistently across pipeline contracts.
+- "Should local inventory filtering use grep or glob?" — resolved: use glob-based path discovery (`root_path` + pattern), not grep.
+- "Should local inventory subset always include all matches?" — resolved: default is all matches; optional deterministic `max_files` cap is allowed.
 - "How to hand off identity between stages (composite fields vs value object)" — resolved: use a lightweight named-tuple **Object Reference**.
 - "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
 - "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.
