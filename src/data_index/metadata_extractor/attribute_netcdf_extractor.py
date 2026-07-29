@@ -57,6 +57,13 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         match = re.search(r"\b(\d{4})\b", value)
         return int(match.group(1)) if match else None
 
+    @staticmethod
+    def _schema_dtype(variable: xarray.Variable) -> str:
+        encoding_dtype = variable.encoding.get("dtype")
+        if encoding_dtype not in (None, "unknown"):
+            return str(encoding_dtype)
+        return str(variable.dtype)
+
     @classmethod
     def _extract_structured(
         cls,
@@ -128,13 +135,11 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
 
         # Extract netCDF Shape Metadata
         variable_schema = {
-            variable: ds.variables[variable].encoding.get("dtype", "unknown").__str__()
+            variable: cls._schema_dtype(ds.variables[variable])
             for variable in sorted(ds.data_vars)
         } or None
         coordinate_schema = {
-            coordinate: ds.variables[coordinate]
-            .encoding.get("dtype", "unknown")
-            .__str__()
+            coordinate: cls._schema_dtype(ds.variables[coordinate])
             for coordinate in sorted(ds.coords)
         } or None
         dimension_sizes = {
