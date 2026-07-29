@@ -90,11 +90,11 @@ A pluggable component that, given an **XarrayHandle**, extracts both Structured 
 _Avoid_: parser, reader
 
 **StructuredSink**:
-A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by `facility` then year (from `time_coverage_start`; null timestamps go to the null partition bucket); upserts on (`bucket`, `key`, `version_id`) and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
+A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The canonical implementation (`IcebergTableSink`) writes to an Iceberg table via PyIceberg with hash-key upserts and retry-on-conflict behavior. Environment is chosen by catalog config: S3 Tables REST catalog in production, SQLite catalog + local warehouse for local runs.
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) partitioned by `facility`, with rows upserted by hash join key (latest write wins).
+A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The canonical implementation (`IcebergTableSink`) writes to Iceberg with hash-key upserts (latest write wins), with backend selected by catalog config (S3 Tables in production, SQLite + local warehouse for local runs).
 _Avoid_: writer, exporter
 
 ## Constraints
@@ -179,6 +179,7 @@ _Avoid_: build pipeline, validation pipeline
 - "S3 identity field names were ambiguous (`s3_*` vs unprefixed)" — resolved: use `bucket`, `key`, `version_id` consistently across pipeline contracts.
 - "Should local inventory filtering use grep or glob?" — resolved: use glob-based path discovery (`root_path` + pattern), not grep.
 - "Should local inventory subset always include all matches?" — resolved: default is all matches; optional deterministic `max_files` cap is allowed.
+- "Do we need a separate local sink class?" — resolved: no; use `IcebergTableSink` with `SqliteCatalogConfig`.
 - "How to hand off identity between stages (composite fields vs value object)" — resolved: use a lightweight named-tuple **Object Reference**.
 - "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
 - "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.

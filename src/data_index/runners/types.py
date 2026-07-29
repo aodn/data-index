@@ -1,3 +1,7 @@
+import typing
+
+import pydantic
+
 from data_index.batch_partitioner import GreedyBatchPartitioner
 from data_index.file_fetcher import (
     ConcurrentObstoreFetcher,
@@ -30,3 +34,21 @@ type FileFetcherType = type[
 ]
 type MetadataExtractorType = type[AttributeNetCDFExtractor]
 type MetadataSinkType = type[IcebergTableSink | DummySink]
+
+# Runtime instance aliases used by Prefect flow parameter validation.
+type InventorySource = typing.Annotated[
+    DeltaIcebergTableInventorySource
+    | IcebergTableInventorySource
+    | LocalGlobInventorySource,
+    pydantic.Field(discriminator="type"),
+]
+type BatchPartitioner = GreedyBatchPartitioner
+type FileFetcher = typing.Annotated[
+    FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher | LocalFetcher,
+    pydantic.Field(discriminator="type"),
+]
+type MetadataExtractor = AttributeNetCDFExtractor
+type MetadataSink = typing.Annotated[
+    IcebergTableSink | DummySink,
+    pydantic.Field(discriminator="type"),
+]
