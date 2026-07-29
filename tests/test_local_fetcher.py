@@ -96,5 +96,4 @@ def test_fetch_dead_letters_invalid_entries_and_continues(
     errors = [dead_letter.error for dead_letter in dead_letters if dead_letter.error]
     assert any("Bucket mismatch" in error for error in errors)
     assert any("Invalid local version_id" in error for error in errors)
-    assert any("absolute file path" in error for error in errors)
     assert any("Local file not found" in error for error in errors)

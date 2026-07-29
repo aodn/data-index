@@ -31,11 +31,6 @@ class LocalFetcher(pydantic.BaseModel):
 
             path = pathlib.Path(object_reference.key)
 
-            if not path.is_absolute():
-                raise ValueError(
-                    f"Local key must be an absolute file path: '{object_reference.key}'"
-                )
-
             if not path.exists():
                 raise FileNotFoundError(f"Local file not found: '{path}'")
 
