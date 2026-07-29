@@ -29,3 +29,10 @@ deployments:
     work_pool: 
       name: local
     schedules: null
+
+  # Local Index
+  - name: local_index
+    entrypoint: src/data_index/runners/index_local.py:index
+    work_pool: 
+      name: local
+    schedules: null

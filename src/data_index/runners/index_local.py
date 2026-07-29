@@ -90,7 +90,7 @@ DEAD_LETTER_TABLE_SINK = IcebergTableSink(
 
 
 @prefect.flow
-def index_local(
+def index(
     inventory_source: InventorySource = INVENTORY_SOURCE,
     partitioner: BatchPartitioner = BATCH_PARTITIONER,
     fetcher: FileFetcher = FILE_FETCHER,
@@ -119,10 +119,4 @@ def index_local(
         index_batch_deployment_name=index_batch_deployment_name,
         task_runner_config=task_runner_config,
         batch_max_workers=batch_max_workers,
-    )
-
-
-if __name__ == "__main__":
-    index_local.serve(
-        name="index-local",
     )
