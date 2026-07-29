@@ -13,7 +13,7 @@ A single item within a **Batch** — (`bucket`, `key`, `version_id`) paired with
 _Avoid_: row, record, file
 
 **Object Version Identity**:
-The canonical identity tuple for a source object: (`bucket`, `key`, `version_id`), where all three fields are required and non-null. For S3 sources, `version_id` is the real S3 object version. For local filesystem sources, `bucket` is a stable logical source label, `version_id` is the sentinel `__LOCAL__`, and `key` is a resolved absolute source file path.
+The canonical identity tuple for a source object: (`bucket`, `key`, `version_id`), where all three fields are required and non-null. For S3 sources, `version_id` is the real S3 object version. For local filesystem sources, `version_id` is the sentinel `__LOCAL__`; `bucket` is the absolute source path prefix up to and including the configured bucket anchor segment; and `key` is the path suffix after that anchor.
 _Avoid_: object key, uri-only identity, `s3_uri`-only identity
 
 **Object Reference**:
@@ -111,9 +111,11 @@ _Avoid_: writer, exporter
 - Missing/invalid facility derivations are coerced to sentinel `UNKNOWN` (not null)
 - File fetch/read operations are pinned to `version_id`; extraction must read the exact requested source identity (`S3 version_id` for S3, `__LOCAL__` sentinel for local files)
 - Local filesystem fetchers must reject non-`__LOCAL__` version IDs as invalid identity for local-path fetching
-- Local filesystem inventory sources must emit `version_id = __LOCAL__` and a configured logical source `bucket`
+- Local filesystem inventory sources must emit `version_id = __LOCAL__`
 - Local filesystem inventory sources expose `local_version_id` config with default `__LOCAL__`
-- Local filesystem inventory sources must emit resolved absolute filesystem paths in `key`
+- Local filesystem inventory sources must emit `bucket` as the absolute path prefix up to the configured bucket anchor segment (first occurrence in the resolved path)
+- Local filesystem inventory sources must emit `key` as the suffix after the emitted `bucket` prefix
+- Local filesystem inventory sources must fail fast if a discovered path does not contain the configured bucket anchor segment
 - Local filesystem inventory sources must stat each discovered file and emit byte `size`
 - Local filesystem inventory sources must return deterministic order (sorted by `key`)
 - Local filesystem inventory sources may apply an optional deterministic `max_files` cap after sorting by `key`
@@ -122,8 +124,10 @@ _Avoid_: writer, exporter
 - Local filesystem inventory sources must fail fast if discovered paths become unreadable during scan/stat
 - Local filesystem inventory sources must reject symlink-resolved paths that escape `root_path`
 - Local filesystem inventory sources include only regular files; non-file glob matches are skipped
-- Local filesystem fetchers require `key` to be an absolute file path
-- Local filesystem fetchers must enforce that `bucket` matches the configured logical local source label
+- Local filesystem fetchers must resolve one candidate file path as `bucket / key` and require it to exist as a regular file
+- Local filesystem fetchers require `bucket` to be an absolute filesystem path prefix
+- Local filesystem fetchers require `key` to be a relative path suffix (not absolute)
+- Local filesystem fetchers must reject keys that escape the bucket prefix after path resolution (for example `../` traversal)
 - File fetchers support partial success: valid entries return staged objects while invalid entries return per-entry dead letters
 - Legacy inventory sources are out-of-scope for this contract shift; only active orchestrated sources must satisfy the new identity contract
 - `ExtractionResult` is the single carrier of identity and unstructured payload between transform and load
@@ -173,8 +177,9 @@ _Avoid_: build pipeline, validation pipeline
 - "`s3_uri` was used as a complete identity" — resolved: canonical identity is **Object Version Identity** (`bucket`, `key`, `version_id`).
 - "`version_id` could be null" — resolved: identity fields are required and non-null; data/contracts must enforce this.
 - "Could local files omit `version_id`?" — resolved: local filesystem inputs use `version_id = __LOCAL__` (non-null sentinel).
+- "Should local filesystem identity be (`logical bucket`, absolute `key`) or (absolute `bucket` prefix, relative `key` suffix)?" — resolved: local identity uses absolute `bucket` prefix up to anchor + relative `key` suffix after anchor.
 - "Should local fetchers accept arbitrary `version_id` values?" — resolved: no; local fetchers require `version_id = __LOCAL__`.
-- "Should local fetchers ignore `bucket`?" — resolved: no; local fetchers enforce a configured logical local source label.
+- "Should local fetchers ignore `bucket`?" — resolved: yes for validation; local fetchers do not compare to configured bucket values and only resolve local file paths from `bucket + key`.
 - "`s3_uri` was treated as a required pipeline identifier" — resolved: remove `s3_uri` from pipeline contracts and use **Object Version Identity** only.
 - "S3 identity field names were ambiguous (`s3_*` vs unprefixed)" — resolved: use `bucket`, `key`, `version_id` consistently across pipeline contracts.
 - "Should local inventory filtering use grep or glob?" — resolved: use glob-based path discovery (`root_path` + pattern), not grep.

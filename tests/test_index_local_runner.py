@@ -9,7 +9,6 @@ from data_index.runners import index_local
 def test_local_runner_uses_local_inventory_and_fetcher_defaults():
     assert isinstance(index_local.INVENTORY_SOURCE, LocalGlobInventorySource)
     assert isinstance(index_local.FILE_FETCHER, LocalFetcher)
-    assert index_local.INVENTORY_SOURCE.bucket == index_local.FILE_FETCHER.bucket
     assert (
         index_local.INVENTORY_SOURCE.local_version_id
         == index_local.FILE_FETCHER.local_version_id

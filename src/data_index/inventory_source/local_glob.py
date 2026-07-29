@@ -10,20 +10,21 @@ import pydantic
 class LocalGlobInventorySource(pydantic.BaseModel):
     """Inventory source that scans local files and emits S3-like object references.
 
-    The `bucket` value is used both as the emitted bucket label and as a path
-    anchor for key derivation. If a matched absolute path contains that bucket
-    segment, the key is the suffix after it.
+    The configured `bucket` is treated as a path anchor segment. For each
+    matched file, if that segment appears in the absolute local path, emitted
+    `bucket` becomes the full absolute prefix up to and including that segment,
+    and emitted `key` is the suffix after it.
 
     Example:
         - bucket = "imos-data"
         - root_path = "/Volumes/4tb-0"
         - matched file = "/Volumes/4tb-0/imos-data/IMOS/Argo/nmdis/2901615/2901615_prof.nc"
         - emitted row:
-            - bucket: "imos-data"
+            - bucket: "/Volumes/4tb-0/imos-data"
             - key: "IMOS/Argo/nmdis/2901615/2901615_prof.nc"
 
-    If the bucket segment is not present in the file path, key falls back to the
-    absolute local file path (legacy behavior).
+    If the bucket anchor segment is not present in a matched path, inventory
+    fails fast.
     """
 
     type: typing.Literal["local_glob"] = pydantic.Field(default="local_glob")
@@ -36,8 +37,8 @@ class LocalGlobInventorySource(pydantic.BaseModel):
     )
     bucket: str = pydantic.Field(
         description=(
-            "Logical bucket label and path anchor for key derivation. Leading/trailing '/' are stripped. "
-            "When this segment appears in an absolute local path, key is derived from the suffix after it."
+            "Path anchor segment used to split absolute local file paths into emitted "
+            "`bucket` and `key`. Leading/trailing '/' are stripped before matching."
         )
     )
     local_version_id: str = pydantic.Field(
@@ -64,22 +65,25 @@ class LocalGlobInventorySource(pydantic.BaseModel):
     def _normalized_bucket(self) -> str:
         return self.bucket.strip("/")
 
-    def _derive_key(self, resolved_path: pathlib.Path, root: pathlib.Path) -> str:
+    def _derive_bucket_and_key(self, resolved_path: pathlib.Path) -> tuple[str, str]:
         path_parts = resolved_path.parts
         bucket_segment = self._normalized_bucket
 
-        # Prefer key derivation relative to the bucket segment in the absolute path.
-        # This maps local paths like /Volumes/.../imos-data/IMOS/... to key IMOS/...
+        # Use the first matching bucket segment in the absolute path.
         try:
             bucket_index = path_parts.index(bucket_segment)
         except ValueError:
             bucket_index = -1
 
         if 0 <= bucket_index < len(path_parts) - 1:
-            return pathlib.PurePosixPath(*path_parts[bucket_index + 1 :]).as_posix()
+            bucket = pathlib.PurePosixPath(*path_parts[: bucket_index + 1]).as_posix()
+            key = pathlib.PurePosixPath(*path_parts[bucket_index + 1 :]).as_posix()
+            return bucket, key
 
-        # Preserve legacy local-glob behavior when bucket segment is not present.
-        return str(resolved_path)
+        raise ValueError(
+            "Bucket anchor segment not found in matched path: "
+            f"anchor='{bucket_segment}', path='{resolved_path}'"
+        )
 
     @staticmethod
     def _empty_inventory() -> polars.DataFrame:
@@ -94,7 +98,6 @@ class LocalGlobInventorySource(pydantic.BaseModel):
 
     def inventory(self) -> polars.DataFrame:
         root = self.root_path.resolve(strict=True)
-        bucket = self._normalized_bucket
 
         identities: dict[tuple[str, str, str], int] = {}
 
@@ -110,7 +113,7 @@ class LocalGlobInventorySource(pydantic.BaseModel):
                 )
 
             size_bytes = resolved_path.stat().st_size
-            key = self._derive_key(resolved_path=resolved_path, root=root)
+            bucket, key = self._derive_bucket_and_key(resolved_path=resolved_path)
             identity = (bucket, key, self.local_version_id)
             identities[identity] = size_bytes
 
@@ -140,3 +143,20 @@ class LocalGlobInventorySource(pydantic.BaseModel):
                 "size": polars.Int64,
             },
         )
+
+
+if __name__ == "__main__":
+    # --- Local inventory + fetch config ---
+    LOCAL_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/imos-data/IMOS/Argo/")
+    LOCAL_GLOB_PATTERN = "**/*_prof.nc"
+    LOCAL_BUCKET = "imos-data"
+    LOCAL_VERSION_ID = "__LOCAL__"
+
+    INVENTORY_SOURCE = LocalGlobInventorySource(
+        root_path=LOCAL_ROOT_PATH,
+        glob_pattern=LOCAL_GLOB_PATTERN,
+        bucket=LOCAL_BUCKET,
+        local_version_id=LOCAL_VERSION_ID,
+        max_files=10,
+    )
+    print(INVENTORY_SOURCE.inventory())

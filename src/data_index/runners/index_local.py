@@ -35,7 +35,6 @@ INVENTORY_SOURCE = LocalGlobInventorySource(
 )
 
 FILE_FETCHER = LocalFetcher(
-    bucket=LOCAL_BUCKET,
     local_version_id=LOCAL_VERSION_ID,
 )
 
