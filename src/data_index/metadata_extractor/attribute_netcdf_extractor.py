@@ -128,11 +128,13 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
 
         # Extract netCDF Shape Metadata
         variable_schema = {
-            variable: str(ds.variables[variable].dtype)
+            variable: ds.variables[variable].encoding.get("dtype", "unknown").__str__()
             for variable in sorted(ds.data_vars)
         } or None
         coordinate_schema = {
-            coordinate: str(ds.coords[coordinate].dtype)
+            coordinate: ds.variables[coordinate]
+            .encoding.get("dtype", "unknown")
+            .__str__()
             for coordinate in sorted(ds.coords)
         } or None
         dimension_sizes = {
