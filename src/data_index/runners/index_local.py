@@ -21,9 +21,9 @@ from data_index.runners.types import (
 from data_index.sink import IcebergTableSink
 
 # --- Local inventory + fetch config ---
-LOCAL_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/dev/data/Argo/")
+LOCAL_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/imos-data/IMOS/Argo/")
 LOCAL_GLOB_PATTERN = "**/*_prof.nc"
-LOCAL_BUCKET = "__LOCAL_VOLUME__"
+LOCAL_BUCKET = "imos-data"
 LOCAL_VERSION_ID = "__LOCAL__"
 
 INVENTORY_SOURCE = LocalGlobInventorySource(
