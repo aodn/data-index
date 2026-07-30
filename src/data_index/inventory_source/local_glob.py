@@ -52,11 +52,7 @@ class LocalGlobInventorySource(pydantic.BaseModel):
     )
 
     @pydantic.model_validator(mode="after")
-    def _validate_root_path(self) -> typing.Self:
-        if not self.root_path.exists():
-            raise ValueError(f"root_path does not exist: '{self.root_path}'")
-        if not self.root_path.is_dir():
-            raise ValueError(f"root_path is not a directory: '{self.root_path}'")
+    def _validate_bucket(self) -> typing.Self:
         if not self.bucket.strip("/"):
             raise ValueError("bucket must not be empty")
         return self
@@ -97,6 +93,11 @@ class LocalGlobInventorySource(pydantic.BaseModel):
         )
 
     def inventory(self) -> polars.DataFrame:
+        if not self.root_path.exists():
+            raise ValueError(f"root_path does not exist: '{self.root_path}'")
+        if not self.root_path.is_dir():
+            raise ValueError(f"root_path is not a directory: '{self.root_path}'")
+
         root = self.root_path.resolve(strict=True)
 
         identities: dict[tuple[str, str, str], int] = {}

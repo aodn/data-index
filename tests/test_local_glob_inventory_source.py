@@ -7,12 +7,28 @@ from data_index.inventory_source.local_glob import LocalGlobInventorySource
 
 
 def test_raises_for_missing_root_path(tmp_path: pathlib.Path):
+    source = LocalGlobInventorySource(
+        root_path=tmp_path / "missing",
+        glob_pattern="**/*.nc",
+        bucket="local-dev-volume",
+    )
+
     with pytest.raises(ValueError, match="root_path does not exist"):
-        LocalGlobInventorySource(
-            root_path=tmp_path / "missing",
-            glob_pattern="**/*.nc",
-            bucket="local-dev-volume",
-        )
+        source.inventory()
+
+
+def test_raises_for_non_directory_root_path(tmp_path: pathlib.Path):
+    root_file = tmp_path / "root.nc"
+    root_file.write_bytes(b"root-file")
+
+    source = LocalGlobInventorySource(
+        root_path=root_file,
+        glob_pattern="**/*.nc",
+        bucket="local-dev-volume",
+    )
+
+    with pytest.raises(ValueError, match="root_path is not a directory"):
+        source.inventory()
 
 
 def test_returns_empty_typed_inventory_when_no_matches(tmp_path: pathlib.Path):
