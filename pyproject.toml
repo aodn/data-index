@@ -62,6 +62,7 @@ extend-select = ["I"]
 ignore = [
     "E722",   # Ignore bare `except:` errors
     "BLE001", # Ignore blind `except Exception:` errors (if needed)
+    "UP040",  # Ignore modern type alias hinting; prefect does not support it
 ]
 [tool.ruff.lint.per-file-ignores]
 "src/data_index/cli/*.py" = ["B008"]
