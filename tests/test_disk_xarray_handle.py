@@ -20,6 +20,16 @@ def test_cleanup_is_noop_when_file_does_not_exist(tmp_path):
     handle.cleanup()  # Should not raise
 
 
+def test_cleanup_can_preserve_file(tmp_path):
+    f = tmp_path / "keep.nc"
+    f.touch()
+    handle = DiskXarrayHandle(path=f, delete_on_cleanup=False)
+
+    handle.cleanup()
+
+    assert f.exists()
+
+
 def test_file_format_detects_netcdf3_classic(tmp_path):
     f = tmp_path / "nc3.nc"
     f.write_bytes(b"CDF\x01" + b"\x00" * 4)

@@ -12,6 +12,7 @@ class DiskXarrayHandle(pydantic.BaseModel):
     """
 
     path: pathlib.Path
+    delete_on_cleanup: bool = True
     _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
 
     @property
@@ -30,5 +31,5 @@ class DiskXarrayHandle(pydantic.BaseModel):
         return self._dataset
 
     def cleanup(self) -> None:
-        if self.path.exists():
+        if self.delete_on_cleanup and self.path.exists():
             self.path.unlink()

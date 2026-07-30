@@ -13,7 +13,7 @@ A single item within a **Batch** — (`bucket`, `key`, `version_id`) paired with
 _Avoid_: row, record, file
 
 **Object Version Identity**:
-The canonical identity of an S3 object version: (`bucket`, `key`, `version_id`), where all three fields are required and non-null.
+The canonical identity tuple for a source object: (`bucket`, `key`, `version_id`), where all three fields are required and non-null. For S3 sources, `version_id` is the real S3 object version. For local filesystem sources, `version_id` is the sentinel `__LOCAL__`; `bucket` is the absolute source path prefix up to and including the configured bucket anchor segment; and `key` is the path suffix after that anchor.
 _Avoid_: object key, uri-only identity, `s3_uri`-only identity
 
 **Object Reference**:
@@ -64,7 +64,7 @@ The Prefect flow that reads an **InventorySource**, partitions it into **Batches
 _Avoid_: coordinator, driver, master, controller
 
 **InventorySource**:
-A pluggable component that provides the full corpus inventory as a DataFrame with required columns `bucket`, `key`, `version_id`, and `size` (extra columns allowed). Two implementations: `ParquetInventorySource` (reads a pre-materialized local or S3 Parquet file — used for re-running from a cached snapshot) and `LiveS3InventorySource` (runs the s3_metadata ETL — `extract()` → `transform()` → `load()` — to materialise the live S3 inventory table to disk, then reads it back; accepts `S3TablesConfig`, `TableScanConfig`, `path`, and `skip_if_exists: bool = True`).
+A pluggable component that provides the full corpus inventory as a DataFrame with required columns `bucket`, `key`, `version_id`, and `size` (extra columns allowed). For local filesystem sources, inventory discovery is path-based and uses a configured `root_path` plus a glob pattern relative to that root, with an optional deterministic `max_files` cap applied after sorting by `key`.
 _Avoid_: file list, manifest, catalogue
 
 **BatchPartitioner**:
@@ -90,11 +90,11 @@ A pluggable component that, given an **XarrayHandle**, extracts both Structured 
 _Avoid_: parser, reader
 
 **StructuredSink**:
-A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The production implementation (`StructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) via PyIceberg, partitioned by `facility` then year (from `time_coverage_start`; null timestamps go to the null partition bucket); upserts on (`bucket`, `key`, `version_id`) and retries on OCC conflicts. The local implementation (`StructuredParquetSink`) creates the output directory on `provision()` and writes a Parquet file on each `write()`.
+A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The canonical implementation (`IcebergTableSink`) writes to an Iceberg table via PyIceberg with hash-key upserts and retry-on-conflict behavior. Environment is chosen by catalog config: S3 Tables REST catalog in production, SQLite catalog + local warehouse for local runs.
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The production implementation (`UnstructuredS3TableSink`) writes to an S3 Table (Apache Iceberg) partitioned by `facility`, with rows upserted by hash join key (latest write wins).
+A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The canonical implementation (`IcebergTableSink`) writes to Iceberg with hash-key upserts (latest write wins), with backend selected by catalog config (S3 Tables in production, SQLite + local warehouse for local runs).
 _Avoid_: writer, exporter
 
 ## Constraints
@@ -109,7 +109,26 @@ _Avoid_: writer, exporter
 - Pipeline stages fail fast if any identity field (`bucket`, `key`, `version_id`) is null/empty
 - Structured and Unstructured sink contracts stay consistent on identity model and upsert key semantics
 - Missing/invalid facility derivations are coerced to sentinel `UNKNOWN` (not null)
-- File fetch/read operations are pinned to `version_id`; extraction must read the exact requested object version
+- File fetch/read operations are pinned to `version_id`; extraction must read the exact requested source identity (`S3 version_id` for S3, `__LOCAL__` sentinel for local files)
+- Local filesystem fetchers must reject non-`__LOCAL__` version IDs as invalid identity for local-path fetching
+- Local filesystem inventory sources must emit `version_id = __LOCAL__`
+- Local filesystem inventory sources expose `local_version_id` config with default `__LOCAL__`
+- Local filesystem inventory sources must emit `bucket` as the absolute path prefix up to the configured bucket anchor segment (first occurrence in the resolved path)
+- Local filesystem inventory sources must emit `key` as the suffix after the emitted `bucket` prefix
+- Local filesystem inventory sources must fail fast if a discovered path does not contain the configured bucket anchor segment
+- Local filesystem inventory sources must stat each discovered file and emit byte `size`
+- Local filesystem inventory sources must return deterministic order (sorted by `key`)
+- Local filesystem inventory sources may apply an optional deterministic `max_files` cap after sorting by `key`
+- Local filesystem inventory sources must deduplicate canonical (`bucket`, `key`, `version_id`) identities before returning
+- Local filesystem inventory sources must fail fast on invalid `root_path` configuration (missing/non-directory)
+- Local filesystem inventory sources must fail fast if discovered paths become unreadable during scan/stat
+- Local filesystem inventory sources must reject symlink-resolved paths that escape `root_path`
+- Local filesystem inventory sources include only regular files; non-file glob matches are skipped
+- Local filesystem fetchers must resolve one candidate file path as `bucket / key` and require it to exist as a regular file
+- Local filesystem fetchers require `bucket` to be an absolute filesystem path prefix
+- Local filesystem fetchers require `key` to be a relative path suffix (not absolute)
+- Local filesystem fetchers must reject keys that escape the bucket prefix after path resolution (for example `../` traversal)
+- File fetchers support partial success: valid entries return staged objects while invalid entries return per-entry dead letters
 - Legacy inventory sources are out-of-scope for this contract shift; only active orchestrated sources must satisfy the new identity contract
 - `ExtractionResult` is the single carrier of identity and unstructured payload between transform and load
 - Logs/artifacts/manifests emit identity as explicit `bucket`, `key`, `version_id` fields
@@ -157,8 +176,15 @@ _Avoid_: build pipeline, validation pipeline
 - "file format" was initially derived from xarray private internals (`_file_obj._ds.file_format`) — resolved: always read from magic bytes via `XarrayHandle.file_format`.
 - "`s3_uri` was used as a complete identity" — resolved: canonical identity is **Object Version Identity** (`bucket`, `key`, `version_id`).
 - "`version_id` could be null" — resolved: identity fields are required and non-null; data/contracts must enforce this.
+- "Could local files omit `version_id`?" — resolved: local filesystem inputs use `version_id = __LOCAL__` (non-null sentinel).
+- "Should local filesystem identity be (`logical bucket`, absolute `key`) or (absolute `bucket` prefix, relative `key` suffix)?" — resolved: local identity uses absolute `bucket` prefix up to anchor + relative `key` suffix after anchor.
+- "Should local fetchers accept arbitrary `version_id` values?" — resolved: no; local fetchers require `version_id = __LOCAL__`.
+- "Should local fetchers ignore `bucket`?" — resolved: yes for validation; local fetchers do not compare to configured bucket values and only resolve local file paths from `bucket + key`.
 - "`s3_uri` was treated as a required pipeline identifier" — resolved: remove `s3_uri` from pipeline contracts and use **Object Version Identity** only.
 - "S3 identity field names were ambiguous (`s3_*` vs unprefixed)" — resolved: use `bucket`, `key`, `version_id` consistently across pipeline contracts.
+- "Should local inventory filtering use grep or glob?" — resolved: use glob-based path discovery (`root_path` + pattern), not grep.
+- "Should local inventory subset always include all matches?" — resolved: default is all matches; optional deterministic `max_files` cap is allowed.
+- "Do we need a separate local sink class?" — resolved: no; use `IcebergTableSink` with `SqliteCatalogConfig`.
 - "How to hand off identity between stages (composite fields vs value object)" — resolved: use a lightweight named-tuple **Object Reference**.
 - "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
 - "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.
