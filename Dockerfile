@@ -11,7 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libhdf5-dev \
         libnetcdf-dev \
         libgomp1 \
+        curl \
+        ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy and execute the s5cmd installation script
+COPY install_s5cmd.sh /tmp/install_s5cmd.sh
+RUN chmod +x /tmp/install_s5cmd.sh && \
+    /tmp/install_s5cmd.sh && \
+    rm /tmp/install_s5cmd.sh
 
 # --------------------------------------------------------------------
 # --- App Target ---
@@ -20,10 +28,19 @@ FROM base AS app
 WORKDIR /app
 
 # Copy everything needed for the application install at once
-COPY requirements.txt constraints.txt dist/*.whl ./
+COPY requirements.txt dist/*.whl ./
 
 # Install app
-RUN uv pip install --system --compile-bytecode -c constraints.txt -r requirements.txt *.whl
+RUN uv pip install --system --compile-bytecode -r requirements.txt *.whl
+
+# --------------------------------------------------------------------
+# --- Local Dev App Target ---
+# --------------------------------------------------------------------
+FROM app AS app-local-dev
+
+# Local-only AWS credentials for Docker debugging.
+# Populate .docker/local-aws/credentials and optionally .docker/local-aws/config.
+COPY .docker/local-aws/ /root/.aws/
 
 # --------------------------------------------------------------------
 # --- Test Target ---
@@ -36,7 +53,7 @@ COPY pyproject.toml README.md ./
 
 # Install dev dependencies
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0
-RUN uv pip install --system --group dev -c constraints.txt
+RUN uv pip install --system --group dev
 
 # Run tests
 RUN pytest tests/ -v

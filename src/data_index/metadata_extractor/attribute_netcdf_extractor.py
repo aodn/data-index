@@ -1,75 +1,106 @@
+import json
+import re
+import typing
+
 import pydantic
 import xarray
 
-from data_index.metadata_extractor._sanitize import (
-    _serialize_with_orjson,
-)
-from data_index.protocols import RawExtractionResult, XarrayHandle
-from data_index.structured_metadata import StructuredMetadata
+import data_index.protocols
+import data_index.schema.metadata
+from data_index._collection import derive_facility
+from data_index.metadata_extractor._sanitize import _serialize_with_orjson
+
+FrozenDict = type(xarray.Dataset().sizes)
 
 
 class AttributeNetCDFExtractor(pydantic.BaseModel):
     """Metadata extractor for CF-compliant NetCDF datasets via xarray."""
 
-    def extract(self, handle: XarrayHandle) -> RawExtractionResult:
+    type: typing.Literal["attribute_netcdf_extractor"] = pydantic.Field(
+        default="attribute_netcdf_extractor"
+    )
+
+    @classmethod
+    def extract(
+        cls, staged_object: data_index.protocols.StagedObject
+    ) -> data_index.protocols.ExtractedObject | data_index.protocols.DeadLetter:
         """Extract structured and unstructured metadata for one handle.
 
         :param handle: Dataset handle to read from.
         :returns: Extraction result with success/failure status.
         """
-
+        structured_metadata = None
+        unstructured_metadata = None
         try:
-            structured = self._extract_structured(
-                ds=handle.ds,
-                s3_uri=handle.s3_uri,
-                file_format=handle.file_format,
+            structured_metadata = cls._extract_structured(
+                staged_object=staged_object,
             )
-            unstructured = self._extract_unstructured(
-                ds=handle.ds,
-                file_format=handle.file_format,
+            unstructured_metadata = cls._extract_unstructured(
+                staged_object=staged_object
             )
-            return RawExtractionResult(
-                s3_uri=handle.s3_uri,
-                structured_metadata=structured,
-                unstructured_metadata=unstructured,
-                status="succeeded",
+            return data_index.protocols.ExtractedObject(
+                object_reference=staged_object.object_reference,
+                extraction_result=data_index.protocols.ExtractionResult(
+                    structured_metadata=structured_metadata,
+                    unstructured_metadata=unstructured_metadata,
+                ),
             )
-        except Exception as exc:
-            return RawExtractionResult(
-                s3_uri=handle.s3_uri,
-                structured_metadata=None,
-                unstructured_metadata=None,
-                status="failed",
-                error=str(exc),
+        except Exception as e:
+            return data_index.protocols.DeadLetter.from_object_reference(
+                object_reference=staged_object.object_reference, error=str(e)
             )
 
+    @staticmethod
+    def _extract_year(value: str | None) -> int | None:
+        if not value:
+            return None
+        match = re.search(r"\b(\d{4})\b", value)
+        return int(match.group(1)) if match else None
+
+    @staticmethod
+    def _schema_dtype(variable: xarray.Variable) -> str:
+        encoding_dtype = variable.encoding.get("dtype")
+        if encoding_dtype not in (None, "unknown"):
+            return str(encoding_dtype)
+        return str(variable.dtype)
+
+    @classmethod
     def _extract_structured(
-        self,
-        ds: xarray.Dataset,
-        s3_uri: str,
-        file_format: str | None = None,
-    ) -> StructuredMetadata:
+        cls,
+        staged_object: data_index.protocols.StagedObject,
+    ) -> data_index.schema.metadata.StructuredMetadata:
         """Build structured metadata row from global attributes and dataset structure.
 
         :param ds: Open xarray dataset.
-        :param s3_uri: Source S3 URI for the row.
+        :param object_ref: Source object identity for the row.
         :param file_format: File format derived from magic bytes.
         :returns: Structured metadata row.
         """
 
-        metadata_kwargs = {
-            "s3_uri": s3_uri,
-            "file_format": file_format,
+        # TODO:
+        # For dimensions, capture the sizes of the dimensions not just the names
+
+        metadata = {
+            "hash": staged_object.object_reference.hash,
+            "bucket": staged_object.object_reference.bucket,
+            "key": staged_object.object_reference.key,
+            "version_id": staged_object.object_reference.version_id,
+            "facility": derive_facility(staged_object.object_reference.key),
+            "file_format": staged_object.xarray_handle.file_format,
         }
 
         attributes_map: dict[str, tuple[list[str], type]] = {
             # Temporal Spatial
-            "lat_min": (["geospatial_lat_min"], float),
-            "lat_max": (["geospatial_lat_max"], float),
-            "lon_min": (["geospatial_lon_min"], float),
-            "lon_max": (["geospatial_lon_max"], float),
-            "time_min": (["time_coverage_start"], str),
-            "time_max": (["time_coverage_end"], str),
+            "geospatial_lat_min": (["geospatial_lat_min"], float),
+            "geospatial_lat_max": (["geospatial_lat_max"], float),
+            "geospatial_lon_min": (["geospatial_lon_min"], float),
+            "geospatial_lon_max": (["geospatial_lon_max"], float),
+            "geospatial_vertical_min": (["geospatial_vertical_min"], float),
+            "geospatial_vertical_max": (["geospatial_vertical_max"], float),
+            "geospatial_vertical_positive": (["geospatial_vertical_positive"], str),
+            "time_coverage_start": (["time_coverage_start"], str),
+            "time_coverage_end": (["time_coverage_end"], str),
+            "date_created": (["date_created"], str),
             # Keywords
             "keywords": (["keywords"], str),
             "conventions": (["Conventions", "conventions"], str),
@@ -81,6 +112,7 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
             "deployment_code": (["deployment_code"], str),
             # Instrumentation
             "instrument": (["instrument"], str),
+            "instrument_nominal_depth": (["instrument_nominal_depth"], float),
             "feature_type": (["featureType", "feature_type"], str),
             "instrument_serial_number": (
                 ["instrument_serial_number", "instrumentSerialNumber"],
@@ -89,22 +121,80 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
         }
 
         errors = {}
+        ds = staged_object.xarray_handle.ds
 
         # Convert attribute
         for attribute, (aliases, _type) in attributes_map.items():
-            resolved_key = self._resolve_attribute_key(ds.attrs, aliases)
+            resolved_key = cls._resolve_attribute_key(ds.attrs, aliases)
             val = ds.attrs.get(resolved_key) if resolved_key is not None else None
             try:
-                metadata_kwargs[attribute] = _type(val) if val is not None else None
+                metadata[attribute] = _type(val) if val is not None else None
             except (ValueError, TypeError) as e:
-                metadata_kwargs[attribute] = None
+                metadata[attribute] = None
                 errors[attribute] = e
 
-        metadata_kwargs["dimensions"] = self._sorted_or_none(ds.dims)
-        metadata_kwargs["variables"] = self._sorted_or_none(ds.data_vars)
-        metadata_kwargs["standard_names"] = self._extract_standard_names(ds)
+        # Extract netCDF Shape Metadata
+        variable_schema = {
+            variable: cls._schema_dtype(ds.variables[variable])
+            for variable in sorted(ds.data_vars)
+        } or None
+        coordinate_schema = {
+            coordinate: cls._schema_dtype(ds.variables[coordinate])
+            for coordinate in sorted(ds.coords)
+        } or None
+        dimension_sizes = {
+            dimension: ds.sizes[dimension] for dimension in sorted(ds.sizes)
+        } or None
+        standard_names = {
+            variable: ds.variables[variable].attrs.get("standard_name")
+            for variable in sorted(ds.variables)
+            if ds.variables[variable].attrs.get("standard_name")
+        } or None
+        metadata["variable_schema"] = variable_schema
+        metadata["coordinate_schema"] = coordinate_schema
+        metadata["dimension_sizes"] = dimension_sizes
+        metadata["standard_names"] = standard_names
 
-        return StructuredMetadata(**metadata_kwargs)
+        return data_index.schema.metadata.StructuredMetadata(**metadata)
+
+    @classmethod
+    def _extract_unstructured(
+        cls,
+        staged_object: data_index.protocols.StagedObject,
+    ) -> data_index.schema.metadata.UnstructuredMetadata:
+        """Build unstructured metadata payload from dataset contents.
+
+        :param ds: Open xarray dataset.
+        :param file_format: File format derived from magic bytes.
+        :returns: JSON-serializable unstructured metadata dict.
+        """
+
+        ds = staged_object.xarray_handle.ds
+
+        unstructured = {
+            "global_attrs": dict(ds.attrs),
+            "variables": {
+                name: {"attrs": dict(var.attrs), "dims": list(var.dims)}
+                for name, var in ds.data_vars.items()
+            },
+            "coordinates": {
+                name: {"attrs": dict(coord.attrs), "dims": list(coord.dims)}
+                for name, coord in ds.coords.items()
+            },
+        }
+
+        return data_index.schema.metadata.UnstructuredMetadata(
+            bucket=staged_object.object_reference.bucket,
+            key=staged_object.object_reference.key,
+            version_id=staged_object.object_reference.version_id,
+            hash=staged_object.object_reference.hash,
+            metadata=json.dumps(
+                obj=_serialize_with_orjson(data=unstructured),
+                indent=None,
+            ),
+            file_format=staged_object.xarray_handle.file_format,
+            facility=derive_facility(staged_object.object_reference.key),
+        )
 
     @staticmethod
     def _normalize_attr_key(key: str) -> str:
@@ -138,55 +228,3 @@ class AttributeNetCDFExtractor(pydantic.BaseModel):
                 ):
                     return key
         return None
-
-    @staticmethod
-    def _sorted_or_none(values) -> list[str] | None:
-        """Return sorted unique string values, or ``None`` when empty.
-
-        :param values: Iterable-like values to normalize.
-        :returns: Sorted unique strings or ``None``.
-        """
-
-        normalized = sorted({str(value) for value in values})
-        return normalized or None
-
-    @classmethod
-    def _extract_standard_names(cls, ds: xarray.Dataset) -> list[str] | None:
-        """Collect unique ``standard_name`` values from vars and coords.
-
-        :param ds: Open xarray dataset.
-        :returns: Sorted unique standard names or ``None``.
-        """
-
-        standard_names = set()
-        for variable in list(ds.data_vars.values()) + list(ds.coords.values()):
-            value = variable.attrs.get("standard_name")
-            if isinstance(value, str) and value.strip():
-                standard_names.add(value)
-        return cls._sorted_or_none(standard_names)
-
-    def _extract_unstructured(
-        self,
-        ds: xarray.Dataset,
-        file_format: str | None = None,
-    ) -> dict:
-        """Build unstructured metadata payload from dataset contents.
-
-        :param ds: Open xarray dataset.
-        :param file_format: File format derived from magic bytes.
-        :returns: JSON-serializable unstructured metadata dict.
-        """
-
-        unstructured = {
-            "file_format": file_format,
-            "global_attrs": dict(ds.attrs),
-            "variables": {
-                name: {"attrs": dict(var.attrs), "dims": list(var.dims)}
-                for name, var in ds.data_vars.items()
-            },
-            "coordinates": {
-                name: {"attrs": dict(coord.attrs), "dims": list(coord.dims)}
-                for name, coord in ds.coords.items()
-            },
-        }
-        return _serialize_with_orjson(data=unstructured)

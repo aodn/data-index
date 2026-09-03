@@ -1,0 +1,2 @@
+# Set to limit concurrency related issues
+max-workers: 4

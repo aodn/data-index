@@ -1,0 +1,30 @@
+polars:
+  batch_flow_id: String
+  bucket: String
+  error: String
+  hash: String
+  index_flow_id: String
+  key: String
+  schema_version: Int64
+  size: Int64
+  version_id: String
+pyarrow:
+  batch_flow_id: string
+  bucket: string
+  error: string
+  hash: string
+  index_flow_id: string
+  key: string
+  schema_version: int64
+  size: int64
+  version_id: string
+pyiceberg:
+  batch_flow_id: id=9, type=string, req=False
+  bucket: id=2, type=string, req=True
+  error: id=7, type=string, req=False
+  hash: id=6, type=string, req=True
+  index_flow_id: id=8, type=string, req=False
+  key: id=3, type=string, req=True
+  schema_version: id=1, type=long, req=True
+  size: id=5, type=long, req=False
+  version_id: id=4, type=string, req=False

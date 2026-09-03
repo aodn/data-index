@@ -1,37 +1,171 @@
 from __future__ import annotations
 
+import base64
 import dataclasses
+import hashlib
+import io
+import pathlib
 import typing
 
 import polars
+import prefect.runtime.flow_run
 import xarray
 
-import data_index.structured_metadata
+import data_index.schema
+import data_index.schema.metadata
 
 
-@dataclasses.dataclass
-class BatchEntry:
-    uri: str
-    size_bytes: int | None = None
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class ObjectReference(data_index.schema.Schema):
+    bucket: str
+    key: str
+    version_id: str | None
+    size: int | None
+
+    def as_uri(self) -> str:
+        return f"s3://{self.bucket}/{self.key}"
+
+    def as_versioned_uri(self) -> str:
+        return f"s3://{self.bucket}/{self.key}?versionId={self.version_id}"
+
+    def as_path(self) -> pathlib.Path:
+        return pathlib.Path(f"{self.bucket}/{self.key}/{self.version_id}")
+
+    @property
+    def hash(self) -> str:
+        """Generates a deterministic 64-character hex string surrogate key."""
+        # Use a distinct delimiter to prevent boundary-shifting collisions
+        composite = f"bucket:{self.bucket}|key:{self.key}|version:{self.version_id}"
+        return hashlib.sha256(composite.encode("utf-8")).hexdigest()
+
+    @property
+    def path(self) -> pathlib.Path:
+        if self.version_id:
+            return pathlib.Path(f"{self.bucket}/{self.key}:{self.version_id}")
+        return pathlib.Path(f"{self.bucket}/{self.key}")
+
+    @classmethod
+    def to_compressed_base64_table(
+        cls,
+        object_references: list[typing.Self],
+    ) -> str:
+
+        # Set up the schema
+        schema = cls.as_polars_schema()
+
+        # Set up df
+        if not object_references:
+            df = polars.DataFrame(schema=schema)
+        else:
+            data = [dataclasses.asdict(ref) for ref in object_references]
+            df = polars.DataFrame(
+                data=data,
+                schema=cls.as_polars_schema(),
+            )
+
+        # Write to ipc
+        buffer = io.BytesIO()
+
+        # Sort to best case for compression
+        df = df.sort(
+            by=(
+                polars.col("bucket"),
+                polars.col("version_id"),
+                polars.col("key"),
+            )
+        )
+
+        # Write to buffer
+        df.write_ipc(file=buffer, compression="zstd")
+
+        # Base64 encode the compressed bytes
+        compressed_base64_table = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+        return compressed_base64_table
+
+    @classmethod
+    def from_compressed_base64_table(
+        cls,
+        base64_str: str,
+    ) -> list[typing.Self]:
+        if not base64_str:
+            return []
+
+        # Decode base64 to bytes
+        compressed_bytes = base64.b64decode(base64_str)
+        buffer = io.BytesIO(compressed_bytes)
+
+        # Polars automatically detects and decompresses the zstd IPC stream
+        df = polars.read_ipc(buffer)
+
+        # Reconstruct dataclass instances from the rows
+        return [cls(**row) for row in df.to_dicts()]
 
 
-@typing.runtime_checkable
-class UnstructuredMetadata(typing.Protocol):
-    def load(self) -> dict:
-        """Return the full unstructured metadata dict."""
-        ...
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class StagedObject:
+    object_reference: ObjectReference
+    xarray_handle: XarrayHandle
 
 
-@dataclasses.dataclass
-class RawExtractionResult:
-    """Intermediate result returned by MetadataExtractor.extract(). Unstructured metadata
-    is a plain dict — persistence wrapping is the responsibility of transform."""
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class ExtractedObject:
+    object_reference: ObjectReference
+    extraction_result: ExtractionResult
 
-    s3_uri: str
-    structured_metadata: data_index.structured_metadata.StructuredMetadata | None
-    unstructured_metadata: dict | None
-    status: str  # "succeeded" or "failed"
-    error: str | None = None
+
+@dataclasses.dataclass(
+    kw_only=True,
+    frozen=True,
+)
+class DeadLetter(data_index.schema.Schema):
+    """
+    DeadLetter row schema and backend schema converters.
+
+    `DeadLetter` is source-of-truth for Polars, PyArrow, and PyIceberg
+    schema generation.
+    """
+
+    SCHEMA_VERSION: typing.ClassVar[int] = 4
+    schema_version: int = SCHEMA_VERSION
+
+    # TODO: Untangle the mess of inheritance and schema for metadata vs dead letter vs object reference
+    bucket: str
+    key: str
+    version_id: str | None
+    size: int | None
+    hash: str
+    error: str | None
+    index_flow_id: str | None = dataclasses.field(
+        default_factory=lambda: prefect.runtime.flow_run.get_parent_flow_run_id()
+    )
+    batch_flow_id: str | None = dataclasses.field(
+        default_factory=lambda: prefect.runtime.flow_run.get_id()
+    )
+
+    @classmethod
+    def from_object_reference(
+        cls,
+        object_reference: ObjectReference,
+        error: str | None,
+    ) -> typing.Self:
+        return cls(
+            bucket=object_reference.bucket,
+            key=object_reference.key,
+            version_id=object_reference.version_id,
+            size=object_reference.size,
+            hash=object_reference.hash,
+            error=error,
+        )
 
 
 @dataclasses.dataclass
@@ -39,21 +173,20 @@ class ExtractionResult:
     """Final result returned by _transform_single. Unstructured metadata is a persisted
     UnstructuredMetadata handle (written by metadata_factory during transform)."""
 
-    s3_uri: str
-    structured_metadata: data_index.structured_metadata.StructuredMetadata | None
-    unstructured_metadata: UnstructuredMetadata | None
-    status: str  # "succeeded" or "failed"
-    error: str | None = None
+    structured_metadata: data_index.schema.metadata.StructuredMetadata | None
+    unstructured_metadata: data_index.schema.metadata.UnstructuredMetadata | None
 
 
 @typing.runtime_checkable
 class XarrayHandle(typing.Protocol):
-    s3_uri: str
     file_format: str | None
 
     @property
+    def s3_uri(self) -> str: ...
+
+    @property
     def ds(self) -> xarray.Dataset:
-        """Return an xarray dataset"""
+        """Return a handle-local singleton xarray dataset."""
         ...
 
     def cleanup(self) -> None:
@@ -62,54 +195,49 @@ class XarrayHandle(typing.Protocol):
 
 
 @typing.runtime_checkable
-class FileFetcher(typing.Protocol):
-    def fetch(self, entries: list[BatchEntry]) -> list[XarrayHandle]:
-        """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
-        ...
-
-
-@typing.runtime_checkable
-class MetadataExtractor(typing.Protocol):
-    def extract(self, handle: XarrayHandle) -> RawExtractionResult:
-        """Extract structured and unstructured metadata from an XarrayHandle."""
-        ...
-
-
-@typing.runtime_checkable
-class StructuredSink(typing.Protocol):
-    def provision(self) -> None:
-        """Prepare the target store before any writes (e.g. create directories or tables)."""
-        ...
-
-    def write(
-        self, data: list[data_index.structured_metadata.StructuredMetadata]
-    ) -> None:
-        """Persist Structured Metadata to a target store."""
-        ...
-
-
-@typing.runtime_checkable
-class UnstructuredSink(typing.Protocol):
-    def provision(self) -> None:
-        """Prepare the target store before any writes (e.g. create directories or tables)."""
-        ...
-
-    def write(self, data: dict[str, dict]) -> None:
-        """Persist Unstructured Metadata dicts (keyed by s3_uri) to a target store."""
-        ...
-
-
-@typing.runtime_checkable
 class InventorySource(typing.Protocol):
     def inventory(self) -> polars.DataFrame:
-        """Return the full corpus inventory as a DataFrame with `s3_uri` and `size` columns."""
+        """Return inventory with required `bucket`,`key`,`version_id`,`size` columns."""
         ...
 
 
 @typing.runtime_checkable
 class BatchPartitioner(typing.Protocol):
     def partition(
-        self, inventory: polars.DataFrame
-    ) -> typing.Iterator[polars.DataFrame]:
+        self,
+        inventory: polars.DataFrame,
+    ) -> typing.Iterator[list[ObjectReference]]:
         """Split an inventory DataFrame into a sequence of Batches."""
+        ...
+
+
+@typing.runtime_checkable
+class FileFetcher(typing.Protocol):
+    def fetch(
+        self, object_references: list[ObjectReference]
+    ) -> tuple[list[StagedObject], list[DeadLetter]]:
+        """Instantiate a list of XarrayHandle to be consumed by a Metadata Extractor."""
+        ...
+
+
+@typing.runtime_checkable
+class MetadataExtractor(typing.Protocol):
+    def extract(self, staged_object: StagedObject) -> ExtractedObject | DeadLetter:
+        """Extract structured and unstructured metadata from an XarrayHandle."""
+        ...
+
+
+@typing.runtime_checkable
+class MetadataSink(typing.Protocol):
+    def provision(self) -> None:
+        """Prepare the target store before any writes (e.g. create directories or tables)."""
+        ...
+
+    def write(
+        self,
+        metadata: list[data_index.schema.metadata.StructuredMetadata]
+        | list[data_index.schema.metadata.UnstructuredMetadata]
+        | list[DeadLetter],
+    ) -> None:
+        """Persist data"""
         ...

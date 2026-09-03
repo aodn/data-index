@@ -1,7 +1,7 @@
 [project]
 name = "data-index"
 dynamic = ["version"]
-description = "Add your description here"
+description = "AODN Data Indexer for the `imos-data` public bucket."
 readme = "README.md"
 authors = [
     { name = "Tom Galindo", email = "98626996+thommodin@users.noreply.github.com" }
@@ -17,17 +17,25 @@ dependencies = [
     "h5py>=3.16.0",
     "netcdf4>=1.7.4",
     "numpy>=2.4.4",
+    "obstore>=0.10.1",
     "polars>=1.40.1",
-    "prefect>=3.6.28",
-    "prefect-aws>=0.7.7",
+    "prefect>=3.7.5",
+    "prefect-aws>=0.7.9",
     "prefect-dask>=0.3.6",
     "pyarrow>=24.0.0",
+    "pydantic>=2.13.4",
     "pyiceberg>=0.11.1",
     "s3fs>=2026.4.0",
     "scipy>=1.17.1",
     "sh>=2.2.2",
     "vl-convert-python>=1.9.0.post1",
     "xarray>=2026.4.0",
+]
+
+[tool.uv]
+constraint-dependencies = [
+    "prefect==3.7.5",
+    "prefect-aws==0.7.9",
 ]
 
 [build-system]
@@ -41,6 +49,7 @@ source = "vcs"
 data-index = "data_index.component_testing:main"
 cluster-local = "data_index.cluster.run_local:main"
 cluster-fargate = "data_index.cluster.run_fargate:main"
+analyse-netcdf-schema = "data_index.cli.analyse_netcdf_schema:app"
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore:Logger 'prefect.*' attempted to send logs"]
@@ -50,6 +59,13 @@ exclude = ["analysis/"]
 
 [tool.ruff.lint]
 extend-select = ["I"]
+ignore = [
+    "E722",   # Ignore bare `except:` errors
+    "BLE001", # Ignore blind `except Exception:` errors (if needed)
+    "UP040",  # Ignore modern type alias hinting; prefect does not support it
+]
+[tool.ruff.lint.per-file-ignores]
+"src/data_index/cli/*.py" = ["B008"]
 
 [tool.prefect]
 home = ".prefect"
@@ -57,8 +73,11 @@ home = ".prefect"
 [dependency-groups]
 dev = [
     "aiosqlite>=0.22.1",
+    "freezegun>=1.5.5",
     "pre-commit>=4.6.0",
+    "prefect-docker>=0.7.1",
     "pytest>=9.0.3",
+    "pytest-regressions>=2.11.0",
     "ruff>=0.11.0",
     "sqlalchemy>=2.0.49",
 ]
@@ -70,4 +89,8 @@ analysis = [
     "jupyterlab>=4",
     "natsort>=8.4.0",
     "rich>=13",
+]
+cli = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
 ]

@@ -2,165 +2,177 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
-import typing
 
-import polars
 import prefect
-import prefect.artifacts
 import prefect.cache_policies
 
-from data_index.protocols import (
-    ExtractionResult,
-    MetadataExtractor,
-    UnstructuredMetadata,
-    XarrayHandle,
-)
-from data_index.structured_metadata import StructuredMetadata
-from data_index.unstructured_metadata import DiskCachedUnstructuredMetadata
+import data_index.protocols
 
 
-def _transform_single(
-    xarray_handle: XarrayHandle,
-    extractor: MetadataExtractor,
-    unstructured_metadata_factory: typing.Callable[[str, dict], UnstructuredMetadata],
-    logger: logging.Logger,
-) -> ExtractionResult:
+def _transform_staged_object(
+    staged_object: data_index.protocols.StagedObject,
+    extractor: data_index.protocols.MetadataExtractor,
+    logger: logging.Logger | logging.LoggerAdapter,
+) -> data_index.protocols.ExtractedObject | data_index.protocols.DeadLetter:
+
+    # Attempt to extract the metadata from the object
     try:
-        raw = extractor.extract(handle=xarray_handle)
-        if raw.status == "failed":
-            logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {raw.error}")
-            return ExtractionResult(
-                s3_uri=xarray_handle.s3_uri,
-                structured_metadata=None,
-                unstructured_metadata=None,
-                status="failed",
-                error=raw.error,
-            )
-        logger.info(f"extraction succeeded for {xarray_handle.s3_uri}")
-        return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
-            structured_metadata=raw.structured_metadata,
-            unstructured_metadata=unstructured_metadata_factory(
-                xarray_handle.s3_uri, raw.unstructured_metadata
-            ),
-            status="succeeded",
+        return extractor.extract(staged_object=staged_object)
+
+    # Report dead letter if this fails
+    except Exception as e:
+        return data_index.protocols.DeadLetter.from_object_reference(
+            object_reference=staged_object.object_reference, error=str(e)
         )
-    except Exception as exc:
-        logger.warning(f"extraction failed for {xarray_handle.s3_uri}: {exc}")
-        return ExtractionResult(
-            s3_uri=xarray_handle.s3_uri,
-            structured_metadata=None,
-            unstructured_metadata=None,
-            status="failed",
-            error=str(exc),
-        )
+
+    # Clean up the object
     finally:
-        xarray_handle.ds.close()
+        try:
+            staged_object.xarray_handle.cleanup()
+        except Exception as e:
+            logger.warning(
+                f"Disposal of xarray handle failed for {staged_object.object_reference.as_versioned_uri()}: {e}"
+            )
+
+
+def _transform_staged_objects(
+    staged_objects: list[data_index.protocols.StagedObject],
+    extractor: data_index.protocols.MetadataExtractor,
+    logger: logging.Logger | logging.LoggerAdapter,
+) -> tuple[
+    list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
+]:
+    """
+    Populate all ObjectReferences with disk xarray handles.
+
+    Causes download of all passed in object_references to `self.extract_path`
+    """
+
+    extracted_objects = [
+        _transform_staged_object(
+            staged_object=staged_object,
+            extractor=extractor,
+            logger=logger,
+        )
+        for staged_object in staged_objects
+    ]
+
+    return (
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.ExtractedObject)
+        ],
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.DeadLetter)
+        ],
+    )
+
+
+def _concurrent_transform_staged_objects(
+    staged_objects: list[data_index.protocols.StagedObject],
+    extractor: data_index.protocols.MetadataExtractor,
+    logger: logging.Logger | logging.LoggerAdapter,
+    max_workers: int = 8,
+) -> tuple[
+    list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
+]:
+    """
+    Populate all ObjectReferences with disk xarray handles.
+
+    Causes download of all passed in object_references to `self.extract_path`
+    """
+
+    # Concurrently retrieve objects
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=max_workers,
+    ) as executor:
+        futures = [
+            executor.submit(
+                _transform_staged_object,
+                staged_object,
+                extractor,
+                logger,
+            )
+            for staged_object in staged_objects
+        ]
+
+    # Collect objects
+    extracted_objects = [future.result() for future in futures]
+
+    return (
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.ExtractedObject)
+        ],
+        [
+            extracted_object
+            for extracted_object in extracted_objects
+            if isinstance(extracted_object, data_index.protocols.DeadLetter)
+        ],
+    )
 
 
 @prefect.task(cache_policy=prefect.cache_policies.NO_CACHE)
 def transform(
-    xarray_handles: list[XarrayHandle],
-    extractor: MetadataExtractor,
-    metadata_factory: typing.Callable[
-        [str, dict], UnstructuredMetadata
-    ] = DiskCachedUnstructuredMetadata,
+    staged_objects: list[data_index.protocols.StagedObject],
+    extractor: data_index.protocols.MetadataExtractor,
     max_workers: int | None = None,
-) -> list[ExtractionResult]:
+) -> tuple[
+    list[data_index.protocols.ExtractedObject], list[data_index.protocols.DeadLetter]
+]:
     """
     Transform a list of XarrayHandle objects into structured and unstructured metadata.
 
-    Runs one _transform_single call per file in parallel via a thread pool. Each call
-    immediately persists unstructured metadata via metadata_factory(s3_uri, data).
-    Releases handle resources after all threads complete.
+    Runs _transform_single sequentially. Each call immediately persists
+    unstructured metadata via metadata_factory(object_ref, data). Releases handle
+    resources after all files are processed.
 
     Args:
-        max_workers: Maximum threads for the internal pool. None uses Python's default
-            (min(32, cpu_count + 4)). Set explicitly when multiple batches run
-            concurrently to avoid thread explosion across workers.
+        max_workers: Retained for API compatibility. No effect when running
+            sequentially.
 
     Returns list of ExtractionResult (succeeded and failed). Callers route to sinks.
     """
     logger = prefect.get_run_logger()
-    total = len(xarray_handles)
-    progress_artifact_id = prefect.artifacts.create_progress_artifact(
-        progress=0.0,
-        description=f"Transforming {total} files",
-    )
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(
-                _transform_single,
-                xarray_handle=xarray_handle,
+
+    # Return empty list if no object_references passed in
+    if not staged_objects:
+        logger.warning("transform called with no staged objects!")
+        return ([], [])
+
+    logger.info(f"Extracting {len(staged_objects)} staged_objects...")
+
+    # Run sequential or concurrent extraction loop
+    match max_workers:
+        # Non concurrent
+        case None:
+            extracted_objects, dead_letters = _transform_staged_objects(
+                staged_objects=staged_objects,
                 extractor=extractor,
-                unstructured_metadata_factory=metadata_factory,
                 logger=logger,
             )
-            for xarray_handle in xarray_handles
-        }
-        results = []
-        for done_count, future in enumerate(
-            concurrent.futures.as_completed(futures), start=1
-        ):
-            results.append(future.result())
-            prefect.artifacts.update_progress_artifact(
-                artifact_id=progress_artifact_id,
-                progress=done_count / total * 100 if total else 100.0,
+
+        # Concurrent
+        case int(workers) if workers > 0:
+            extracted_objects, dead_letters = _concurrent_transform_staged_objects(
+                staged_objects=staged_objects,
+                extractor=extractor,
+                logger=logger,
+                max_workers=max_workers,
             )
 
-    # Release handle resources (e.g. delete local files for DiskXarrayHandle)
-    for xarray_handle in xarray_handles:
-        xarray_handle.cleanup()
+        # Fallback/Catch-all case (e.g., if max_workers is 0, negative, or an invalid type)
+        case _:
+            raise ValueError(f"Invalid value for max_workers: {max_workers}")
 
-    failed = [r for r in results if r.status == "failed"]
-    succeeded = [r for r in results if r.status == "succeeded"]
+    logger.info(f"Extracted {len(staged_objects)} staged_objects!")
 
-    prefect.artifacts.create_table_artifact(
-        key="transform-succeeded",
-        table=[{"s3_uri": r.s3_uri} for r in succeeded],
-        description=f"{len(succeeded)}/{len(results)} files succeeded",
+    logger.info("Transform complete!")
+    return (
+        extracted_objects,
+        dead_letters,
     )
-    prefect.artifacts.create_table_artifact(
-        key="transform-failed",
-        table=[{"s3_uri": r.s3_uri, "error": r.error} for r in failed]
-        or [{"s3_uri": None, "error": None}],
-        description=f"{len(failed)}/{len(results)} files failed",
-    )
-
-    structured = [
-        r.structured_metadata for r in succeeded if r.structured_metadata is not None
-    ]
-
-    _SAMPLE = 5
-    schema = StructuredMetadata.as_polars_schema()
-    sample_df = (
-        polars.DataFrame(
-            data=[vars(s) for s in structured[:_SAMPLE]],
-            schema=schema,
-        )
-        if structured
-        else polars.DataFrame(schema=schema)
-    )
-    prefect.artifacts.create_table_artifact(
-        key="structured-metadata-sample",
-        table=sample_df.to_dicts(),
-        description=f"First {min(_SAMPLE, len(structured))} rows of structured metadata ({len(structured)} total)",
-    )
-
-    if succeeded:
-        sample_result = succeeded[0]
-        if sample_result.unstructured_metadata is not None:
-            prefect.artifacts.create_table_artifact(
-                key="unstructured-metadata-sample",
-                table=[
-                    {
-                        "s3_uri": sample_result.s3_uri,
-                        "unstructured_metadata": str(
-                            sample_result.unstructured_metadata.load()
-                        ),
-                    }
-                ],
-                description=f"Unstructured metadata sample from {sample_result.s3_uri}",
-            )
-
-    return results
