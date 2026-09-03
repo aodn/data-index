@@ -12,7 +12,12 @@ class DiskXarrayHandle(pydantic.BaseModel):
     """
 
     path: pathlib.Path
-    s3_uri: str
+    delete_on_cleanup: bool = True
+    _dataset: xarray.Dataset | None = pydantic.PrivateAttr(default=None)
+
+    @property
+    def s3_uri(self) -> str:
+        return self.object_ref.as_uri()
 
     @property
     def file_format(self) -> str | None:
@@ -21,8 +26,10 @@ class DiskXarrayHandle(pydantic.BaseModel):
 
     @property
     def ds(self) -> xarray.Dataset:
-        return xarray.open_dataset(filename_or_obj=self.path)
+        if self._dataset is None:
+            self._dataset = xarray.open_dataset(filename_or_obj=self.path)
+        return self._dataset
 
     def cleanup(self) -> None:
-        if self.path.exists():
+        if self.delete_on_cleanup and self.path.exists():
             self.path.unlink()

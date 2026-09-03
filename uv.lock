@@ -8,6 +8,12 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+constraints = [
+    { name = "prefect", specifier = "==3.7.5" },
+    { name = "prefect-aws", specifier = "==0.7.9" },
+]
+
 [[package]]
 name = "aiobotocore"
 version = "3.7.0"
@@ -659,11 +665,13 @@ dependencies = [
     { name = "h5py" },
     { name = "netcdf4" },
     { name = "numpy" },
+    { name = "obstore" },
     { name = "polars" },
     { name = "prefect" },
     { name = "prefect-aws" },
     { name = "prefect-dask" },
     { name = "pyarrow" },
+    { name = "pydantic" },
     { name = "pyiceberg" },
     { name = "s3fs" },
     { name = "scipy" },
@@ -682,10 +690,17 @@ analysis = [
     { name = "natsort" },
     { name = "rich" },
 ]
+cli = [
+    { name = "rich" },
+    { name = "typer" },
+]
 dev = [
     { name = "aiosqlite" },
+    { name = "freezegun" },
     { name = "pre-commit" },
+    { name = "prefect-docker" },
     { name = "pytest" },
+    { name = "pytest-regressions" },
     { name = "ruff" },
     { name = "sqlalchemy" },
 ]
@@ -701,11 +716,13 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.16.0" },
     { name = "netcdf4", specifier = ">=1.7.4" },
     { name = "numpy", specifier = ">=2.4.4" },
+    { name = "obstore", specifier = ">=0.10.1" },
     { name = "polars", specifier = ">=1.40.1" },
-    { name = "prefect", specifier = ">=3.6.28" },
-    { name = "prefect-aws", specifier = ">=0.7.7" },
+    { name = "prefect", specifier = ">=3.7.5" },
+    { name = "prefect-aws", specifier = ">=0.7.9" },
     { name = "prefect-dask", specifier = ">=0.3.6" },
     { name = "pyarrow", specifier = ">=24.0.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pyiceberg", specifier = ">=0.11.1" },
     { name = "s3fs", specifier = ">=2026.4.0" },
     { name = "scipy", specifier = ">=1.17.1" },
@@ -724,10 +741,17 @@ analysis = [
     { name = "natsort", specifier = ">=8.4.0" },
     { name = "rich", specifier = ">=13" },
 ]
+cli = [
+    { name = "rich", specifier = ">=13.0.0" },
+    { name = "typer", specifier = ">=0.12.0" },
+]
 dev = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
+    { name = "freezegun", specifier = ">=1.5.5" },
     { name = "pre-commit", specifier = ">=4.6.0" },
+    { name = "prefect-docker", specifier = ">=0.7.1" },
     { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-regressions", specifier = ">=2.11.0" },
     { name = "ruff", specifier = ">=0.11.0" },
     { name = "sqlalchemy", specifier = ">=2.0.49" },
 ]
@@ -931,6 +955,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/30/3e/a80a8c077fd798951169626cde3e239adeba7dab75deb3555716415bd9b0/fqdn-1.5.1.tar.gz", hash = "sha256:105ed3677e767fb5ca086a0c1f4bb66ebc3c100be518f0e0d755d9eae164d89f", size = 6015, upload-time = "2021-03-11T07:16:29.08Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cf/58/8acf1b3e91c58313ce5cb67df61001fc9dcd21be4fadb76c1a2d540e09ed/fqdn-1.5.1-py3-none-any.whl", hash = "sha256:3a179af3761e4df6eb2e026ff9e1a3033d3587bf980a0b1b2e1e5d08d7358014", size = 9121, upload-time = "2021-03-11T07:16:28.351Z" },
+]
+
+[[package]]
+name = "freezegun"
+version = "1.5.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
 ]
 
 [[package]]
@@ -1849,6 +1885,30 @@ wheels = [
 ]
 
 [[package]]
+name = "obstore"
+version = "0.10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/b7/516498f128eeac220dd54df61fd8c4db88adb7675129ab5352f2706899a3/obstore-0.10.1.tar.gz", hash = "sha256:b193a53101bda703f887f1c0733cde7324ba6f9c80f0a81bdae5df8cb25c26f4", size = 126551, upload-time = "2026-06-09T20:29:33.848Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/23/532c9094def8ed33495d555749a21b6eac4c31c34a95e7154d4866e25666/obstore-0.10.1-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:e5b009a5c257e9811b8d22bad2f090f8cdf24dca6afa1bafab88cb0ff5140317", size = 4092339, upload-time = "2026-06-09T19:51:43.938Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/3c/947a40ef9d64575a261fb3c0fd0c7e8ad4f160b4c6d4ee5c671705d92d5e/obstore-0.10.1-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:c949aa4d69c5a796f7daefa9bce2efcf5bc29a21399915e47efcbb6d18787f80", size = 3873610, upload-time = "2026-06-09T19:51:45.793Z" },
+    { url = "https://files.pythonhosted.org/packages/53/15/1e8a507ae86c356e923f17ce0cfc3b7e2fdd3417b439c343f9ad09a3f452/obstore-0.10.1-cp311-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:beb2e6f5c2c633add1a80182c223c862bc523d9c7c55b793423851831ef8a9ac", size = 4028148, upload-time = "2026-06-09T19:51:47.265Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/7f/6d46085a65be661dbf10243de257d7d2705c5629af9279a3e7d404e8890d/obstore-0.10.1-cp311-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:f195d3c1258406976848246cfb0490790ec0a22bd0560e548364afb846b4bce2", size = 4125215, upload-time = "2026-06-09T19:51:48.778Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/15/a681b578a104a28dc1098ac4f0b7c77b11f5f7a60a5d6a964b33889ade52/obstore-0.10.1-cp311-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:5cbad4afb93c26e39e6c51c390b9b6fec9602e9af50c4c0552f10f883524d197", size = 4412793, upload-time = "2026-06-09T19:51:50.258Z" },
+    { url = "https://files.pythonhosted.org/packages/be/89/a610cf57ad94698952aad88dccbb0b6f6256f1e563d317b9e1393c30c338/obstore-0.10.1-cp311-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:6bbd313dd82bd66b054cc1567927d69b17caed2bdf110da558e46e0ee4ba4e41", size = 4293828, upload-time = "2026-06-09T19:51:51.62Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/7a/82568065a1c21f45ae35069268247948d659b6a4d1c0a6186aa97538a102/obstore-0.10.1-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ed4e795b9997f91041d2ad43b633099e0eb891337228d34e4c706ef8f0c5ae92", size = 4212724, upload-time = "2026-06-09T19:51:53.202Z" },
+    { url = "https://files.pythonhosted.org/packages/03/7a/7581034bdf1c3e88df947eba1ba8512aaad71a96e95b4b355a40ff9febb6/obstore-0.10.1-cp311-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:a3c35027a90ee1c97b82933907e5846c48d72bce714c7571f9fceac7a3c86551", size = 4103114, upload-time = "2026-06-09T19:51:54.776Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/ec/0448b41a9f111d2dfebfc4c7af8ad81f68c7ae3ccf0f61a181e652a73f1a/obstore-0.10.1-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:b2902e2c9e1ca193bff39530bb907fd38204e68037ffb694a50042118eeb7a0b", size = 4291239, upload-time = "2026-06-09T19:51:56.253Z" },
+    { url = "https://files.pythonhosted.org/packages/43/d3/63dfe45c22b43d579d6ef75a7dc81122d55b1af8ee020a7a7c241d982c66/obstore-0.10.1-cp311-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:c16e29b975430690c72ec71be9e6a4fe63854ff25985e6a3a1682419b55898ac", size = 4263387, upload-time = "2026-06-09T19:51:57.755Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/bd/66433876ca18172144cbcd6ff2e011cb512a4696d426a1946585d3855887/obstore-0.10.1-cp311-abi3-musllinux_1_2_i686.whl", hash = "sha256:c51488d41646bfd75fbb67507bbc55d6f5623d5b12ce0506a260a7a1f3e792da", size = 4253238, upload-time = "2026-06-09T19:51:59.428Z" },
+    { url = "https://files.pythonhosted.org/packages/65/a1/46d61c7b871d0824973c3616277a68dc8a97269898d50a4b023de66c6507/obstore-0.10.1-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:84deb458af8601eb1dd948d58b9760bed2f0e7f36c6e9bcd5a61425cb2683b2a", size = 4434050, upload-time = "2026-06-09T19:52:00.889Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/b6/287d34041e73f1c5620462ba2ad0beecd9ef40ed7c3dd6e3924933bfa5fd/obstore-0.10.1-cp311-abi3-win_amd64.whl", hash = "sha256:f1b6e994b719e294a2b2aeb74f2ae8e5a294453a47d8a9d6f3104a28ef7d8aa5", size = 4174095, upload-time = "2026-06-09T19:52:02.335Z" },
+]
+
+[[package]]
 name = "opentelemetry-api"
 version = "1.41.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1982,7 +2042,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "ptyprocess" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -2053,7 +2113,7 @@ wheels = [
 
 [[package]]
 name = "prefect"
-version = "3.6.28"
+version = "3.7.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -2107,19 +2167,20 @@ dependencies = [
     { name = "semver" },
     { name = "sniffio" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "starlette" },
     { name = "toml" },
     { name = "typing-extensions" },
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/32/0c/aaf6a4f7fd73f7fe0fbfb8f96549e2cee7186d36f397d7236e904776777b/prefect-3.6.28.tar.gz", hash = "sha256:9d12bd372da185df94095045085bf61be42b9bfdf4289717b4d24eec76d4d1b8", size = 11152250, upload-time = "2026-04-24T17:40:42.907Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/b4/ba44a2263940b53db323d059770e005aac959d272ba2025ad6fc7de10cba/prefect-3.7.5.tar.gz", hash = "sha256:e2838fa80562bfb7e27e67ea63c7b13d6fdead8052dbe76eb394c6b919ef3dcd", size = 13881122, upload-time = "2026-06-18T22:39:17.378Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/56/9d1c942dab45df5efeb24856359354fedf80009db73dcbb01a83252c6196/prefect-3.6.28-py3-none-any.whl", hash = "sha256:9fa56cfd65e5cf67cef1cd9fd737b00f62eba3a81db80b5072fabc41ee5e147b", size = 11995014, upload-time = "2026-04-24T17:40:39.232Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/30/e9c5ad5f3fd17f7309bcd9bab6af5cb5811ae3b50d7d0fd15a3ea899f5e0/prefect-3.7.5-py3-none-any.whl", hash = "sha256:214837b7cb1e10f8fec59018253cd8ef65c8b394b7df29c511b645b0ff5e4478", size = 14766992, upload-time = "2026-06-18T22:39:14.383Z" },
 ]
 
 [[package]]
 name = "prefect-aws"
-version = "0.7.7"
+version = "0.7.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobotocore" },
@@ -2131,9 +2192,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/80/f2f159f60f5ccf3832df1dd5bb166db21bb33f6842598632f2ee479a897a/prefect_aws-0.7.7.tar.gz", hash = "sha256:939d5dad269c3cfc59a7c44c8b77d123bec83c0aede236e225e35c426d3d6f49", size = 158979, upload-time = "2026-03-30T20:29:11.983Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/3e/c204ce2c21ac3d55101cfa32c47bd7527a7f511e21f614fcaed5227095aa/prefect_aws-0.7.9.tar.gz", hash = "sha256:135549ee4ee9b3a12406c78869ce2797e2b12fc47b0212c8b78de3163a624f69", size = 160820, upload-time = "2026-05-16T01:23:42.818Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/58/889c448f2185abef8510a4afad5bf2d89f9295966871f85bc33c69dcc709/prefect_aws-0.7.7-py3-none-any.whl", hash = "sha256:539815c48490209a8841757c4001cf5631d586f55139291c484940216c8d48b9", size = 93852, upload-time = "2026-03-30T20:29:09.965Z" },
+    { url = "https://files.pythonhosted.org/packages/06/64/9b62d77a3c53a36403a959aa5815fd65727f7a9ce821804539355ba8f1ad/prefect_aws-0.7.9-py3-none-any.whl", hash = "sha256:31979b618cd402ef66017c0dc9cad9c6acc0e87969cf497501c740174a888a53", size = 94964, upload-time = "2026-05-16T01:23:40.847Z" },
 ]
 
 [[package]]
@@ -2147,6 +2208,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/49/cd/17cbe5460b50b14f9df37fa300ef290fab7b2b1c717d3ce9d183aea62ede/prefect_dask-0.3.6.tar.gz", hash = "sha256:776151f6865dfca7dcdde146f3234af134f4d01d51e07cc4a063296d471a4219", size = 20107, upload-time = "2025-06-27T15:15:41.895Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/a1/d4b936e871af1b4b1c2c5feea32f38b08dfb413a23b5cf845f21cc287b81/prefect_dask-0.3.6-py3-none-any.whl", hash = "sha256:dde864ca93f531d631b2efc378173bc8d6f2ad9fba30867a135f560fc852e6b3", size = 14477, upload-time = "2025-06-27T15:15:40.21Z" },
+]
+
+[[package]]
+name = "prefect-docker"
+version = "0.7.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docker" },
+    { name = "exceptiongroup" },
+    { name = "prefect" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/76/477cb000395452edbd641734aa1d2b41680b35e9172c11ace685a74b2e54/prefect_docker-0.7.1.tar.gz", hash = "sha256:7d5053bcc049d56b5498ca4629c9b08b31d96f5387e1eb34f510ec322d5aad89", size = 41684, upload-time = "2026-01-15T22:53:06.477Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/5c/20f573c6f800ad784603c7bd5787770ef648758289af2970d12c39072534/prefect_docker-0.7.1-py3-none-any.whl", hash = "sha256:b4fe1760c12206d3eaec2826d63acb1235bd41756921eb0c6b5feeb20b157e37", size = 28254, upload-time = "2026-01-15T22:53:04.998Z" },
 ]
 
 [[package]]
@@ -2452,6 +2527,32 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7d/0d/549bd94f1a0a402dc8cf64563a117c0f3765662e2e668477624baeec44d5/pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c", size = 1572165, upload-time = "2026-04-07T17:16:18.027Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
+]
+
+[[package]]
+name = "pytest-datadir"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/46/db060b291999ca048edd06d6fa9ee95945d088edc38b1172c59eeb46ec45/pytest_datadir-1.8.0.tar.gz", hash = "sha256:7a15faed76cebe87cc91941dd1920a9a38eba56a09c11e9ddf1434d28a0f78eb", size = 11848, upload-time = "2025-07-30T13:52:12.518Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8f/7a/33895863aec26ac3bb5068a73583f935680d6ab6af2a9567d409430c3ee1/pytest_datadir-1.8.0-py3-none-any.whl", hash = "sha256:5c677bc097d907ac71ca418109adc3abe34cf0bddfe6cf78aecfbabd96a15cf0", size = 6512, upload-time = "2025-07-30T13:52:11.525Z" },
+]
+
+[[package]]
+name = "pytest-regressions"
+version = "2.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+    { name = "pytest-datadir" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/0f/1d6b8cc851596be52c401af53fd0d844e72921b0b11866b88995673cd320/pytest_regressions-2.11.0.tar.gz", hash = "sha256:d4a86092f979eb25d2403c51b2b61039781c4c7c7a364a56b9fa838872a650f7", size = 117474, upload-time = "2026-05-25T12:09:01.796Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/61/fe772eda66bb8e2ee72da2937382aa4f803ca1e41092ca8d59953e96262c/pytest_regressions-2.11.0-py3-none-any.whl", hash = "sha256:fcb2bbcfb2fda256624d434c88cb1e4003667b7e078ee4084887cf839bbdf831", size = 25556, upload-time = "2026-05-25T12:09:00.292Z" },
 ]
 
 [[package]]
@@ -2964,15 +3065,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "1.0.0"
+version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/81/69/17425771797c36cded50b7fe44e850315d039f28b15901ab44839e70b593/starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149", size = 2655289, upload-time = "2026-03-22T18:29:46.779Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/c9/584bc9651441b4ba60cc4d557d8a547b5aff901af35bda3a4ee30c819b82/starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b", size = 72651, upload-time = "2026-03-22T18:29:45.111Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
 ]
 
 [[package]]

@@ -87,9 +87,7 @@ df = polars.from_arrow(
 ```
 
 ## Development
-
+Set up the development environement with the `make init` command:
 ```bash
-uv sync --group dev
-uv run pre-commit install   # install ruff check + format hooks
-uv run pytest tests/ -v
+make init
 ```

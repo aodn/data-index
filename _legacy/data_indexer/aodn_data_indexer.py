@@ -104,12 +104,12 @@ class AODNDataIndexer:
     def path_to_item(
         path: str,
         bucket: str = "imos-data",
-        item_id: str = None,
-        checksum: str = None,
-        size: int = None,
+        item_id: str | None = None,
+        checksum: str | None = None,
+        size: int | None = None,
         date=None,
-        save_path: Path = None,
-        collection_id: str = None,
+        save_path: Path | None = None,
+        collection_id: str | None = None,
     ) -> pystac.Item:
         """
         Create a STAC item from an S3 path.
@@ -370,7 +370,7 @@ class AODNDataIndexer:
         headers = {"accept": "application/json"}
         metadata = requests.get(endpoint, headers=headers).json()
 
-        result = dict()
+        result = {}
 
         result["title"] = (
             metadata.get("mdb:identificationInfo", {})
