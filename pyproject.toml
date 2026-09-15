@@ -88,7 +88,10 @@ analysis = [
     "ipykernel>=6",
     "jupyterlab>=4",
     "natsort>=8.4.0",
+    "obstore>=0.10.1",
     "rich>=13",
+    "xarray>=2026.4.0",
+    "zarr>=3.3.0",
 ]
 cli = [
     "typer>=0.12.0",
