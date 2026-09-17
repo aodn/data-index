@@ -683,6 +683,7 @@ dependencies = [
 [package.dev-dependencies]
 analysis = [
     { name = "altair" },
+    { name = "boto3" },
     { name = "duckdb" },
     { name = "genson" },
     { name = "ipykernel" },
@@ -737,6 +738,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 analysis = [
     { name = "altair", specifier = ">=5" },
+    { name = "boto3", specifier = ">=1.43.0" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "genson", specifier = ">=1.3.0" },
     { name = "ipykernel", specifier = ">=6" },

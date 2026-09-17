@@ -83,6 +83,7 @@ dev = [
 ]
 analysis = [
     "altair>=5",
+    "boto3>=1.43.0",
     "duckdb>=1.5.3",
     "genson>=1.3.0",
     "ipykernel>=6",
