@@ -1,6 +1,8 @@
 import typing
 
+import boto3
 import obstore.store
+import obstore.auth.boto3
 import polars
 import xarray
 import zarr
@@ -14,6 +16,9 @@ DATASET = typing.Literal[
     "station_lucinda_jetty_dalec_derived_product",
     "station_lucinda_jetty_dalec",
     "station_lucinda_jetty_daily_wetlabs_bb9",
+    "station_lucinda_jetty_daily_wetlabs_acs",
+    "station_lucinda_jetty_daily_satlantic_hyperocr"
+    "station_lucinda_jetty_daily_satlantic_hyperocr_derived_product",
 ]
 
 DATASET_FILTER: dict[DATASET, polars.Expr] = {
@@ -41,23 +46,48 @@ DATASET_FILTER: dict[DATASET, polars.Expr] = {
         polars.col("key").str.contains("IMOS/SRS/OC/LJCO/BB9-daily")
         & polars.col("key").str.contains(r".*\.nc$")
     ),
+    "station_lucinda_jetty_daily_wetlabs_acs": (
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/ACS-daily")
+        & polars.col("key").str.contains(r".*\.nc$")
+    ),
+    "station_lucinda_jetty_daily_satlantic_hyperocr": (
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily")
+        & polars.col("key").str.contains(r".*FV01.*\.nc$")
+    ),
+    "station_lucinda_jetty_daily_satlantic_hyperocr_derived_product": (
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily")
+        & polars.col("key").str.contains(r".*FV02.*\.nc$")
+    ),
 }
 
 
 def get_dataset_objects_df(
     df: polars.DataFrame,
     dataset: DATASET,
+    backend: typing.Literal["s3", "disk"] = "s3",
 ) -> polars.DataFrame:
+
+    uri_expression = [
+        polars.col("bucket"),
+        polars.col("key"),
+    ]
+
+    match backend:
+        case "s3":
+            uri_expression.insert(0, polars.lit("s3:/"))
+        case "disk":
+            pass
+        case _:
+            raise NotImplementedError
+
     return (
         df.filter(DATASET_FILTER[dataset])
         .with_columns(
             # Add s3 uri
             polars.concat_str(
-                polars.lit("s3:/"),
-                polars.col("bucket"),
-                polars.col("key"),
+                exprs=uri_expression,
                 separator="/",
-            ).alias("s3_uri"),
+            ).alias("uri"),
             # Split out filename
             polars.col("key").str.split("/").list.last().alias("filename"),
         )
@@ -79,15 +109,33 @@ def get_dataset_objects_df(
 
 
 def get_dataset_xarray_dataset(
-    dataset: DATASET,
+    dataset: str,
+    bucket: str = "aodn-cloud-optimised",
+    skip_signature: bool = True,
+    profile_name: str = "edge-projectofficer",
 ) -> xarray.Dataset:
 
-    # Initialize the obstore backend for your cloud storage (e.g., AWS S3)
+    # Set up dynamic required s3 store configuration
+    s3_store_config = {
+        "prefix": f"{dataset}.zarr",
+        "region": "ap-southeast-2",
+    }
+
+    # Set up credentials
+    if skip_signature:
+        s3_store_config["skip_signature"] = True
+
+    else:
+        session = boto3.Session(
+            profile_name=profile_name,
+            region_name="ap-southeast-2",
+        )
+        credential_provider = obstore.auth.boto3.Boto3CredentialProvider(session)
+        s3_store_config["credential_provider"]=credential_provider
+
     s3_store = obstore.store.S3Store(
-        "aodn-cloud-optimised",
-        prefix=f"{dataset}.zarr",
-        skip_signature=True,
-        region="ap-southeast-2",
+        bucket,
+        **s3_store_config,
     )
 
     # Wrap it with Zarr's ObjectStore adapter
