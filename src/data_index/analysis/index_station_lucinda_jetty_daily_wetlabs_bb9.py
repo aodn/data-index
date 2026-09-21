@@ -26,7 +26,7 @@ DATASET: typing.Literal["station_lucinda_jetty_daily_wetlabs_bb9"] = (
     "station_lucinda_jetty_daily_wetlabs_bb9"
 )
 LOCAL_DATASET_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/imos-data/IMOS/SRS/OC/LJCO")
-LOCAL_DATASET_GLOB_PATTERN = "BB9-daily/**/*.nc"
+LOCAL_DATASET_GLOB_PATTERN = "**/*.nc"
 LOCAL_BUCKET = "imos-data"
 LOCAL_VERSION_ID = "__LOCAL__"
 
