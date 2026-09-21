@@ -1,11 +1,12 @@
 import pathlib
+import typing
 
 import prefect
 
+import data_index.analysis.tables as analysis_tables
 import data_index.analysis.warehouse as analysis_warehouse
 import data_index.runners.defaults as runners_defaults
 from data_index.file_fetcher import LocalFetcher
-from data_index.iceberg_config import IcebergTableConfig
 from data_index.inventory_source import LocalGlobInventorySource
 from data_index.runners.index import index as index_flow
 from data_index.runners.task_runner import (
@@ -21,23 +22,22 @@ from data_index.runners.types import (
 )
 from data_index.sink import IcebergTableSink
 
-# --- Local inventory + fetch config ---
-LOCAL_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/imos-data/IMOS/Argo/")
-LOCAL_GLOB_PATTERN = "**/*_prof.nc"
+DATASET: typing.Literal["station_lucinda_jetty_daily_wetlabs_bb9"] = (
+    "station_lucinda_jetty_daily_wetlabs_bb9"
+)
+LOCAL_DATASET_ROOT_PATH = pathlib.Path("/Volumes/4tb-0/imos-data/IMOS/SRS/OC/LJCO")
+LOCAL_DATASET_GLOB_PATTERN = "**/*.nc"
 LOCAL_BUCKET = "imos-data"
 LOCAL_VERSION_ID = "__LOCAL__"
 
+# --- Dataset-scoped local inventory + fetch config ---
 INVENTORY_SOURCE = LocalGlobInventorySource(
-    root_path=LOCAL_ROOT_PATH,
-    glob_pattern=LOCAL_GLOB_PATTERN,
+    root_path=LOCAL_DATASET_ROOT_PATH,
+    glob_pattern=LOCAL_DATASET_GLOB_PATTERN,
     bucket=LOCAL_BUCKET,
     local_version_id=LOCAL_VERSION_ID,
-    max_files=10,
 )
-
-FILE_FETCHER = LocalFetcher(
-    local_version_id=LOCAL_VERSION_ID,
-)
+FILE_FETCHER = LocalFetcher(local_version_id=LOCAL_VERSION_ID)
 
 # --- Shared pipeline defaults ---
 BATCH_PARTITIONER = runners_defaults.BATCH_PARTITIONER
@@ -45,43 +45,26 @@ METADATA_EXTRACTOR = runners_defaults.METADATA_EXTRACTOR
 TASK_RUNNER_CONFIG = runners_defaults.TASK_RUNNER_CONFIG
 BATCH_MAX_WORKERS = runners_defaults.BATCH_MAX_WORKERS
 
-# --- Local SQLite-backed Iceberg sink config ---
 LOCAL_WAREHOUSE = analysis_warehouse.ANALYSIS_LOCAL_WAREHOUSE
-LOCAL_CATALOG_CONFIG = analysis_warehouse.ANALYSIS_LOCAL_CATALOG
 
-
-def _local_table_config_like(sink: IcebergTableSink) -> IcebergTableConfig:
-    return IcebergTableConfig(
-        catalog_config=LOCAL_CATALOG_CONFIG,
-        namespace=sink.iceberg_table_config.namespace,
-        table_name=sink.iceberg_table_config.table_name,
-    )
-
-
-_STRUCTURED_METADATA_TABLE_CONFIG = _local_table_config_like(
-    runners_defaults.STRUCTURED_TABLE_SINK
-)
+STRUCTURED_TABLE_CONFIG = analysis_tables.LOCAL_STRUCTURED_METADATA_TABLE
 STRUCTURED_TABLE_SINK = IcebergTableSink(
-    schema_kind=runners_defaults.STRUCTURED_TABLE_SINK.schema_kind,
-    iceberg_table_config=_STRUCTURED_METADATA_TABLE_CONFIG,
+    schema_kind="structured",
+    iceberg_table_config=STRUCTURED_TABLE_CONFIG,
     partition_column=runners_defaults.STRUCTURED_TABLE_SINK.partition_column,
 )
 
-_UNSTRUCTURED_METADATA_TABLE_CONFIG = _local_table_config_like(
-    runners_defaults.UNSTRUCTURED_TABLE_SINK
-)
+UNSTRUCTURED_TABLE_CONFIG = analysis_tables.LOCAL_UNSTRUCTURED_METADATA_TABLE
 UNSTRUCTURED_TABLE_SINK = IcebergTableSink(
-    schema_kind=runners_defaults.UNSTRUCTURED_TABLE_SINK.schema_kind,
-    iceberg_table_config=_UNSTRUCTURED_METADATA_TABLE_CONFIG,
+    schema_kind="unstructured",
+    iceberg_table_config=UNSTRUCTURED_TABLE_CONFIG,
     partition_column=runners_defaults.UNSTRUCTURED_TABLE_SINK.partition_column,
 )
 
-_DEAD_LETTER_TABLE_CONFIG = _local_table_config_like(
-    runners_defaults.DEAD_LETTER_TABLE_SINK
-)
+DEAD_LETTER_TABLE_CONFIG = analysis_tables.LOCAL_DEAD_LETTER_TABLE
 DEAD_LETTER_TABLE_SINK = IcebergTableSink(
-    schema_kind=runners_defaults.DEAD_LETTER_TABLE_SINK.schema_kind,
-    iceberg_table_config=_DEAD_LETTER_TABLE_CONFIG,
+    schema_kind="dead_letter",
+    iceberg_table_config=DEAD_LETTER_TABLE_CONFIG,
     partition_column=runners_defaults.DEAD_LETTER_TABLE_SINK.partition_column,
 )
 

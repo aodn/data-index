@@ -1,5 +1,3 @@
-import pathlib
-
 import data_index.iceberg_config
 from data_index.file_fetcher import LocalFetcher
 from data_index.inventory_source import LocalGlobInventorySource
@@ -27,5 +25,5 @@ def test_local_runner_uses_sqlite_catalog_for_all_sinks():
         )
 
 
-def test_local_runner_warehouse_path_is_relative_local_load_dir():
-    assert index_local.LOCAL_WAREHOUSE == pathlib.Path(".load/orchestrate-local")
+def test_local_runner_warehouse_path_matches_shared_analysis_local_warehouse():
+    assert index_local.LOCAL_WAREHOUSE.as_posix().endswith(".load/orchestrate-analysis")

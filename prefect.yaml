@@ -39,3 +39,13 @@ deployments:
     pull:
     - prefect.deployments.steps.set_working_directory:
         directory: /Users/thommodin/dev/data-index/
+
+  # Dataset-scoped Analysis Index
+  - name: analysis_station_lucinda_jetty_daily_wetlabs_bb9
+    entrypoint: src/data_index/analysis/index_station_lucinda_jetty_daily_wetlabs_bb9.py:index
+    work_pool:
+      name: local
+    schedules: null
+    pull:
+    - prefect.deployments.steps.set_working_directory:
+        directory: /Users/thommodin/dev/data-index/
