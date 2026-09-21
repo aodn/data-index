@@ -1,8 +1,8 @@
 import typing
 
 import boto3
-import obstore.store
 import obstore.auth.boto3
+import obstore.store
 import polars
 import xarray
 import zarr
@@ -17,7 +17,7 @@ DATASET = typing.Literal[
     "station_lucinda_jetty_dalec",
     "station_lucinda_jetty_daily_wetlabs_bb9",
     "station_lucinda_jetty_daily_wetlabs_acs",
-    "station_lucinda_jetty_daily_satlantic_hyperocr"
+    "station_lucinda_jetty_daily_satlantic_hyperocr",
     "station_lucinda_jetty_daily_satlantic_hyperocr_derived_product",
 ]
 
@@ -131,7 +131,7 @@ def get_dataset_xarray_dataset(
             region_name="ap-southeast-2",
         )
         credential_provider = obstore.auth.boto3.Boto3CredentialProvider(session)
-        s3_store_config["credential_provider"]=credential_provider
+        s3_store_config["credential_provider"] = credential_provider
 
     s3_store = obstore.store.S3Store(
         bucket,
