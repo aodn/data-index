@@ -21,6 +21,7 @@ from data_index.runners.task_runner import (
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
 from data_index.sink import (
+    DynamoDBSink,
     IcebergTableSink,
 )
 
@@ -88,7 +89,7 @@ STRUCTURED_TABLE_SINK = IcebergTableSink(
         "commit.retry.min-wait-ms": "100",
         "commit.retry.max-wait-ms": "10000",
         "commit.retry.total-timeout-ms": "1800000",
-    }
+    },
 )
 
 _UNSTRUCTURED_METADATA_TABLE_CONFIG = IcebergTableConfig(
@@ -109,7 +110,7 @@ UNSTRUCTURED_TABLE_SINK = IcebergTableSink(
         "commit.retry.min-wait-ms": "100",
         "commit.retry.max-wait-ms": "10000",
         "commit.retry.total-timeout-ms": "1800000",
-    }
+    },
 )
 
 _DEAD_LETTER_TABLE_CONFIG = IcebergTableConfig(
@@ -121,6 +122,20 @@ _DEAD_LETTER_TABLE_CONFIG = IcebergTableConfig(
 DEAD_LETTER_TABLE_SINK = IcebergTableSink(
     schema_kind="dead_letter",
     iceberg_table_config=_DEAD_LETTER_TABLE_CONFIG,
+)
+
+# --- Optional DynamoDB sink config ---
+# These are published for easy opt-in at call sites.
+# They are intentionally not wired as defaults for `index(...)` yet to avoid
+# changing production sink behavior without an explicit runtime choice.
+STRUCTURED_DYNAMODB_SINK = DynamoDBSink(
+    table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
+    region_name=REGION,
+)
+
+UNSTRUCTURED_DYNAMODB_SINK = DynamoDBSink(
+    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
+    region_name=REGION,
 )
 
 # --- Runtime Config ---

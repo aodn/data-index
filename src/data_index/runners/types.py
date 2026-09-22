@@ -19,6 +19,7 @@ from data_index.metadata_extractor import (
 )
 from data_index.sink import (
     DummySink,
+    DynamoDBSink,
     IcebergTableSink,
 )
 
@@ -33,7 +34,7 @@ type FileFetcherType = type[
     FSSpecFetcher | ObstoreFetcher | ConcurrentObstoreFetcher | LocalFetcher
 ]
 type MetadataExtractorType = type[AttributeNetCDFExtractor]
-type MetadataSinkType = type[IcebergTableSink | DummySink]
+type MetadataSinkType = type[IcebergTableSink | DynamoDBSink | DummySink]
 
 # Runtime instance aliases used by Prefect flow parameter validation.
 type InventorySource = typing.Annotated[
@@ -49,6 +50,6 @@ type FileFetcher = typing.Annotated[
 ]
 type MetadataExtractor = AttributeNetCDFExtractor
 type MetadataSink = typing.Annotated[
-    IcebergTableSink | DummySink,
+    IcebergTableSink | DynamoDBSink | DummySink,
     pydantic.Field(discriminator="type"),
 ]
