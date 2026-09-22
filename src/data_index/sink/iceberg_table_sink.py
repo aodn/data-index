@@ -151,8 +151,7 @@ class IcebergTableSink(pydantic.BaseModel):
 
         for attempt in range(_MAX_RETRIES):
             try:
-                self.table.append(df=table)
-                # self.table.upsert(df=table, join_cols=["hash"])
+                self.table.upsert(df=table, join_cols=["hash"])
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise
