@@ -14,7 +14,6 @@ import pyiceberg.transforms
 import data_index.iceberg_config
 import data_index.protocols
 import data_index.schema.metadata
-import data_index.sink.base
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
@@ -23,10 +22,14 @@ ICEBERG_TABLE_SINK_PROPERTIES = typing.Literal[
     "write.delete.mode",
     "write.update.mode",
     "write.merge.mode",
+    "commit.retry.num-retries",
+    "commit.retry.min-wait-ms",
+    "commit.retry.max-wait-ms",
+    "commit.retry.total-timeout-ms",
 ]
 
 
-class IcebergTableSink(pydantic.BaseModel, data_index.sink.base.SinkBase):
+class IcebergTableSink(pydantic.BaseModel):
     """Unified IcebergTableSink implementation for upserting metadata and dead letters.
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
@@ -49,6 +52,24 @@ class IcebergTableSink(pydantic.BaseModel, data_index.sink.base.SinkBase):
     @property
     def table(self) -> pyiceberg.table.Table:
         return self.iceberg_table_config.load()
+
+    @property
+    def _metadata_cls(
+        self,
+    ) -> (
+        data_index.schema.metadata.StructuredMetadata
+        | data_index.schema.metadata.UnstructuredMetadata
+    ):
+        """Dynamically resolves the target metadata class wrapper based on kind."""
+        match self.schema_kind:
+            case "structured":
+                return data_index.schema.metadata.StructuredMetadata
+            case "unstructured":
+                return data_index.schema.metadata.UnstructuredMetadata
+            case "dead_letter":
+                return data_index.protocols.DeadLetter
+            case _:
+                raise ValueError(f"unsupported metadata_kind: {self.metadata_kind}")
 
     def provision(
         self,
