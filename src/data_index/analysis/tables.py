@@ -27,6 +27,12 @@ STRUCTURED_METADATA_V6 = IcebergTableConfig(
     table_name="structured_metadata_v6",
 )
 
+UNSTRUCTURED_METADATA_TABLE = IcebergTableConfig(
+    catalog_config=analysis_warehouse.DATA_INDEX_CATALOG_CONFIG,
+    namespace="data_index",
+    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
+)
+
 LOCAL_STRUCTURED_METADATA_TABLE = IcebergTableConfig(
     catalog_config=analysis_warehouse.ANALYSIS_LOCAL_CATALOG,
     namespace="data_index",
