@@ -18,6 +18,16 @@ import data_index.schema.metadata
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
 
+ICEBERG_TABLE_SINK_PROPERTIES = typing.Literal[
+    "write.delete.mode",
+    "write.update.mode",
+    "write.merge.mode",
+    "commit.retry.num-retries",
+    "commit.retry.min-wait-ms",
+    "commit.retry.max-wait-ms",
+    "commit.retry.total-timeout-ms",
+]
+
 
 class IcebergTableSink(pydantic.BaseModel):
     """Unified IcebergTableSink implementation for upserting metadata and dead letters.
@@ -33,6 +43,7 @@ class IcebergTableSink(pydantic.BaseModel):
     schema_kind: typing.Literal["structured", "unstructured", "dead_letter"]
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
     partition_column: str | None = pydantic.Field(default=None)
+    properties: dict[ICEBERG_TABLE_SINK_PROPERTIES, str] = pydantic.Field(default={})
 
     @property
     def catalog(self) -> pyiceberg.catalog.Catalog:
@@ -92,6 +103,7 @@ class IcebergTableSink(pydantic.BaseModel):
                 partition_spec=self._partition_spec()
                 if self.partition_column
                 else pyiceberg.partitioning.UNPARTITIONED_PARTITION_SPEC,
+                properties=self.properties,
             )
         except pyiceberg.exceptions.TableAlreadyExistsError:
             pass
@@ -140,7 +152,6 @@ class IcebergTableSink(pydantic.BaseModel):
         for attempt in range(_MAX_RETRIES):
             try:
                 self.table.upsert(df=table, join_cols=["hash"])
-                return []
             except pyiceberg.exceptions.CommitFailedException:
                 if attempt == _MAX_RETRIES - 1:
                     raise

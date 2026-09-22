@@ -80,6 +80,15 @@ STRUCTURED_TABLE_SINK = IcebergTableSink(
     schema_kind="structured",
     iceberg_table_config=_STRUCTURED_METADATA_TABLE_CONFIG,
     partition_column="facility",
+    properties={
+        "write.delete.mode": "merge-on-read",
+        "write.update.mode": "merge-on-read",
+        "write.merge.mode": "merge-on-read",
+        "commit.retry.num-retries": "10",
+        "commit.retry.min-wait-ms": "100",
+        "commit.retry.max-wait-ms": "10000",
+        "commit.retry.total-timeout-ms": "1800000",
+    }
 )
 
 _UNSTRUCTURED_METADATA_TABLE_CONFIG = IcebergTableConfig(
@@ -92,6 +101,15 @@ UNSTRUCTURED_TABLE_SINK = IcebergTableSink(
     schema_kind="unstructured",
     iceberg_table_config=_UNSTRUCTURED_METADATA_TABLE_CONFIG,
     partition_column="facility",
+    properties={
+        "write.delete.mode": "merge-on-read",
+        "write.update.mode": "merge-on-read",
+        "write.merge.mode": "merge-on-read",
+        "commit.retry.num-retries": "10",
+        "commit.retry.min-wait-ms": "100",
+        "commit.retry.max-wait-ms": "10000",
+        "commit.retry.total-timeout-ms": "1800000",
+    }
 )
 
 _DEAD_LETTER_TABLE_CONFIG = IcebergTableConfig(
