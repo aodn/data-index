@@ -14,12 +14,19 @@ import pyiceberg.transforms
 import data_index.iceberg_config
 import data_index.protocols
 import data_index.schema.metadata
+import data_index.sink.base
 
 _MAX_RETRIES = 5
 _BASE_BACKOFF = 0.5
 
+ICEBERG_TABLE_SINK_PROPERTIES = typing.Literal[
+    "write.delete.mode",
+    "write.update.mode",
+    "write.merge.mode",
+]
 
-class IcebergTableSink(pydantic.BaseModel):
+
+class IcebergTableSink(pydantic.BaseModel, data_index.sink.base.SinkBase):
     """Unified IcebergTableSink implementation for upserting metadata and dead letters.
 
     The table must be created before writing — call provision() or use the Orchestrator's pre_run
@@ -33,6 +40,7 @@ class IcebergTableSink(pydantic.BaseModel):
     schema_kind: typing.Literal["structured", "unstructured", "dead_letter"]
     iceberg_table_config: data_index.iceberg_config.IcebergTableConfig
     partition_column: str | None = pydantic.Field(default=None)
+    properties: dict[ICEBERG_TABLE_SINK_PROPERTIES, str] = pydantic.Field(default={})
 
     @property
     def catalog(self) -> pyiceberg.catalog.Catalog:
@@ -41,24 +49,6 @@ class IcebergTableSink(pydantic.BaseModel):
     @property
     def table(self) -> pyiceberg.table.Table:
         return self.iceberg_table_config.load()
-
-    @property
-    def _metadata_cls(
-        self,
-    ) -> (
-        data_index.schema.metadata.StructuredMetadata
-        | data_index.schema.metadata.UnstructuredMetadata
-    ):
-        """Dynamically resolves the target metadata class wrapper based on kind."""
-        match self.schema_kind:
-            case "structured":
-                return data_index.schema.metadata.StructuredMetadata
-            case "unstructured":
-                return data_index.schema.metadata.UnstructuredMetadata
-            case "dead_letter":
-                return data_index.protocols.DeadLetter
-            case _:
-                raise ValueError(f"unsupported metadata_kind: {self.metadata_kind}")
 
     def provision(
         self,
@@ -92,6 +82,7 @@ class IcebergTableSink(pydantic.BaseModel):
                 partition_spec=self._partition_spec()
                 if self.partition_column
                 else pyiceberg.partitioning.UNPARTITIONED_PARTITION_SPEC,
+                properties=self.properties,
             )
         except pyiceberg.exceptions.TableAlreadyExistsError:
             pass
