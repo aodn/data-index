@@ -128,14 +128,27 @@ DEAD_LETTER_TABLE_SINK = IcebergTableSink(
 # These are published for easy opt-in at call sites.
 # They are intentionally not wired as defaults for `index(...)` yet to avoid
 # changing production sink behavior without an explicit runtime choice.
+# Query index is write-sharded by facility to reduce hot-key pressure while
+# preserving lexicographic sort within each facility shard.
+# Sort key segments are tagged for safer begins_with filtering as the index evolves.
 STRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
     region_name=REGION,
+    query_index_name="facility-bucket-key-version-index",
+    query_partition_field="facility",
+    query_sort_fields=("bucket", "key", "version_id",),
+    query_sort_field_tags=("B", "K", "V",),
+    query_partition_shards=8,
 )
 
 UNSTRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
     region_name=REGION,
+    query_index_name="facility-bucket-key-version-index",
+    query_partition_field="facility",
+    query_sort_fields=("bucket", "key", "version_id",),
+    query_sort_field_tags=("B", "K", "V",),
+    query_partition_shards=8,
 )
 
 # --- Runtime Config ---
