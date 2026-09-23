@@ -37,8 +37,14 @@ def test_provision_creates_table_when_missing():
 
     mock_client.create_table.assert_called_once_with(
         TableName="unstructured-metadata",
-        KeySchema=[{"AttributeName": "hash", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "hash", "AttributeType": "S"}],
+        KeySchema=[
+            {"AttributeName": "query_pk", "KeyType": "HASH"},
+            {"AttributeName": "query_sk", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "query_pk", "AttributeType": "S"},
+            {"AttributeName": "query_sk", "AttributeType": "S"},
+        ],
         BillingMode="PAY_PER_REQUEST",
     )
     mock_waiter.wait.assert_called_once_with(TableName="unstructured-metadata")
@@ -76,8 +82,14 @@ def test_provisioned_mode_uses_default_capacity_units():
 
     mock_client.create_table.assert_called_once_with(
         TableName="unstructured-metadata",
-        KeySchema=[{"AttributeName": "hash", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "hash", "AttributeType": "S"}],
+        KeySchema=[
+            {"AttributeName": "query_pk", "KeyType": "HASH"},
+            {"AttributeName": "query_sk", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "query_pk", "AttributeType": "S"},
+            {"AttributeName": "query_sk", "AttributeType": "S"},
+        ],
         BillingMode="PROVISIONED",
         ProvisionedThroughput={
             "ReadCapacityUnits": 5,
@@ -86,7 +98,7 @@ def test_provisioned_mode_uses_default_capacity_units():
     )
 
 
-def test_provision_creates_table_with_write_sharded_query_index():
+def test_provision_supports_custom_query_key_attribute_names():
     mock_client = MagicMock()
     mock_client.describe_table.side_effect = botocore.exceptions.ClientError(
         error_response={
@@ -100,46 +112,58 @@ def test_provision_creates_table_with_write_sharded_query_index():
     with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
         sink = DynamoDBSink(
             table_name="unstructured-metadata",
-            query_index_name="facility-key-index",
             query_partition_field="facility",
             query_sort_fields=("bucket", "key", "version_id"),
-            query_partition_shards=16,
+            query_partition_key_name="facility_pk",
+            query_sort_key_name="facility_sk",
         )
         sink.provision()
 
     mock_client.create_table.assert_called_once_with(
         TableName="unstructured-metadata",
-        KeySchema=[{"AttributeName": "hash", "KeyType": "HASH"}],
+        KeySchema=[
+            {"AttributeName": "facility_pk", "KeyType": "HASH"},
+            {"AttributeName": "facility_sk", "KeyType": "RANGE"},
+        ],
         AttributeDefinitions=[
-            {"AttributeName": "hash", "AttributeType": "S"},
-            {"AttributeName": "query_pk", "AttributeType": "S"},
-            {"AttributeName": "query_sk", "AttributeType": "S"},
+            {"AttributeName": "facility_pk", "AttributeType": "S"},
+            {"AttributeName": "facility_sk", "AttributeType": "S"},
         ],
         BillingMode="PAY_PER_REQUEST",
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "facility-key-index",
-                "KeySchema": [
-                    {"AttributeName": "query_pk", "KeyType": "HASH"},
-                    {"AttributeName": "query_sk", "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            }
-        ],
     )
     mock_waiter.wait.assert_called_once_with(TableName="unstructured-metadata")
 
 
-def test_query_index_requires_complete_configuration():
+def test_query_sort_fields_must_not_be_empty():
     with pytest.raises(
         ValueError,
-        match=(
-            "query_index_name, query_partition_field, and query_sort_fields must all be set together"
-        ),
+        match="query_sort_fields must contain at least one field",
     ):
         DynamoDBSink(
             table_name="unstructured-metadata",
-            query_index_name="facility-key-index",
+            query_sort_fields=(),
+        )
+
+
+def test_query_partition_key_name_cannot_be_hash():
+    with pytest.raises(
+        ValueError,
+        match="query_partition_key_name cannot be `hash`",
+    ):
+        DynamoDBSink(
+            table_name="unstructured-metadata",
+            query_partition_key_name="hash",
+        )
+
+
+def test_query_sort_key_name_cannot_be_hash():
+    with pytest.raises(
+        ValueError,
+        match="query_sort_key_name cannot be `hash`",
+    ):
+        DynamoDBSink(
+            table_name="unstructured-metadata",
+            query_sort_key_name="hash",
         )
 
 
@@ -150,7 +174,6 @@ def test_query_sort_tags_must_align_with_sort_fields():
     ):
         DynamoDBSink(
             table_name="unstructured-metadata",
-            query_index_name="facility-key-index",
             query_partition_field="facility",
             query_sort_fields=("bucket", "key", "version_id"),
             query_sort_field_tags=("BUCKET", "KEY"),
@@ -180,7 +203,7 @@ def test_write_accepts_structured_rows():
     assert item["geospatial_lat_min"] == {"N": "12.5"}
 
 
-def test_write_adds_write_sharded_query_keys():
+def test_write_adds_query_keys():
     mock_client = MagicMock()
     structured_row = StructuredMetadata(
         bucket="bucket",
@@ -195,21 +218,16 @@ def test_write_adds_write_sharded_query_keys():
     with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
         sink = DynamoDBSink(
             table_name="unstructured-metadata",
-            query_index_name="facility-key-index",
             query_partition_field="facility",
             query_sort_fields=("bucket", "key", "version_id"),
-            query_partition_shards=16,
         )
         sink.write(metadata=[structured_row])
 
     request_items = mock_client.batch_write_item.call_args.kwargs["RequestItems"]
     item = request_items["unstructured-metadata"][0]["PutRequest"]["Item"]
-    expected_partition_key = sink._build_query_partition_key(
-        logical_partition_value="ANMN",
-        hash_value="abc",
-    )
-    assert item["query_pk"] == {"S": expected_partition_key}
-    assert item["query_sk"] == {"S": "bucket|key|version"}
+    expected_sort_key = "bucket|key|version"
+    assert item["query_pk"] == {"S": "ANMN"}
+    assert item["query_sk"] == {"S": expected_sort_key}
 
 
 def test_write_adds_tagged_query_sort_key():
@@ -227,11 +245,9 @@ def test_write_adds_tagged_query_sort_key():
     with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
         sink = DynamoDBSink(
             table_name="unstructured-metadata",
-            query_index_name="facility-key-index",
             query_partition_field="facility",
             query_sort_fields=("bucket", "key", "version_id"),
             query_sort_field_tags=("BUCKET", "KEY", "SEQ"),
-            query_partition_shards=16,
         )
         sink.write(metadata=[structured_row])
 
@@ -305,7 +321,16 @@ def test_write_retries_unprocessed_items():
     mock_client = MagicMock()
     first_response = {
         "UnprocessedItems": {
-            "unstructured-metadata": [{"PutRequest": {"Item": {"hash": {"S": "h1"}}}}]
+            "unstructured-metadata": [
+                {
+                    "PutRequest": {
+                        "Item": {
+                            "query_pk": {"S": "ANMN"},
+                            "query_sk": {"S": "bucket|path/h1.nc|version"},
+                        }
+                    }
+                }
+            ]
         }
     }
     second_response = {"UnprocessedItems": {}}

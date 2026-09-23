@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import time
 import typing
 
@@ -14,18 +13,15 @@ import data_index.schema.metadata
 
 
 class DynamoDBSink(pydantic.BaseModel):
-    """DynamoDB sink for metadata rows keyed by Object Reference Hash.
+    """DynamoDB sink for metadata rows keyed by query keys.
 
-    Rows are written with `PutRequest` using `hash` as the table partition key,
-    giving idempotent latest-write-wins behavior for duplicate object-version identities.
-    This avoids Iceberg-style table commit contention under high write concurrency.
-
-    Optionally, a write-sharded query index can be added at provision-time to support
-    sorted reads by business keys (for example facility -> bucket/key/version).
+    Rows are written with `PutRequest` using materialized query keys:
+    - `query_pk`: logical partition key (for example facility)
+    - `query_sk`: composed lexicographic sort key (for example bucket/key)
 
     Note:
         If both Structured and Unstructured rows are sent to DynamoDB, they should
-        target separate tables; both row types share the same `hash` identity and
+        target separate tables; both row types share the same object identity and
         would overwrite each other in a shared table.
     """
 
@@ -39,21 +35,11 @@ class DynamoDBSink(pydantic.BaseModel):
         pattern=r"^[A-Za-z0-9_.-]+$",
         description=(
             "Target DynamoDB table name for metadata rows. The table is "
-            "provisioned with `hash` as the primary partition key."
+            "provisioned with query keys (`query_pk` as HASH and `query_sk` as RANGE)."
         ),
     )
-    query_index_name: str | None = pydantic.Field(
-        default=None,
-        min_length=3,
-        max_length=255,
-        pattern=r"^[A-Za-z0-9_.-]+$",
-        description=(
-            "Optional GSI name for sorted query access. Requires "
-            "`query_partition_field` and `query_sort_fields`."
-        ),
-    )
-    query_partition_field: str | None = pydantic.Field(
-        default=None,
+    query_partition_field: str = pydantic.Field(
+        default="facility",
         min_length=1,
         description=(
             "Row field used as the logical query partition key "
@@ -61,10 +47,10 @@ class DynamoDBSink(pydantic.BaseModel):
         ),
     )
     query_sort_fields: tuple[str, ...] = pydantic.Field(
-        default=(),
+        default=("bucket", "key"),
         description=(
             "Ordered row fields composed into the query sort key "
-            "(for example `bucket`, `key`, `version_id`)."
+            "(for example `bucket`, `key`)."
         ),
     )
     query_sort_field_tags: tuple[str, ...] = pydantic.Field(
@@ -74,28 +60,19 @@ class DynamoDBSink(pydantic.BaseModel):
             "a tagged sort key (for example `BUCKET#...|KEY#...|SEQ#...`)."
         ),
     )
-    query_partition_shards: int = pydantic.Field(
-        default=1,
-        ge=1,
-        le=256,
-        description=(
-            "Number of write-shards for the logical query partition key. "
-            "Values greater than 1 spread hot partition writes."
-        ),
-    )
     query_partition_key_name: str = pydantic.Field(
         default="query_pk",
         min_length=1,
         max_length=255,
         pattern=r"^[A-Za-z0-9_.-]+$",
-        description="Materialized attribute name used as the GSI HASH key.",
+        description="Materialized attribute name used as the table HASH key.",
     )
     query_sort_key_name: str = pydantic.Field(
         default="query_sk",
         min_length=1,
         max_length=255,
         pattern=r"^[A-Za-z0-9_.-]+$",
-        description="Materialized attribute name used as the GSI RANGE key.",
+        description="Materialized attribute name used as the table RANGE key.",
     )
     query_sort_delimiter: str = pydantic.Field(
         default="|",
@@ -168,25 +145,17 @@ class DynamoDBSink(pydantic.BaseModel):
 
     @pydantic.model_validator(mode="after")
     def _validate_query_index_config(self) -> typing.Self:
-        has_index_name = self.query_index_name is not None
-        has_partition_field = self.query_partition_field is not None
-        has_sort_fields = bool(self.query_sort_fields)
-        query_configured = has_index_name or has_partition_field or has_sort_fields
+        if not self.query_partition_field.strip():
+            raise ValueError("query_partition_field must be a non-empty string")
 
-        if query_configured and not (
-            has_index_name and has_partition_field and has_sort_fields
-        ):
-            raise ValueError(
-                "query_index_name, query_partition_field, and query_sort_fields must all be set together"
-            )
+        if not self.query_sort_fields:
+            raise ValueError("query_sort_fields must contain at least one field")
 
-        if not has_index_name:
-            return self
+        if self.query_partition_key_name == "hash":
+            raise ValueError("query_partition_key_name cannot be `hash`")
 
-        if self.query_partition_shards > 1 and self.query_partition_key_name == "hash":
-            raise ValueError(
-                "query_partition_key_name cannot be `hash` when query_partition_shards > 1"
-            )
+        if self.query_sort_key_name == "hash":
+            raise ValueError("query_sort_key_name cannot be `hash`")
 
         if self.query_partition_key_name == self.query_sort_key_name:
             raise ValueError(
@@ -209,10 +178,6 @@ class DynamoDBSink(pydantic.BaseModel):
         return self
 
     @property
-    def _query_index_enabled(self) -> bool:
-        return self.query_index_name is not None
-
-    @property
     def client(self):
         """Build a DynamoDB client from sink configuration.
 
@@ -225,37 +190,12 @@ class DynamoDBSink(pydantic.BaseModel):
             endpoint_url=self.endpoint_url,
         )
 
-    def _query_partition_shard(self, *, hash_value: str) -> int:
-        digest = hashlib.sha256(hash_value.encode("utf-8")).digest()
-        return int.from_bytes(digest[:8], "big") % self.query_partition_shards
-
-    def _build_query_partition_key(
-        self,
-        *,
-        logical_partition_value: str,
-        hash_value: str,
-    ) -> str:
-        if self.query_partition_shards == 1:
-            return logical_partition_value
-        shard = self._query_partition_shard(hash_value=hash_value)
-        width = max(2, len(str(self.query_partition_shards - 1)))
-        return f"{logical_partition_value}#{shard:0{width}d}"
-
     def _inject_query_keys(self, row_item: dict[str, typing.Any]) -> None:
-        if not self._query_index_enabled:
-            return
-
-        partition_field = typing.cast(str, self.query_partition_field)
+        partition_field = self.query_partition_field
         partition_value = row_item.get(partition_field)
         if not isinstance(partition_value, str) or not partition_value:
             raise ValueError(
                 f"Expected non-empty string for query partition field `{partition_field}`"
-            )
-
-        hash_value = row_item.get("hash")
-        if not isinstance(hash_value, str) or not hash_value:
-            raise ValueError(
-                "Expected non-empty string `hash` value for query sharding"
             )
 
         sort_parts: list[str] = []
@@ -275,11 +215,9 @@ class DynamoDBSink(pydantic.BaseModel):
             else:
                 sort_parts.append(value_str)
 
-        row_item[self.query_partition_key_name] = self._build_query_partition_key(
-            logical_partition_value=partition_value,
-            hash_value=hash_value,
-        )
-        row_item[self.query_sort_key_name] = self.query_sort_delimiter.join(sort_parts)
+        sort_key = self.query_sort_delimiter.join(sort_parts)
+        row_item[self.query_partition_key_name] = partition_value
+        row_item[self.query_sort_key_name] = sort_key
 
     def provision(self) -> None:
         """Ensure the sink table exists before writes.
@@ -299,39 +237,23 @@ class DynamoDBSink(pydantic.BaseModel):
                 raise
 
         attribute_definitions: dict[str, str] = {
-            "hash": "S",
+            self.query_partition_key_name: "S",
+            self.query_sort_key_name: "S",
         }
-        if self._query_index_enabled:
-            attribute_definitions[self.query_partition_key_name] = "S"
-            attribute_definitions[self.query_sort_key_name] = "S"
+        key_schema: list[dict[str, str]] = [
+            {"AttributeName": self.query_partition_key_name, "KeyType": "HASH"},
+            {"AttributeName": self.query_sort_key_name, "KeyType": "RANGE"},
+        ]
 
         create_table_args: dict[str, typing.Any] = {
             "TableName": self.table_name,
-            "KeySchema": [
-                {"AttributeName": "hash", "KeyType": "HASH"},
-            ],
+            "KeySchema": key_schema,
             "AttributeDefinitions": [
                 {"AttributeName": name, "AttributeType": attr_type}
                 for name, attr_type in attribute_definitions.items()
             ],
             "BillingMode": self.billing_mode,
         }
-
-        if self._query_index_enabled:
-            gsi: dict[str, typing.Any] = {
-                "IndexName": self.query_index_name,
-                "KeySchema": [
-                    {"AttributeName": self.query_partition_key_name, "KeyType": "HASH"},
-                    {"AttributeName": self.query_sort_key_name, "KeyType": "RANGE"},
-                ],
-                "Projection": {"ProjectionType": "ALL"},
-            }
-            if self.billing_mode == "PROVISIONED":
-                gsi["ProvisionedThroughput"] = {
-                    "ReadCapacityUnits": self.read_capacity_units,
-                    "WriteCapacityUnits": self.write_capacity_units,
-                }
-            create_table_args["GlobalSecondaryIndexes"] = [gsi]
 
         if self.billing_mode == "PROVISIONED":
             create_table_args["ProvisionedThroughput"] = {
@@ -352,7 +274,7 @@ class DynamoDBSink(pydantic.BaseModel):
         """Serialize one metadata row to DynamoDB's typed-attribute map.
 
         We add a `row_kind` discriminator to aid operational debugging and
-        ad-hoc querying, while preserving the existing hash-key idempotency model.
+        ad-hoc querying.
         """
         if isinstance(row, data_index.schema.metadata.StructuredMetadata):
             return self._serialize_structured_item(row=row, serializer=serializer)
@@ -432,7 +354,7 @@ class DynamoDBSink(pydantic.BaseModel):
         """Write one DynamoDB batch with bounded retries.
 
         DynamoDB may return `UnprocessedItems` during throttling/backpressure.
-        Those items are safe to retry because writes are idempotent by `hash`.
+        Those items are safe to retry because writes are idempotent by primary key.
         """
         request_items = {
             self.table_name: [{"PutRequest": {"Item": item}} for item in items]
