@@ -136,8 +136,16 @@ STRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     region_name=REGION,
     query_index_name="facility-bucket-key-version-index",
     query_partition_field="facility",
-    query_sort_fields=("bucket", "key", "version_id",),
-    query_sort_field_tags=("B", "K", "V",),
+    query_sort_fields=(
+        "bucket",
+        "key",
+        "version_id",
+    ),
+    query_sort_field_tags=(
+        "B",
+        "K",
+        "V",
+    ),
     query_partition_shards=8,
 )
 
@@ -146,8 +154,16 @@ UNSTRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     region_name=REGION,
     query_index_name="facility-bucket-key-version-index",
     query_partition_field="facility",
-    query_sort_fields=("bucket", "key", "version_id",),
-    query_sort_field_tags=("B", "K", "V",),
+    query_sort_fields=(
+        "bucket",
+        "key",
+        "version_id",
+    ),
+    query_sort_field_tags=(
+        "B",
+        "K",
+        "V",
+    ),
     query_partition_shards=8,
 )
 

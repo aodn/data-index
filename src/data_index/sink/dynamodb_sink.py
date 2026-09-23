@@ -254,7 +254,9 @@ class DynamoDBSink(pydantic.BaseModel):
 
         hash_value = row_item.get("hash")
         if not isinstance(hash_value, str) or not hash_value:
-            raise ValueError("Expected non-empty string `hash` value for query sharding")
+            raise ValueError(
+                "Expected non-empty string `hash` value for query sharding"
+            )
 
         sort_parts: list[str] = []
         for index, field_name in enumerate(self.query_sort_fields):
