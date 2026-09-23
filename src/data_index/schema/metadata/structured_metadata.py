@@ -1,9 +1,5 @@
 import dataclasses
-import decimal
-import math
-import types
 import typing
-from functools import cache
 
 from .base_metadata import BaseMetadata
 
@@ -49,63 +45,3 @@ class StructuredMetadata(BaseMetadata):
     coordinate_schema: dict[str, str] | None = None
     dimension_sizes: dict[str, int] | None = None
     standard_names: dict[str, str] | None = None
-
-    @staticmethod
-    def _is_float_annotation(annotation: typing.Any) -> bool:
-        if annotation is float:
-            return True
-        origin = typing.get_origin(annotation)
-        if origin in (typing.Union, types.UnionType):
-            args = typing.get_args(annotation)
-            non_none_args = tuple(arg for arg in args if arg is not type(None))
-            return len(non_none_args) == 1 and non_none_args[0] is float
-        return False
-
-    @classmethod
-    @cache
-    def _conversion_plan(cls) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """Return cached field groups for DynamoDB conversion.
-
-        This runs expensive type-hint inspection exactly once per process.
-        The row serializer is a hot path (one metadata object per file), so
-        we precompute which fields need float->Decimal coercion.
-        """
-        structured_hints = typing.get_type_hints(cls, include_extras=True)
-        float_fields = tuple(
-            field.name
-            for field in dataclasses.fields(cls)
-            if cls._is_float_annotation(structured_hints[field.name])
-        )
-        passthrough_fields = tuple(
-            field.name
-            for field in dataclasses.fields(cls)
-            if field.name not in float_fields
-        )
-        return passthrough_fields, float_fields
-
-    @property
-    def dynamodb_item(self) -> dict[str, typing.Any]:
-        """Return a DynamoDB-compatible row dict with Decimal numeric fields.
-
-        Performance note:
-        We intentionally avoid `dataclasses.asdict()` because it performs a
-        recursive deep copy on every row. Metadata sink writes run per-row, so
-        shallow field reads + cached conversion plans are materially cheaper.
-        """
-        passthrough_fields, float_fields = self._conversion_plan()
-        source = self.__dict__
-        row_item = {field_name: source[field_name] for field_name in passthrough_fields}
-        for field_name in float_fields:
-            value = source[field_name]
-            if value is None:
-                row_item[field_name] = None
-                continue
-            if isinstance(value, float):
-                if not math.isfinite(value):
-                    raise ValueError(
-                        f"Structured field '{field_name}' has non-finite float value: {value}"
-                    )
-                row_item[field_name] = decimal.Decimal(str(value))
-            else:
-                row_item[field_name] = value
-        return row_item

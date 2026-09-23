@@ -126,7 +126,7 @@ def test_write_rejects_dead_letter_rows():
             sink.write(metadata=[dead_letter])
 
 
-def test_write_rejects_non_finite_structured_floats():
+def test_write_coerces_non_finite_structured_floats_to_null():
     mock_client = MagicMock()
     structured_row = StructuredMetadata(
         bucket="bucket",
@@ -137,11 +137,15 @@ def test_write_rejects_non_finite_structured_floats():
         facility="ANMN",
         geospatial_lat_min=float("nan"),
     )
+    mock_client.batch_write_item.return_value = {"UnprocessedItems": {}}
 
     with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
         sink = DynamoDBSink(table_name="unstructured-metadata")
-        with pytest.raises(ValueError, match="non-finite float value"):
-            sink.write(metadata=[structured_row])
+        sink.write(metadata=[structured_row])
+
+    request_items = mock_client.batch_write_item.call_args.kwargs["RequestItems"]
+    item = request_items["unstructured-metadata"][0]["PutRequest"]["Item"]
+    assert "geospatial_lat_min" not in item
 
 
 def test_write_retries_unprocessed_items():

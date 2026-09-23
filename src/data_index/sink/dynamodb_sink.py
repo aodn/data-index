@@ -171,10 +171,10 @@ class DynamoDBSink(pydantic.BaseModel):
     ) -> dict[str, dict[str, typing.Any]]:
         """Serialize one structured row.
 
-        Structured rows use `dynamodb_item`, which applies float->Decimal
-        conversion with a cached conversion plan.
+        Structured rows use `as_dynamodb_item`, which applies runtime
+        normalization from the `Schema.as_dynamodb_type_spec` contract.
         """
-        row_item = row.dynamodb_item
+        row_item = row.as_dynamodb_item()
         row_item["row_kind"] = "structured_metadata"
         return {key: serializer.serialize(value) for key, value in row_item.items()}
 
