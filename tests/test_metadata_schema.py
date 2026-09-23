@@ -1,4 +1,5 @@
 import decimal
+import json
 
 import pytest
 
@@ -46,7 +47,7 @@ def test_unstructured_schema_version_field_defaults_to_class_var_value(
     assert row.schema_version == UnstructuredMetadata.SCHEMA_VERSION
 
 
-def test_structured_as_dynamodb_item_converts_floats_and_maps():
+def test_structured_as_dynamodb_item_converts_floats_and_json_maps():
     row = StructuredMetadata(
         bucket="bucket",
         key="file.nc",
@@ -61,7 +62,11 @@ def test_structured_as_dynamodb_item_converts_floats_and_maps():
     item = row.as_dynamodb_item()
 
     assert item["geospatial_lat_min"] == decimal.Decimal("12.5")
-    assert item["dimension_sizes"] == {"time": 10}
+    assert item["dimension_sizes"] == json.dumps(
+        {"time": 10},
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 
 def test_structured_as_dynamodb_item_coerces_non_finite_float_to_none():

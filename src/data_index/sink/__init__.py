@@ -3,7 +3,7 @@ from .dynamodb_sink import DynamoDBSink
 from .iceberg_table_sink import IcebergTableSink
 
 __all__ = [
-    "DynamoDBSink",
     "DummySink",
+    "DynamoDBSink",
     "IcebergTableSink",
 ]

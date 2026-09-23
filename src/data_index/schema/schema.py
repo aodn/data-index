@@ -11,6 +11,8 @@ import pyarrow
 import pyiceberg.schema
 import pyiceberg.types
 
+DynamoDBAttributeType = typing.Literal["S", "N", "BOOL", "L", "M"]
+
 
 @dataclasses.dataclass(frozen=True)
 class _TypeSpec:
@@ -23,9 +25,9 @@ class _TypeSpec:
 
     kind: typing.Literal["scalar", "list", "map"]
     scalar_type: type | None = None
-    item_type: "_TypeSpec | None" = None
+    item_type: _TypeSpec | None = None
     key_type: type | None = None
-    value_type: "_TypeSpec | None" = None
+    value_type: _TypeSpec | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -49,14 +51,13 @@ class DynamoDBTypeSpec:
     This spec intentionally describes the *shape* and expected DynamoDB
     attribute family without performing runtime value conversion.
 
-    :param dynamodb_type: DynamoDB attribute family (``S``, ``N``, ``BOOL``,
-        ``L``, ``M``).
+    :param dynamodb_type: DynamoDB attribute family (``S``, ``N``, ``BOOL``, ``L``, ``M``).
     :param nullable: Whether ``None`` is allowed for this field.
     :param item_type: Nested type contract for ``L`` values.
     :param value_type: Nested value contract for ``M`` values.
     """
 
-    dynamodb_type: typing.Literal["S", "N", "BOOL", "L", "M"]
+    dynamodb_type: DynamoDBAttributeType
     nullable: bool
     item_type: DynamoDBTypeSpec | None = None
     value_type: DynamoDBTypeSpec | None = None

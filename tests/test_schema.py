@@ -1,5 +1,6 @@
 import dataclasses
 import re
+import typing
 
 import polars
 import pyarrow
@@ -8,8 +9,9 @@ import pyiceberg.types
 import pytest
 
 from data_index.schema.schema import (
-    Schema,
+    DynamoDBAttributeType,
     DynamoDBTypeSpec,
+    Schema,
     _PyIcebergIdAllocator,
     _TypeSpec,
 )
@@ -140,6 +142,16 @@ def test_as_dynamodb_type_spec():
         nullable=True,
         item_type=DynamoDBTypeSpec(dynamodb_type="S", nullable=False),
     )
+
+
+def test_dynamodb_attribute_type_is_shared_literal_alias():
+    assert set(typing.get_args(DynamoDBAttributeType)) == {
+        "S",
+        "N",
+        "BOOL",
+        "L",
+        "M",
+    }
 
 
 def test_invalid_union_types_raises_error():

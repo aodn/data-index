@@ -109,6 +109,28 @@ def test_write_accepts_structured_rows():
     assert item["geospatial_lat_min"] == {"N": "12.5"}
 
 
+def test_write_serializes_structured_maps_as_string_attributes():
+    mock_client = MagicMock()
+    structured_row = StructuredMetadata(
+        bucket="bucket",
+        key="key",
+        version_id="version",
+        hash="abc",
+        file_format="NETCDF4",
+        facility="ANMN",
+        dimension_sizes={"time": 10},
+    )
+    mock_client.batch_write_item.return_value = {"UnprocessedItems": {}}
+
+    with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
+        sink = DynamoDBSink(table_name="unstructured-metadata")
+        sink.write(metadata=[structured_row])
+
+    request_items = mock_client.batch_write_item.call_args.kwargs["RequestItems"]
+    item = request_items["unstructured-metadata"][0]["PutRequest"]["Item"]
+    assert item["dimension_sizes"] == {"S": '{"time":10}'}
+
+
 def test_write_rejects_dead_letter_rows():
     mock_client = MagicMock()
     dead_letter = data_index.protocols.DeadLetter(

@@ -275,12 +275,10 @@ def index(
     partitioner: BatchPartitioner = data_index.runners.defaults.BATCH_PARTITIONER,
     fetcher: FileFetcher = data_index.runners.defaults.FILE_FETCHER,
     extractor: MetadataExtractor = data_index.runners.defaults.METADATA_EXTRACTOR,
-
     # structured_sink: MetadataSink = data_index.runners.defaults.STRUCTURED_TABLE_SINK,
     structured_sink: MetadataSink = data_index.runners.defaults.STRUCTURED_DYNAMODB_SINK,
     # unstructured_sink: MetadataSink = data_index.runners.defaults.UNSTRUCTURED_TABLE_SINK,
     unstructured_sink: MetadataSink = data_index.runners.defaults.UNSTRUCTURED_DYNAMODB_SINK,
-    
     dead_letter_sink: MetadataSink = data_index.runners.defaults.DEAD_LETTER_TABLE_SINK,
     index_batch_flow_name: str = "index-batch",
     index_batch_deployment_name: str = "index-batch",

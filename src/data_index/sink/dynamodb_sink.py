@@ -216,7 +216,9 @@ class DynamoDBSink(pydantic.BaseModel):
                     self._serialize_structured_item(row=row, serializer=serializer)
                     for row in metadata
                 ]
-            return [self._serialize_item(row=row, serializer=serializer) for row in metadata]
+            return [
+                self._serialize_item(row=row, serializer=serializer) for row in metadata
+            ]
 
         if all(
             isinstance(row, data_index.schema.metadata.UnstructuredMetadata)
@@ -226,7 +228,9 @@ class DynamoDBSink(pydantic.BaseModel):
                 self._serialize_unstructured_item(row=row, serializer=serializer)
                 for row in metadata
             ]
-        return [self._serialize_item(row=row, serializer=serializer) for row in metadata]
+        return [
+            self._serialize_item(row=row, serializer=serializer) for row in metadata
+        ]
 
     def _batch_put(self, items: list[dict[str, dict[str, typing.Any]]]) -> None:
         """Write one DynamoDB batch with bounded retries.

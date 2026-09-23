@@ -58,7 +58,9 @@ def test_get_dataset_arrow_dataset_builds_signed_s3_parquet_dataset():
     frozen_credentials.token = "session-token"
 
     with (
-        patch("data_index.analysis.datasets.boto3.Session", return_value=session) as create_session,
+        patch(
+            "data_index.analysis.datasets.boto3.Session", return_value=session
+        ) as create_session,
         patch(
             "data_index.analysis.datasets.pyarrow.fs.S3FileSystem",
             return_value=s3_filesystem,

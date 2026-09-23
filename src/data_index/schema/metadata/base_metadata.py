@@ -1,10 +1,14 @@
 import dataclasses
 import decimal
+import json
 import math
 import typing
 
 import data_index.schema
-from data_index.schema.schema import DynamoDBTypeSpec
+from data_index.schema.schema import (
+    DynamoDBAttributeType,
+    DynamoDBTypeSpec,
+)
 
 
 @dataclasses.dataclass(
@@ -25,15 +29,14 @@ class BaseMetadata(data_index.schema.Schema):
     def _coerce_scalar(
         cls,
         value: typing.Any,
-        *,
-        dynamodb_type: str,
+        dynamodb_attribute_type: DynamoDBAttributeType,
     ) -> typing.Any:
         """Normalize scalar values by DynamoDB scalar family.
 
         - ``S`` and ``BOOL`` pass through unchanged.
         - ``N`` must not receive Python ``float``; boto3 expects ``Decimal``.
         """
-        if dynamodb_type in ("S", "BOOL"):
+        if dynamodb_attribute_type in ("S", "BOOL"):
             return value
         if isinstance(value, float):
             # DynamoDB numbers cannot represent NaN/Infinity, so we normalize to
@@ -46,103 +49,52 @@ class BaseMetadata(data_index.schema.Schema):
     @classmethod
     def _coerce_list_value(
         cls,
-        value: typing.Any,
-        *,
-        type_spec: DynamoDBTypeSpec,
-        include_nulls: bool,
-    ) -> list[typing.Any]:
-        """Normalize a DynamoDB ``L`` value recursively.
-
-        - Isolates list-specific validation and recursion.
-        - Keeps null-filtering policy (`include_nulls`) explicit for nested data.
-        """
+        value: list,
+    ) -> str:
+        """Serialize a DynamoDB ``L`` value to compact JSON text."""
         if not isinstance(value, list):
-            raise ValueError(
-                f"Expected list for DynamoDB type 'L', got {type(value)}"
-            )
-        if type_spec.item_type is None:
-            raise ValueError("List DynamoDB type spec missing item_type")
-
-        converted_items = [
-            cls._coerce_dynamodb_value(
-                item,
-                type_spec.item_type,
-                include_nulls=include_nulls,
-            )
-            for item in value
-        ]
-        if include_nulls:
-            return converted_items
-        return [item for item in converted_items if item is not None]
+            raise TypeError(f"Expected list for DynamoDB type 'L', got {type(value)}")
+        # Compact separators reduce item size; sorted keys keep output deterministic.
+        return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
     @classmethod
     def _coerce_map_value(
         cls,
-        value: typing.Any,
-        *,
-        type_spec: DynamoDBTypeSpec,
-        include_nulls: bool,
-    ) -> dict[str, typing.Any]:
-        """Normalize a DynamoDB ``M`` value recursively.
-
-        - Enforces DynamoDB string-keyed map constraints.
-        - Applies recursive normalization to map values using the spec contract.
-        """
+        value: dict,
+    ) -> str:
+        """Serialize a DynamoDB ``M`` value to compact JSON text."""
         if not isinstance(value, dict):
-            raise ValueError(
-                f"Expected dict for DynamoDB type 'M', got {type(value)}"
-            )
-        if type_spec.value_type is None:
-            raise ValueError("Map DynamoDB type spec missing value_type")
-
-        converted_map: dict[str, typing.Any] = {}
-        for key, map_value in value.items():
-            if not isinstance(key, str):
-                raise ValueError(
-                    f"Expected string map key for DynamoDB type 'M', got {type(key)}"
-                )
-            converted_value = cls._coerce_dynamodb_value(
-                map_value,
-                type_spec.value_type,
-                include_nulls=include_nulls,
-            )
-            if converted_value is None and not include_nulls:
-                continue
-            converted_map[key] = converted_value
-        return converted_map
+            raise TypeError(f"Expected dict for DynamoDB type 'M', got {type(value)}")
+        if not all(isinstance(key, str) for key in value):
+            raise TypeError("Expected string map keys for DynamoDB type 'M'")
+        # Compact separators reduce item size; sorted keys keep output deterministic.
+        return json.dumps(value, separators=(",", ":"), sort_keys=True)
 
     @classmethod
     def _coerce_dynamodb_value(
         cls,
         value: typing.Any,
         type_spec: DynamoDBTypeSpec,
-        *,
-        include_nulls: bool,
     ) -> typing.Any:
         """Normalize one value according to a DynamoDB type contract.
 
-        - Central recursive dispatcher for ``S``/``N``/``BOOL``/``L``/``M``.
+        - Dispatches scalar conversion for ``S``/``N``/``BOOL``.
+        - Serializes ``L``/``M`` values to JSON text for string storage.
         - Keeps runtime conversion policy decoupled from Schema parsing.
         """
         if value is None:
             return None
 
         dynamodb_type = type_spec.dynamodb_type
-        if dynamodb_type in ("N", "S", "BOOL"):
-            return cls._coerce_scalar(value, dynamodb_type=dynamodb_type)
-        if dynamodb_type == "L":
-            return cls._coerce_list_value(
-                value,
-                type_spec=type_spec,
-                include_nulls=include_nulls,
-            )
-        if dynamodb_type == "M":
-            return cls._coerce_map_value(
-                value,
-                type_spec=type_spec,
-                include_nulls=include_nulls,
-            )
-        raise ValueError(f"Unsupported DynamoDB type spec: {dynamodb_type}")
+        match dynamodb_type:
+            case "N" | "S" | "BOOL":
+                return cls._coerce_scalar(value, dynamodb_attribute_type=dynamodb_type)
+            case "L":
+                return cls._coerce_list_value(value)
+            case "M":
+                return cls._coerce_map_value(value)
+            case _:
+                raise ValueError(f"Unsupported DynamoDB type spec: {dynamodb_type}")
 
     @classmethod
     def _get_dynamodb_row_item(
@@ -160,7 +112,6 @@ class BaseMetadata(data_index.schema.Schema):
             converted_value = cls._coerce_dynamodb_value(
                 source[field_name],
                 type_spec,
-                include_nulls=include_nulls,
             )
 
             # If `include_nulls` is false and the coerced value is `None`
@@ -178,7 +129,7 @@ class BaseMetadata(data_index.schema.Schema):
         """Return a DynamoDB-compatible item from this metadata row.
 
         Conversion uses ``Schema.as_dynamodb_type_spec()`` as the structural
-        contract and applies runtime numeric normalization (float -> Decimal).
+        contract and applies runtime normalization (float -> Decimal, list/map -> JSON text).
         """
         # We intentionally read from __dict__ (instead of dataclasses.asdict)
         # to avoid deep-copy overhead on hot per-row serialization paths.
