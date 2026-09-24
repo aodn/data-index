@@ -50,3 +50,12 @@ LOCAL_DEAD_LETTER_TABLE = IcebergTableConfig(
     namespace="data_index",
     table_name=f"dead_letter_v{data_index.protocols.DeadLetter.SCHEMA_VERSION}",
 )
+
+__TEMP__SM_6_DDB_TABLE = IcebergTableConfig(
+    catalog_config=S3TablesCatalogConfig(
+        region="ap-southeast-2",
+        arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/zero-etl",
+    ),
+    namespace="zetl_d6657675_4b24_4a9f_85eb_f004b7850b3e",
+    table_name="structured_metadata_v6",
+)
