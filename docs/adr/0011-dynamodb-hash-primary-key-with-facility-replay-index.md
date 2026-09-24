@@ -1,0 +1,3 @@
+# DynamoDB hash primary key with facility replay index
+
+For DynamoDB-backed metadata buffering, we use `hash` as the base table partition key (separate tables for structured and unstructured rows) to maximize ingest write distribution and preserve idempotent latest-write-wins behavior per object version. To support replay into facility-partitioned S3 tables, each table exposes a facility replay GSI with `facility` as partition key and `indexed_at_ms` as sort key, enabling incremental checkpointed draining with at-least-once semantics. We project `KEYS_ONLY` on these GSIs to minimize write amplification during ingest, and drain workers fetch full rows from base tables by key.

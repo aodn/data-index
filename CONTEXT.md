@@ -86,15 +86,15 @@ A pluggable component that, given a list of **Batch Entry** objects, returns a l
 _Avoid_: downloader, fetcher, sync class
 
 **MetadataExtractor**:
-A pluggable component that, given an **XarrayHandle**, extracts both Structured and Unstructured Metadata in a single pass and returns a `RawExtractionResult` (with unstructured metadata as a plain `dict`). Receives the handle — not a raw `xarray.Dataset` — so it can read `file_format` from magic bytes without reopening the file.
+A pluggable component that, given an **XarrayHandle**, extracts both Structured and Unstructured Metadata in a single pass and returns a `RawExtractionResult` (with unstructured metadata serialized as a JSON string payload). Receives the handle — not a raw `xarray.Dataset` — so it can read `file_format` from magic bytes without reopening the file.
 _Avoid_: parser, reader
 
 **StructuredSink**:
-A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The canonical implementation (`IcebergTableSink`) writes to an Iceberg table via PyIceberg with hash-key upserts and retry-on-conflict behavior. Environment is chosen by catalog config: S3 Tables REST catalog in production, SQLite catalog + local warehouse for local runs.
+A pluggable component that prepares and persists Structured Metadata rows to a target store. All implementations expose `provision()` — called once by the **Orchestrator** before Batches are dispatched — and `write()` for each Batch. The default implementation (`IcebergTableSink`) writes to an Iceberg table via PyIceberg with hash-key upserts and retry-on-conflict behavior. Environment is chosen by catalog config: S3 Tables REST catalog in production, SQLite catalog + local warehouse for local runs. An opt-in `DynamoDBSink` implementation is also available for structured rows and uses `hash` as the item key.
 _Avoid_: writer, exporter
 
 **UnstructuredSink**:
-A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` dict payload. All implementations expose `provision()` and `write()`. The canonical implementation (`IcebergTableSink`) writes to Iceberg with hash-key upserts (latest write wins), with backend selected by catalog config (S3 Tables in production, SQLite + local warehouse for local runs).
+A pluggable component that prepares and persists Unstructured Metadata rows to a final destination store. Receives `UnstructuredMetadata` rows with explicit identity fields, required `facility`, top-level `file_format`, and a `metadata` JSON-string payload. All implementations expose `provision()` and `write()`. The default implementation (`IcebergTableSink`) writes to Iceberg with hash-key upserts (latest write wins), with backend selected by catalog config (S3 Tables in production, SQLite + local warehouse for local runs). An opt-in `DynamoDBSink` implementation is available for unstructured rows, also keyed by `hash` with latest-write-wins behavior.
 _Avoid_: writer, exporter
 
 ## Constraints
@@ -102,7 +102,12 @@ _Avoid_: writer, exporter
 - `XarrayHandle.cleanup()` is called after `transform` completes; implementations decide what cleanup means (e.g. `DiskXarrayHandle` deletes the local file, `S3XarrayHandle` is a no-op)
 - `sink.provision()` must be called before any `sink.write()` calls — the **Orchestrator**'s `pre_run` hook is the canonical place to do this
 - Schema-breaking sink transitions use an explicit opt-in reset mode in `provision()` (drop/recreate), not implicit destructive behavior
-- S3-table sinks own idempotency for **Object Version Identity** by upserting (latest write wins per object version); this applies forward from the upsert change and does not retroactively deduplicate historical append-era duplicates
+- Sink implementations own idempotency for **Object Version Identity** by upserting on `hash` (latest write wins per object version); this applies forward from the upsert change and does not retroactively deduplicate historical append-era duplicates
+- DynamoDB sinks use `hash` as the item key; structured and unstructured writes must target separate tables to avoid cross-type overwrites
+- DynamoDB base table writes use `hash` as partition key for ingest distribution; facility-based access paths are modeled through GSIs, not the base key
+- DynamoDB facility replay access path uses a GSI with `facility` partition key and `indexed_at_ms` sort key for incremental, checkpointed draining
+- DynamoDB facility GSIs project keys only to reduce write amplification; drain workers fetch full rows from base tables by key
+- DynamoDB replay semantics are at-least-once at checkpoint boundaries; downstream sinks rely on hash idempotency
 - Sink upsert/join operations use **Object Reference Hash**; `bucket`, `key`, and `version_id` remain required identity fields in all pipeline contracts and sink schemas
 - **Object Reference Hash** generation (`sha256(bucket/key/version composite)`) is a stable contract; changes require explicit schema/version migration
 - Identity fields (`bucket`, `key`, `version_id`) are required and non-null at pipeline boundaries
@@ -133,7 +138,7 @@ _Avoid_: writer, exporter
 - `ExtractionResult` is the single carrier of identity and unstructured payload between transform and load
 - Logs/artifacts/manifests emit identity as explicit `bucket`, `key`, `version_id` fields
 - `facility` and `hash` are derived once during transform/extraction and carried to sinks; sinks must not re-derive
-- `UnstructuredMetadata.metadata` remains a dict in the shared contract; sinks handle storage-specific serialization
+- `UnstructuredMetadata.metadata` is a JSON string in the shared contract; sinks persist it without re-derivation
 - Unstructured writes use latest-write-wins semantics on hash; duplicate hashes in a write batch keep the last row
 - Version-pinned fetch target rendering is centralized in a shared helper used by all fetchers
 - The `StructuredSink` enforces the Structured Metadata schema on write
@@ -187,8 +192,11 @@ _Avoid_: build pipeline, validation pipeline
 - "Do we need a separate local sink class?" — resolved: no; use `IcebergTableSink` with `SqliteCatalogConfig`.
 - "How to hand off identity between stages (composite fields vs value object)" — resolved: use a lightweight named-tuple **Object Reference**.
 - "`UnstructuredMetadata` referred to both row contract and persisted handle type" — resolved: keep `UnstructuredMetadata` as the row contract and remove the separate handle abstraction.
+- "`UnstructuredMetadata.metadata` payload type (dict vs JSON string) was ambiguous" — resolved: canonical shared contract is JSON string payload.
 - "Should unstructured payloads use intermediate diskcache handles or stay in-memory between transform and load?" — resolved: keep `UnstructuredMetadata` rows in memory and remove handle/cache abstractions.
 - "Should sink joins use composite identity or hash?" — resolved: use **Object Reference Hash** for joins/upserts, while keeping explicit **Object Version Identity** fields required everywhere.
+- "Should DynamoDB use `facility` or `hash` as the base partition key?" — resolved: base key is `hash`; `facility` is an index access path.
+- "Should DynamoDB facility replay scan full partitions or drain incrementally?" — resolved: incremental draining with `indexed_at_ms` ordering.
 - "Missing facility handling (fail vs nullable vs sentinel)" — resolved: use sentinel `UNKNOWN`.
 - "Batch partitioner naming used `collection`" — resolved: rename to `FacilityGroupedBatchPartitioner`.
 - "Should transform/load exchange Arrow tables instead of domain rows?" — deferred: keep typed domain-row contracts for now; revisit later.

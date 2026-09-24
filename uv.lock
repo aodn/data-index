@@ -707,6 +707,7 @@ dev = [
     { name = "pytest-regressions" },
     { name = "ruff" },
     { name = "sqlalchemy" },
+    { name = "zarr" },
 ]
 
 [package.metadata]
@@ -762,6 +763,7 @@ dev = [
     { name = "pytest-regressions", specifier = ">=2.11.0" },
     { name = "ruff", specifier = ">=0.11.0" },
     { name = "sqlalchemy", specifier = ">=2.0.49" },
+    { name = "zarr", specifier = ">=3.3.0" },
 ]
 
 [[package]]

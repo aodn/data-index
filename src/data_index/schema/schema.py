@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import builtins
 import dataclasses
+import functools
 import types
 import typing
 
@@ -7,6 +10,8 @@ import polars
 import pyarrow
 import pyiceberg.schema
 import pyiceberg.types
+
+DynamoDBAttributeType = typing.Literal["S", "N", "BOOL", "L", "M"]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -20,9 +25,9 @@ class _TypeSpec:
 
     kind: typing.Literal["scalar", "list", "map"]
     scalar_type: type | None = None
-    item_type: "_TypeSpec | None" = None
+    item_type: _TypeSpec | None = None
     key_type: type | None = None
-    value_type: "_TypeSpec | None" = None
+    value_type: _TypeSpec | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -37,6 +42,25 @@ class _FieldSpec:
     name: str
     type_spec: _TypeSpec
     nullable: bool
+
+
+@dataclasses.dataclass(frozen=True)
+class DynamoDBTypeSpec:
+    """Backend-agnostic DynamoDB type contract for one field.
+
+    This spec intentionally describes the *shape* and expected DynamoDB
+    attribute family without performing runtime value conversion.
+
+    :param dynamodb_type: DynamoDB attribute family (``S``, ``N``, ``BOOL``, ``L``, ``M``).
+    :param nullable: Whether ``None`` is allowed for this field.
+    :param item_type: Nested type contract for ``L`` values.
+    :param value_type: Nested value contract for ``M`` values.
+    """
+
+    dynamodb_type: DynamoDBAttributeType
+    nullable: bool
+    item_type: DynamoDBTypeSpec | None = None
+    value_type: DynamoDBTypeSpec | None = None
 
 
 @dataclasses.dataclass
@@ -278,6 +302,63 @@ class Schema:
                 )
 
     @classmethod
+    def _to_dynamodb_type_spec(
+        cls,
+        type_spec: _TypeSpec,
+        nullable: bool,
+    ) -> DynamoDBTypeSpec:
+        """Convert internal type spec to a DynamoDB type contract.
+
+        This method does not perform value serialization; it only returns the
+        expected DynamoDB-compatible type family for each field.
+
+        :param type_spec: Parsed type spec.
+        :param nullable: Whether this node allows ``None``.
+        :returns: DynamoDB type contract for the spec.
+        :raises ValueError: If nested types are missing or invalid.
+        """
+        match type_spec:
+            # Handle Scalars
+            case _TypeSpec(kind="scalar", scalar_type=builtins.str):
+                return DynamoDBTypeSpec(dynamodb_type="S", nullable=nullable)
+            case _TypeSpec(kind="scalar", scalar_type=builtins.float):
+                # Runtime serializer is expected to coerce float -> Decimal
+                # before writing as DynamoDB number.
+                return DynamoDBTypeSpec(dynamodb_type="N", nullable=nullable)
+            case _TypeSpec(kind="scalar", scalar_type=builtins.int):
+                return DynamoDBTypeSpec(dynamodb_type="N", nullable=nullable)
+            case _TypeSpec(kind="scalar", scalar_type=builtins.bool):
+                return DynamoDBTypeSpec(dynamodb_type="BOOL", nullable=nullable)
+
+            # Handle Maps
+            case _TypeSpec(kind="map", value_type=value_type) if value_type is not None:
+                return DynamoDBTypeSpec(
+                    dynamodb_type="M",
+                    nullable=nullable,
+                    value_type=cls._to_dynamodb_type_spec(
+                        type_spec=value_type,
+                        nullable=True,
+                    ),
+                )
+
+            # Handle Lists
+            case _TypeSpec(kind="list", item_type=item_type) if item_type is not None:
+                return DynamoDBTypeSpec(
+                    dynamodb_type="L",
+                    nullable=nullable,
+                    item_type=cls._to_dynamodb_type_spec(
+                        type_spec=item_type,
+                        nullable=False,
+                    ),
+                )
+
+            # Fallback for invalid/malformed specs
+            case _:
+                raise ValueError(
+                    f"Invalid or missing nested types for DynamoDB spec: {type_spec}"
+                )
+
+    @classmethod
     def as_polars_schema(cls) -> polars.Schema:
         """Build Polars schema from ``StructuredMetadata`` annotations.
 
@@ -331,6 +412,24 @@ class Schema:
                 for index, field in enumerate(field_specs, start=1)
             ]
         )
+
+    @classmethod
+    @functools.cache
+    def as_dynamodb_type_spec(cls) -> dict[str, DynamoDBTypeSpec]:
+        """Build a DynamoDB type contract from ``Schema`` annotations.
+
+        This is a structural translation API intended to support DynamoDB
+        serializers. It does not perform runtime data normalization.
+
+        :returns: Mapping of field name to DynamoDB type contract.
+        """
+        field_specs = cls._field_specs()
+        return {
+            field.name: cls._to_dynamodb_type_spec(
+                type_spec=field.type_spec, nullable=field.nullable
+            )
+            for field in field_specs
+        }
 
     @classmethod
     def to_arrow(

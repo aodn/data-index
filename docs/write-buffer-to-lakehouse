@@ -1,0 +1,90 @@
+# 📋 Architecture Plan: DynamoDB to S3 Tables Drain Pipeline
+
+## 1. Architectural Overview
+This pipeline architecture uses an event-driven ingestion pattern. Data is captured immediately upon being written to DynamoDB and is streamed continuously into S3 Tables.
+
+[ Application ] 
+       │ (High-velocity writes)
+       ▼
+┌──────────────────────────────┐
+│  Amazon DynamoDB             │ ───► Free Auto-Cleanup (TTL)
+└──────────────────────────────┘
+       │ (Change Data Capture)
+       ▼
+┌──────────────────────────────┐
+│  DynamoDB Streams            │
+└──────────────────────────────┘
+       │ (Real-time events)
+       ▼
+┌──────────────────────────────┐
+│  Amazon Data Firehose        │ ───► Optional: AWS Lambda Data Transformation
+└──────────────────────────────┘
+       │ (Micro-batching & Parquet formatting)
+       ▼
+┌──────────────────────────────┐
+│  Amazon S3 Tables (Iceberg)  │ ───► Automatic File Compaction
+└──────────────────────────────┘
+
+
+## 2. Component Design & Configuration
+
+### A. Amazon DynamoDB (The Write Buffer)
+DynamoDB acts strictly as a transient landing zone optimized for fast ingestion.
+*   **Capacity Mode:** Set to **On-Demand** if traffic is highly spiky, or **Provisioned** with Auto-Scaling if workloads are predictable.
+*   **DynamoDB Streams:** **Enabled**. Set the View Type to `New Image` or `New and Old Images`. This tracks changes without consuming table Read Capacity Units (RCUs).
+*   **Time to Live (TTL):** **Enabled**. Include an `ttl_timestamp` attribute on every item (calculated as `epoch_now + 86400` for a 24-hour buffer). DynamoDB will purge expired records **for free** without impacting production performance.
+
+### B. Amazon Data Firehose (The Delivery Stream)
+Firehose natively bridges the streaming data into structured cloud storage.
+*   **Source:** Configured to ingest natively from the **DynamoDB Stream**.
+*   **Destination:** **Amazon S3 Tables**.
+*   **Buffer Hints:** Configure the delivery stream to flush data to S3 based on whichever threshold is met first:
+    *   *Size:* **128 MB** (creates healthy file footprints)
+    *   *Interval:* **900 seconds (15 minutes)** (or lower depending on your latency requirements)
+*   **Data Format Conversion:** Enabled. Firehose can automatically convert the incoming JSON stream into **Apache Parquet** format on-the-fly, reducing downstream S3 storage costs and accelerating analytics performance.
+
+### C. Amazon S3 Tables (The Analytics Lake)
+S3 Tables provide a managed home for your transactional and analytical data using open table formats.
+*   **Table Format:** **Apache Iceberg** (native to S3 Tables).
+*   **Maintenance Policies:** **Automatic Compaction Enabled**. Because streaming data creates small physical files, S3 Tables automatically merge smaller parts into large Parquet blocks background-style, preventing query degradation.
+
+---
+
+## 3. Step-by-Step Implementation Workflow
+
+### Step 1: Prepare the DynamoDB Table
+Ensure your write buffer table has both streaming and TTL active.
+```bash
+# Enable DynamoDB Streams on your existing table
+aws dynamodb update-table \
+    --table-name YourWriteBufferTable \
+    --stream-specification StreamEnabled=true,StreamViewType=NEW_IMAGE
+
+# Enable TTL using a dedicated attribute (e.g., 'expire_at')
+aws dynamodb update-time-to-live \
+    --table-name YourWriteBufferTable \
+    --time-to-live-specification Enabled=true,AttributeName=expire_at
+```
+
+### Step 2: Provision the S3 Table Bucket and Namespace
+Set up your destination catalog inside the AWS Ecosystem.
+1. Navigate to the **Amazon S3 Console** and click **Table buckets**.
+2. Create a new Table Bucket (e.g., `company-analytics-tables`).
+3. Inside the bucket, create a **Namespace** (equivalent to a database, e.g., `operational_data`).
+4. Define your **Table** schema matching the payload coming out of DynamoDB.
+
+### Step 3: Create the Firehose Delivery Stream
+1. Open the **Amazon Data Firehose** console.
+2. Click **Create delivery stream**.
+    *   *Source:* `Amazon DynamoDB Apps` / `Streams`.
+    *   *Destination:* `Amazon S3 Tables`.
+3. Under **Destination settings**, browse and select your targeted S3 Table bucket, namespace, and table.
+4. Under **Buffer hints**, set your sizing constraints (e.g., 128MB / 15 mins).
+5. Choose or create an IAM Role that explicitly grants Firehose permission to read from the DynamoDB Stream and write directly to the S3 Table bucket.
+
+---
+
+## 4. Key Advantages of This Design
+*   **Cost Minimisation:** Zero RCUs are consumed to drain the table. DynamoDB Streams are billed by request volume, which is vastly cheaper than scanning a multi-million row table.
+*   **Operational Simplicity:** There are no Cron jobs, Airflow DAGs, or custom batch application scripts to maintain, patch, or monitor.
+*   **Auto-Cleaning:** The buffer cleans itself up continuously and automaticall

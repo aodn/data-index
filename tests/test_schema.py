@@ -1,5 +1,6 @@
 import dataclasses
 import re
+import typing
 
 import polars
 import pyarrow
@@ -8,6 +9,8 @@ import pyiceberg.types
 import pytest
 
 from data_index.schema.schema import (
+    DynamoDBAttributeType,
+    DynamoDBTypeSpec,
     Schema,
     _PyIcebergIdAllocator,
     _TypeSpec,
@@ -26,6 +29,12 @@ class FlatScalarSchema(Schema):
 class NestedListSchema(Schema):
     int_list: list[int]
     optional_str_list: list[str] | None
+
+
+@dataclasses.dataclass
+class NestedMapSchema(Schema):
+    metrics: dict[str, float]
+    labels: dict[str, str] | None
 
 
 def test_as_polars_schema():
@@ -95,6 +104,54 @@ def test_as_pyiceberg_schema():
     int_list_field = list_schema.find_field(1)
     assert isinstance(int_list_field.field_type, pyiceberg.types.ListType)
     assert int_list_field.field_type.element_id == 3
+
+
+def test_as_dynamodb_type_spec():
+    """Verify DynamoDB type contracts map scalars and nested types accurately."""
+    schema = FlatScalarSchema.as_dynamodb_type_spec()
+
+    assert schema == {
+        "a_str": DynamoDBTypeSpec(dynamodb_type="S", nullable=False),
+        "an_int": DynamoDBTypeSpec(dynamodb_type="N", nullable=True),
+        "a_float": DynamoDBTypeSpec(dynamodb_type="N", nullable=False),
+        "a_bool": DynamoDBTypeSpec(dynamodb_type="BOOL", nullable=True),
+    }
+
+    map_schema = NestedMapSchema.as_dynamodb_type_spec()
+    assert map_schema == {
+        "metrics": DynamoDBTypeSpec(
+            dynamodb_type="M",
+            nullable=False,
+            value_type=DynamoDBTypeSpec(dynamodb_type="N", nullable=True),
+        ),
+        "labels": DynamoDBTypeSpec(
+            dynamodb_type="M",
+            nullable=True,
+            value_type=DynamoDBTypeSpec(dynamodb_type="S", nullable=True),
+        ),
+    }
+
+    list_schema = NestedListSchema.as_dynamodb_type_spec()
+    assert list_schema["int_list"] == DynamoDBTypeSpec(
+        dynamodb_type="L",
+        nullable=False,
+        item_type=DynamoDBTypeSpec(dynamodb_type="N", nullable=False),
+    )
+    assert list_schema["optional_str_list"] == DynamoDBTypeSpec(
+        dynamodb_type="L",
+        nullable=True,
+        item_type=DynamoDBTypeSpec(dynamodb_type="S", nullable=False),
+    )
+
+
+def test_dynamodb_attribute_type_is_shared_literal_alias():
+    assert set(typing.get_args(DynamoDBAttributeType)) == {
+        "S",
+        "N",
+        "BOOL",
+        "L",
+        "M",
+    }
 
 
 def test_invalid_union_types_raises_error():
@@ -196,3 +253,11 @@ def test_converter_missing_item_type_raises_error():
         ),
     ):
         Schema._to_pyiceberg_type(type_spec=malformed_spec, id_allocator=allocator)
+
+    with pytest.raises(
+        expected_exception=ValueError,
+        match=re.escape(
+            f"Invalid or missing nested types for DynamoDB spec: {malformed_spec}"
+        ),
+    ):
+        Schema._to_dynamodb_type_spec(type_spec=malformed_spec, nullable=False)

@@ -27,6 +27,12 @@ STRUCTURED_METADATA_V6 = IcebergTableConfig(
     table_name="structured_metadata_v6",
 )
 
+UNSTRUCTURED_METADATA_TABLE = IcebergTableConfig(
+    catalog_config=analysis_warehouse.DATA_INDEX_CATALOG_CONFIG,
+    namespace="data_index",
+    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
+)
+
 LOCAL_STRUCTURED_METADATA_TABLE = IcebergTableConfig(
     catalog_config=analysis_warehouse.ANALYSIS_LOCAL_CATALOG,
     namespace="data_index",
@@ -43,4 +49,13 @@ LOCAL_DEAD_LETTER_TABLE = IcebergTableConfig(
     catalog_config=analysis_warehouse.ANALYSIS_LOCAL_CATALOG,
     namespace="data_index",
     table_name=f"dead_letter_v{data_index.protocols.DeadLetter.SCHEMA_VERSION}",
+)
+
+__TEMP__SM_6_DDB_TABLE = IcebergTableConfig(
+    catalog_config=S3TablesCatalogConfig(
+        region="ap-southeast-2",
+        arn="arn:aws:s3tables:ap-southeast-2:704910415367:bucket/zero-etl",
+    ),
+    namespace="zetl_d6657675_4b24_4a9f_85eb_f004b7850b3e",
+    table_name="structured_metadata_v6",
 )

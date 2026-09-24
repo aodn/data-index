@@ -21,6 +21,7 @@ from data_index.runners.task_runner import (
 )
 from data_index.schema.metadata import StructuredMetadata, UnstructuredMetadata
 from data_index.sink import (
+    DynamoDBSink,
     IcebergTableSink,
 )
 
@@ -88,7 +89,7 @@ STRUCTURED_TABLE_SINK = IcebergTableSink(
         "commit.retry.min-wait-ms": "100",
         "commit.retry.max-wait-ms": "10000",
         "commit.retry.total-timeout-ms": "1800000",
-    }
+    },
 )
 
 _UNSTRUCTURED_METADATA_TABLE_CONFIG = IcebergTableConfig(
@@ -109,7 +110,7 @@ UNSTRUCTURED_TABLE_SINK = IcebergTableSink(
         "commit.retry.min-wait-ms": "100",
         "commit.retry.max-wait-ms": "10000",
         "commit.retry.total-timeout-ms": "1800000",
-    }
+    },
 )
 
 _DEAD_LETTER_TABLE_CONFIG = IcebergTableConfig(
@@ -121,6 +122,38 @@ _DEAD_LETTER_TABLE_CONFIG = IcebergTableConfig(
 DEAD_LETTER_TABLE_SINK = IcebergTableSink(
     schema_kind="dead_letter",
     iceberg_table_config=_DEAD_LETTER_TABLE_CONFIG,
+)
+
+# --- DynamoDB sink config ---
+# Query-key primary layout partitions by facility and preserves lexicographic
+# sort by bucket/key within each facility.
+# Sort key segments are tagged for safer begins_with filtering as the index evolves.
+STRUCTURED_DYNAMODB_SINK = DynamoDBSink(
+    table_name=f"structured_metadata_v{StructuredMetadata.SCHEMA_VERSION}",
+    region_name=REGION,
+    query_partition_field="facility",
+    query_sort_fields=(
+        "bucket",
+        "key",
+    ),
+    query_sort_field_tags=(
+        "B",
+        "K",
+    ),
+)
+
+UNSTRUCTURED_DYNAMODB_SINK = DynamoDBSink(
+    table_name=f"unstructured_metadata_v{UnstructuredMetadata.SCHEMA_VERSION}",
+    region_name=REGION,
+    query_partition_field="facility",
+    query_sort_fields=(
+        "bucket",
+        "key",
+    ),
+    query_sort_field_tags=(
+        "B",
+        "K",
+    ),
 )
 
 # --- Runtime Config ---
