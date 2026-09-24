@@ -228,6 +228,29 @@ def test_write_adds_query_keys():
     expected_sort_key = "bucket|key|version"
     assert item["query_pk"] == {"S": "ANMN"}
     assert item["query_sk"] == {"S": expected_sort_key}
+    assert "row_kind" not in item
+
+
+def test_write_unstructured_uses_same_serialization_contract():
+    mock_client = MagicMock()
+    unstructured_row = _unstructured_metadata(hash_value="h1")
+    mock_client.batch_write_item.return_value = {"UnprocessedItems": {}}
+
+    with patch("data_index.sink.dynamodb_sink.boto3.client", return_value=mock_client):
+        sink = DynamoDBSink(
+            table_name="unstructured-metadata",
+            query_partition_field="facility",
+            query_sort_fields=("bucket", "key", "version_id"),
+        )
+        sink.write(metadata=[unstructured_row])
+
+    request_items = mock_client.batch_write_item.call_args.kwargs["RequestItems"]
+    item = request_items["unstructured-metadata"][0]["PutRequest"]["Item"]
+    expected_sort_key = "bucket|path/h1.nc|version"
+    assert item["query_pk"] == {"S": "ANMN"}
+    assert item["query_sk"] == {"S": expected_sort_key}
+    assert item["metadata"] == {"S": '{"global_attrs":{}}'}
+    assert "row_kind" not in item
 
 
 def test_write_adds_tagged_query_sort_key():

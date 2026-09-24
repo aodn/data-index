@@ -271,42 +271,10 @@ class DynamoDBSink(pydantic.BaseModel):
         | data_index.schema.metadata.UnstructuredMetadata,
         serializer: TypeSerializer,
     ) -> dict[str, dict[str, typing.Any]]:
-        """Serialize one metadata row to DynamoDB's typed-attribute map.
-
-        We add a `row_kind` discriminator to aid operational debugging and
-        ad-hoc querying.
-        """
-        if isinstance(row, data_index.schema.metadata.StructuredMetadata):
-            return self._serialize_structured_item(row=row, serializer=serializer)
-        return self._serialize_unstructured_item(row=row, serializer=serializer)
-
-    def _serialize_structured_item(
-        self,
-        row: data_index.schema.metadata.StructuredMetadata,
-        serializer: TypeSerializer,
-    ) -> dict[str, dict[str, typing.Any]]:
-        """Serialize one structured row.
-
-        Structured rows use `as_dynamodb_item`, which applies runtime
-        normalization from the `Schema.as_dynamodb_type_spec` contract.
-        """
+        """Serialize one metadata row to DynamoDB's typed-attribute map."""
+        # Preserve metadata normalization rules from Schema.as_dynamodb_type_spec:
+        # float coercion, null handling, and list/map JSON stringification.
         row_item = row.as_dynamodb_item()
-        row_item["row_kind"] = "structured_metadata"
-        self._inject_query_keys(row_item)
-        return {key: serializer.serialize(value) for key, value in row_item.items()}
-
-    def _serialize_unstructured_item(
-        self,
-        row: data_index.schema.metadata.UnstructuredMetadata,
-        serializer: TypeSerializer,
-    ) -> dict[str, dict[str, typing.Any]]:
-        """Serialize one unstructured row.
-
-        We use a shallow `__dict__.copy()` instead of `dataclasses.asdict()`
-        to avoid recursive deep-copy overhead on a per-row hot path.
-        """
-        row_item = row.__dict__.copy()
-        row_item["row_kind"] = "unstructured_metadata"
         self._inject_query_keys(row_item)
         return {key: serializer.serialize(value) for key, value in row_item.items()}
 
@@ -318,34 +286,7 @@ class DynamoDBSink(pydantic.BaseModel):
         ],
         serializer: TypeSerializer,
     ) -> list[dict[str, dict[str, typing.Any]]]:
-        """Serialize metadata rows with minimal per-row branching.
-
-        Most write calls are homogeneous (all structured or all unstructured).
-        We branch once and run a tight loop to reduce repeated `isinstance`
-        checks over large batches.
-        """
-        first_row = metadata[0]
-        if isinstance(first_row, data_index.schema.metadata.StructuredMetadata):
-            if all(
-                isinstance(row, data_index.schema.metadata.StructuredMetadata)
-                for row in metadata
-            ):
-                return [
-                    self._serialize_structured_item(row=row, serializer=serializer)
-                    for row in metadata
-                ]
-            return [
-                self._serialize_item(row=row, serializer=serializer) for row in metadata
-            ]
-
-        if all(
-            isinstance(row, data_index.schema.metadata.UnstructuredMetadata)
-            for row in metadata
-        ):
-            return [
-                self._serialize_unstructured_item(row=row, serializer=serializer)
-                for row in metadata
-            ]
+        """Serialize metadata rows using a single, normalized row contract."""
         return [
             self._serialize_item(row=row, serializer=serializer) for row in metadata
         ]

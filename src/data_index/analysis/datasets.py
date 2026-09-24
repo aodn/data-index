@@ -24,51 +24,56 @@ DATASET = typing.Literal[
     "station_lucinda_jetty_daily_satlantic_hyperocr",
     "station_lucinda_jetty_daily_satlantic_hyperocr_derived_product",
     "ocean_glider_delayed_qc",
+    "argo",
 ]
 
 DATASET_FILTER: dict[DATASET, polars.Expr] = {
     "station_lucinda_jetty_hourly_wetlabs_wqm": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/WQM-hourly")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/WQM-hourly/")
         & polars.col("key").str.ends_with(".nc")
     ),
     "station_lucinda_jetty_hourly_wetlabs_bb9": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/BB9-hourly")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/BB9-hourly/")
         & polars.col("key").str.ends_with(".nc")
     ),
     "station_lucinda_jetty_hourly_satlantic_hyperocr": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-hourly")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-hourly/")
         & polars.col("key").str.contains(r".*FV01.*\.nc$")
     ),
     "station_lucinda_jetty_dalec_derived_product": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/DALEC")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/DALEC/")
         & polars.col("key").str.contains(r".*FV02.*\.nc$")
     ),
     "station_lucinda_jetty_dalec": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/DALEC")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/DALEC/")
         & polars.col("key").str.contains(r".*FV01.*\.nc$")
     ),
     "station_lucinda_jetty_daily_wetlabs_bb9": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/BB9-daily")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/BB9-daily/")
         & polars.col("key").str.contains(r".*\.nc$")
     ),
     "station_lucinda_jetty_daily_wetlabs_acs": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/ACS-daily")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/ACS-daily/")
         & polars.col("key").str.contains(r".*\.nc$")
     ),
     "station_lucinda_jetty_daily_satlantic_hyperocr": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily/")
         & polars.col("key").str.contains(r".*FV01.*\.nc$")
     ),
     "station_lucinda_jetty_daily_satlantic_hyperocr_derived_product": (
-        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily")
+        polars.col("key").str.contains("IMOS/SRS/OC/LJCO/HyperOCR-daily/")
         & polars.col("key").str.contains(r".*FV02.*\.nc$")
     ),
     "ocean_glider_delayed_qc": (
         (
-            polars.col("key").str.contains("IMOS/ANFOG/seaglider")
+            polars.col("key").str.contains("IMOS/ANFOG/seaglider/")
             | polars.col("key").str.contains("IMOS/ANFOG/slocum_glider")
         )
         & polars.col("key").str.contains(r".*\.nc$")
+    ),
+    "argo": (
+        polars.col("key").str.contains("IMOS/Argo/dac/")
+        & polars.col("key").str.contains(r".*_prof\.nc$")
     ),
 }
 
