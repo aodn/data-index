@@ -3,10 +3,12 @@ import contextlib
 import prefect
 import prefect.task_runners
 
-import data_index
+import data_index.extract
+import data_index.load
 import data_index.protocols
 import data_index.runners.defaults
 import data_index.runners.helpers
+import data_index.transform
 from data_index.runners.types import (
     FileFetcher,
     MetadataExtractor,
@@ -54,7 +56,7 @@ def index_batch(
 
     # Extract batch
     with etl_phase(phase_name="extract"):
-        staged_objects, dead_letters = data_index.extract(
+        staged_objects, dead_letters = data_index.extract.extract(
             object_references=object_reference_batch,
             fetcher=fetcher,
         )
@@ -66,7 +68,7 @@ def index_batch(
 
     # Transform batch
     with etl_phase(phase_name="transform"):
-        extracted_objects, dead_letters = data_index.transform(
+        extracted_objects, dead_letters = data_index.transform.transform(
             staged_objects=staged_objects,
             extractor=extractor,
             max_workers=max_workers,
@@ -79,7 +81,7 @@ def index_batch(
 
     # Load batch
     with etl_phase(phase_name="load"):
-        dead_letters = data_index.load(
+        dead_letters = data_index.load.load(
             extracted_objects=extracted_objects,
             structured_sink=structured_sink,
             unstructured_sink=unstructured_sink,

@@ -135,10 +135,12 @@ STRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     query_sort_fields=(
         "bucket",
         "key",
+        "version_id",
     ),
     query_sort_field_tags=(
         "B",
         "K",
+        "V",
     ),
 )
 
@@ -149,10 +151,12 @@ UNSTRUCTURED_DYNAMODB_SINK = DynamoDBSink(
     query_sort_fields=(
         "bucket",
         "key",
+        "version_id",
     ),
     query_sort_field_tags=(
         "B",
         "K",
+        "V",
     ),
 )
 
